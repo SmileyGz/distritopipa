@@ -8,7 +8,12 @@ import { useState, useCallback } from 'react'
 import type { Product } from '@/lib/supabase'
 import { mockProducts } from '@/lib/mockProducts'
 
-const secret = () => process.env.NEXT_PUBLIC_ADMIN_SECRET || ''
+const secret = () => {
+  if (typeof window !== 'undefined') {
+    return sessionStorage.getItem('dp_admin') || ''
+  }
+  return ''
+}
 
 function adminFetch(url: string, options: RequestInit = {}) {
   return fetch(url, {
@@ -130,7 +135,10 @@ export function useProducts() {
 
     try {
       const res = await adminFetch(`/api/products/${id}`, { method: 'DELETE' })
-      if (!res.ok) throw new Error('Error eliminando')
+      if (!res.ok) {
+        const errJson = await res.json().catch(() => ({}))
+        throw new Error(errJson.error || 'Error eliminando')
+      }
       return true
     } catch (e: any) {
       setError(e.message || 'Error eliminando producto')
