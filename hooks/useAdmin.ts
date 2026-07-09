@@ -159,7 +159,7 @@ export function useProducts() {
   return { fetchProducts, createProduct, updateProduct, deleteProduct, toggleStock, loading, error }
 }
 
-// ─── Image Upload ─────────────────────────────────────────────
+import imageCompression from 'browser-image-compression'
 
 export function useImageUpload() {
   const [uploading, setUploading] = useState(false)
@@ -170,8 +170,26 @@ export function useImageUpload() {
       setUploading(true)
       setError(null)
       try {
+        // 1. Compress the image before uploading
+        const options = {
+          maxSizeMB: 0.3,          // Target max weight (300KB)
+          maxWidthOrHeight: 1080,  // Target max resolution
+          useWebWorker: true,
+          initialQuality: 0.85,    // Good balance of quality/size
+          // fileType is automatically preserved! (PNG stays PNG, JPEG stays JPEG)
+        }
+        
+        let compressedFile = file
+        try {
+          compressedFile = await imageCompression(file, options)
+          console.log(`Compressed from ${(file.size/1024).toFixed(1)}KB to ${(compressedFile.size/1024).toFixed(1)}KB`)
+        } catch (compError) {
+          console.warn('Image compression failed, using original file', compError)
+        }
+
+        // 2. Upload the compressed image
         const form = new FormData()
-        form.append('file', file)
+        form.append('file', compressedFile)
         form.append('category', category)
 
         const res = await fetch('/api/upload', {
