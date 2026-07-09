@@ -63,34 +63,27 @@ export async function POST(req: NextRequest) {
   if (!customer_phone) return NextResponse.json({ error: 'Teléfono requerido.' }, { status: 400 })
   if (!delivery_zone) return NextResponse.json({ error: 'Selecciona opción de entrega.' }, { status: 400 })
 
-  // Get delivery config from DB
-  const { data: config } = await supabase
-    .from('delivery_config')
-    .select('*')
-    .eq('zone', delivery_zone)
-    .single()
-
-  if (!config) return NextResponse.json({ error: 'Zona de entrega inválida.' }, { status: 400 })
-
   // Calculate totals
   const subtotal = items.reduce((sum, item) => sum + item.unit_price * item.qty, 0)
-  const delivery_fee = is_night ? config.fee_night : config.fee_day
+  const delivery_fee = delivery_zone === 'pickup' ? 0 : is_night ? 100 : delivery_zone === 'zone1' ? 40 : 60
   const total = subtotal + delivery_fee
-  const anticipo = Math.ceil(total * config.anticipo_pct) // round up for bank transfer clarity
+  const anticipo = 50 // Fixed $50 anticipo per founder request
 
   // Upsert customer (create or find by phone)
   const { data: customer } = await supabase
     .from('customers')
     .upsert(
       {
+        id: crypto.randomUUID(), // Provide ID if inserting new
         phone: customer_phone,
-        name: customer_name,
+        first_name: customer_name,
         email: customer_email,
       },
       { onConflict: 'phone', ignoreDuplicates: false }
     )
-    .select('id, points, tier')
+    .select('id, current_tier_id')
     .single()
+    .catch(() => ({ data: null })) // Ignore error if upsert fails, we still want to create order
 
   // Create the order
   const { data: order, error } = await supabase
@@ -98,15 +91,14 @@ export async function POST(req: NextRequest) {
     .insert({
       customer_id: customer?.id,
       items,
-      subtotal_mxn: subtotal,
+      subtotal,
       delivery_zone,
       delivery_fee,
-      total_mxn: total,
-      anticipo_mxn: anticipo,
-      anticipo_paid: false,
-      delivery_address,
-      delivery_notes,
-      status: 'pending',
+      total,
+      anticipo_amount: anticipo,
+      anticipo_status: 'pending',
+      fulfillment_type: delivery_zone === 'pickup' ? 'pickup' : 'delivery',
+      status: 'new',
     })
     .select('id, created_at')
     .single()
@@ -163,7 +155,6 @@ export async function POST(req: NextRequest) {
       total,
       anticipo,
       delivery_zone,
-      zone_label: config.label_es,
     },
     payment: {
       clabe: process.env.CLABE_NUMBER || '167691000009770036',
