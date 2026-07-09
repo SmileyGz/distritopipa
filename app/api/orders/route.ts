@@ -168,7 +168,7 @@ export async function POST(req: NextRequest) {
       reference: order.id.slice(0, 8).toUpperCase(), // short order ref for bank transfer
       instructions_es: `Transfiere $${anticipo} MXN a la CLABE indicada. Usa la referencia ${order.id.slice(0,8).toUpperCase()} como concepto. Una vez confirmado el anticipo, te contactaremos por WhatsApp al ${customer_phone}.`,
     },
-    customer_tier: customer?.tier || 'bronze',
+    customer_tier: customer?.current_tier_id || 'bronze',
     estimated_points: Math.floor(total), // points they'll earn on delivery
   })
 }
