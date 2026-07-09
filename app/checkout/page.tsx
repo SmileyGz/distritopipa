@@ -50,7 +50,7 @@ export default function CheckoutPage() {
   const finalTotal = getCartTotal() + deliveryFee;
 
   const isDelivery = fulfillment === 'delivery';
-  const amountToPayNow = isDelivery && !payFull ? 50 : finalTotal;
+  const amountToPayNow = isDelivery ? 50 : finalTotal;
   const balanceDue = finalTotal - amountToPayNow;
 
   const handleNext = () => {
@@ -71,88 +71,88 @@ export default function CheckoutPage() {
       return;
     }
 
-    // Attempt to save to database (fire and forget for now, so it doesn't block WhatsApp redirect if DB is dummy)
+    toast.loading('Generando pago seguro...')
+    
     try {
-      if (process.env.NEXT_PUBLIC_SUPABASE_URL === 'https://dummy.supabase.co' || !process.env.NEXT_PUBLIC_SUPABASE_URL) {
-        // Local mock for testing
-        const newOrder = {
-          id: 'mock-' + Math.random().toString(36).substring(7),
-          order_number: 'ORD-MOCK-' + Math.floor(Math.random() * 1000),
-          status: 'pending',
-          customer_name: customerName,
-          customer_phone: customerPhone,
-          subtotal_mxn: subtotal,
-          delivery_fee: deliveryFee,
-          total_mxn: finalTotal,
-          anticipo_mxn: Math.ceil(finalTotal * 0.25),
-          anticipo_paid: false,
-          delivery_mode: fulfillment,
-          payment_mode: fulfillment === 'pickup' ? 'pickup_cash' : paymentMethod,
-          items: items.map(i => ({ product_id: i.product.id, name: i.product.name_es, qty: i.quantity, unit_price: i.product.price_mxn, color: i.color, size: i.size })),
-          created_at: new Date().toISOString()
-        }
-        const existing = JSON.parse(localStorage.getItem('dp_mock_orders') || '[]')
-        localStorage.setItem('dp_mock_orders', JSON.stringify([newOrder, ...existing]))
-      } else {
+      if (fulfillment === 'pickup') {
+        // Pickup doesn't use MercadoPago, goes straight to WhatsApp
+        let msg = `Hola! Quiero agendar una visita (Pickup) para recoger:\n\n`
+        items.forEach(item => {
+          msg += `📦 ${item.quantity}x ${item.product.name_es} ($${item.quantity * item.product.price_mxn})\n`
+        })
+        msg += `\nCliente: ${customerName} (${customerPhone})`
+        msg += `\nHorario agendado: ${pickupTime}`
+        msg += `\nTotal a pagar en efectivo: $${finalTotal.toLocaleString('es-MX')} MXN\n\n`
+        msg += `Por favor, envíame la ubicación exacta.`
+        
+        const whatsappUrl = `https://wa.me/${process.env.NEXT_PUBLIC_WHATSAPP_NUMBER || '529981234567'}?text=${encodeURIComponent(msg)}`
+        
+        toast.dismiss()
+        toast.success('Redirigiendo a WhatsApp...')
+        clearCart()
+        
+        // Fire and forget db save
         fetch('/api/orders', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             items: items.map(i => ({ product_id: i.product.id, name: i.product.name_es, qty: i.quantity, unit_price: i.product.price_mxn, color: i.color, size: i.size })),
-            delivery_zone: fulfillment === 'pickup' ? 'pickup' : zone,
+            delivery_zone: 'pickup',
+            customer_name: customerName,
+            customer_phone: customerPhone,
+            delivery_address: 'Pickup Local',
+            is_night: false
+          })
+        }).catch(console.error)
+
+        setTimeout(() => {
+          window.open(whatsappUrl, '_blank')
+          router.push('/')
+        }, 1500)
+      } else {
+        // Delivery -> MercadoPago
+        const res = await fetch('/api/orders', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            items: items.map(i => ({ product_id: i.product.id, name: i.product.name_es, qty: i.quantity, unit_price: i.product.price_mxn, color: i.color, size: i.size })),
+            delivery_zone: zone,
             customer_name: customerName,
             customer_phone: customerPhone,
             delivery_address: address,
             is_night: timeOfDay === 'night'
           })
-        }).catch(console.error)
+        })
+        
+        const data = await res.json()
+        
+        toast.dismiss()
+        
+        if (data.init_point) {
+          toast.success('Redirigiendo a MercadoPago...')
+          // We don't clear the cart yet, we clear it on the success page
+          // Store the order details in localStorage for the success page to use
+          localStorage.setItem('dp_pending_order', JSON.stringify({
+            order_id: data.order_id,
+            items,
+            customerName,
+            customerPhone,
+            address,
+            zone,
+            timeOfDay,
+            finalTotal
+          }))
+          
+          window.location.href = data.init_point
+        } else {
+          toast.error('Hubo un error al generar el pago. Intenta de nuevo.')
+          console.error(data)
+        }
       }
     } catch (e) {
+      toast.dismiss()
+      toast.error('Error de conexión')
       console.error('Failed to save order to db', e)
-    }
-
-    if (fulfillment === 'pickup') {
-      let msg = `Hola! Quiero agendar una visita (Pickup) para recoger:\n\n`
-      items.forEach(item => {
-        msg += `📦 ${item.quantity}x ${item.product.name_es} ($${item.quantity * item.product.price_mxn})\n`
-      })
-      msg += `\nCliente: ${customerName} (${customerPhone})`
-      msg += `\nHorario agendado: ${pickupTime}`
-      msg += `\nTotal a pagar en efectivo: $${finalTotal.toLocaleString('es-MX')} MXN\n\n`
-      msg += `Por favor, envíame la ubicación exacta.`
-      
-      const whatsappUrl = `https://wa.me/${process.env.NEXT_PUBLIC_WHATSAPP_NUMBER || '529981234567'}?text=${encodeURIComponent(msg)}`
-      
-      toast.success('Redirigiendo a WhatsApp...')
-      clearCart()
-      setTimeout(() => {
-        window.open(whatsappUrl, '_blank')
-        router.push('/')
-      }, 1500)
-    } else {
-      if (paymentMethod === 'mercadopago') {
-        let msg = `Hola! He completado mi pedido por Envío a Domicilio:\n\n`
-        items.forEach(item => {
-          msg += `📦 ${item.quantity}x ${item.product.name_es} ($${item.quantity * item.product.price_mxn})\n`
-        })
-        msg += `\nCliente: ${customerName} (${customerPhone})`
-        msg += `\nDirección: ${address}`
-        msg += `\nZona: ${zone === 'zone1' ? '1 a 6 km' : '6 a 10 km'}`
-        msg += `\nHorario: ${timeOfDay === 'day' ? 'Día' : 'Noche'}`
-        msg += `\nTotal a pagar: $${finalTotal.toLocaleString('es-MX')} MXN\n\n`
-        msg += `Solicito el enlace de MercadoPago.`
-        
-        const whatsappUrl = `https://wa.me/${process.env.NEXT_PUBLIC_WHATSAPP_NUMBER || '529981234567'}?text=${encodeURIComponent(msg)}`
-        
-        toast.loading('Preparando mensaje...')
-        setTimeout(() => {
-          toast.dismiss()
-          toast.success('Redirigiendo a WhatsApp')
-          clearCart()
-          window.open(whatsappUrl, '_blank')
-          router.push('/')
-        }, 1500)
-      }
     }
   }
 
@@ -344,18 +344,8 @@ export default function CheckoutPage() {
                       </div>
 
                       <div className="deposit-box">
-                        <strong>Garantía de Envío</strong>
-                        <p className="hint-text">Asegura tu pieza pagando un anticipo hoy. El resto lo liquidas al recibir.</p>
-                        <div className="deposit-toggles">
-                          <label className="radio-label">
-                            <input type="radio" checked={!payFull} onChange={() => setPayFull(false)} />
-                            <span>Anticipo ($50 Hoy)</span>
-                          </label>
-                          <label className="radio-label">
-                            <input type="radio" checked={payFull} onChange={() => setPayFull(true)} />
-                            <span>Pagar Total (${finalTotal})</span>
-                          </label>
-                        </div>
+                        <strong>Anticipo de Garantía</strong>
+                        <p className="hint-text">Para proteger tu envío, pagas un anticipo de $50 MXN hoy por MercadoPago. El resto del total (${finalTotal - 50} MXN) lo liquidas en <b>efectivo</b> al recibir tu pedido.</p>
                       </div>
                     </>
                   ) : (
