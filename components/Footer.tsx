@@ -11,9 +11,9 @@ export default function Footer() {
       
       <div className="footer-agency">
         <span>Powered by</span>
-        <a href="https://jonla.com" target="_blank" rel="noreferrer" className="agency-link">
+        <span className="agency-link">
           Jonla Agencia
-        </a>
+        </span>
       </div>
     </footer>
   )
