@@ -1,5 +1,10 @@
 import type { Metadata } from 'next'
+import { Inter, Bebas_Neue, Great_Vibes } from 'next/font/google'
 import './globals.css'
+
+const inter = Inter({ subsets: ['latin'], variable: '--font-inter' })
+const bebas = Bebas_Neue({ weight: '400', subsets: ['latin'], variable: '--font-bebas' })
+const vibes = Great_Vibes({ weight: '400', subsets: ['latin'], variable: '--font-vibes' })
 
 export const metadata: Metadata = {
   title: 'Distrito Pipa — Cancún',
@@ -15,10 +20,22 @@ export const metadata: Metadata = {
   },
 }
 
+import AgeGate from '@/components/AgeGate'
+import { Toaster } from 'react-hot-toast'
+import LayoutWrapper from '@/components/LayoutWrapper'
+
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="es">
-      <body>{children}</body>
+    <html lang="es" className={`${inter.variable} ${bebas.variable} ${vibes.variable}`}>
+      <body style={{ fontFamily: 'var(--font-inter), sans-serif' }}>
+        <AgeGate>
+          <LayoutWrapper>
+            {children}
+          </LayoutWrapper>
+        </AgeGate>
+        <Toaster position="bottom-center" toastOptions={{ style: { background: '#111', color: '#fff', border: '1px solid #333' } }} />
+      </body>
     </html>
   )
 }
+

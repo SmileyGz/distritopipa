@@ -1,272 +1,193 @@
 // components/ProductCard.tsx
-// ─────────────────────────────────────────────────────────────
-// Single product card on the shelf.
-// Shows image, name, price, bundle hint, stock status.
-// Click → triggers detail drawer.
-// ─────────────────────────────────────────────────────────────
-
 import Image from 'next/image'
-import { Product } from './Shelf'
+import { Product } from '@/lib/supabase'
 
 interface ProductCardProps {
   product: Product
   language: 'es' | 'en'
-  onClick: () => void
+  imageUrl: string | null
+  onClick?: () => void
 }
 
-export default function ProductCard({ product, language, onClick }: ProductCardProps) {
-  const name = language === 'es' ? product.name_es : product.name_en
-  const desc = language === 'es' ? product.description_es : product.description_en
-
-  // Format price with commas
+export default function ProductCard({ product, language, imageUrl, onClick }: ProductCardProps) {
+  const name = (language === 'es' ? product.name_es : product.name_en) || 'Producto'
   const priceStr = product.price_mxn.toLocaleString('es-MX')
 
   // Check if there's bundle pricing
   const hasBundle = product.bundle_pricing && product.bundle_pricing.length > 0
-  const bundleHint = hasBundle && product.bundle_pricing[0] ? `2 por $${product.bundle_pricing[0].price}` : null
-
-  // Get first image (Sanity URL)
-  const imageUrl = product.images?.[0]?.asset?.url
+  const bundleHint = hasBundle && product.bundle_pricing[0] ? `${product.bundle_pricing[0].qty} x $${product.bundle_pricing[0].price}` : null
 
   return (
-    <button
+    <div
       onClick={onClick}
-      className={`product-card ${!product.in_stock ? 'out-of-stock' : ''}`}
-      aria-label={`${name}, $${priceStr} MXN. Presiona para detalles.`}
+      className={`poster-product-card ${!product.in_stock ? 'out-of-stock' : ''}`}
+      role="button"
+      tabIndex={0}
+      aria-label={`${name}, $${priceStr} MXN`}
     >
-      {/* Image */}
-      <div className="card-image">
+      <div className="card-image-wrap">
         {imageUrl ? (
           <Image
             src={imageUrl}
             alt={name}
-            width={160}
-            height={160}
+            width={140}
+            height={140}
             quality={85}
-            sizes="(max-width: 640px) 160px, (max-width: 768px) 180px, 200px"
-            style={{ objectFit: 'contain', background: '#1a1a1a' }}
+            unoptimized={true}
+            style={{ objectFit: 'contain', filter: 'drop-shadow(0 10px 10px rgba(0,0,0,0.5))' }}
           />
         ) : (
           <div className="no-image">No image</div>
         )}
 
+        {/* Pricing Sticker */}
+        <div className="price-sticker">
+          <div className="price-main">${priceStr}</div>
+          {bundleHint && (
+            <div className="price-bundle">
+              <span className="bundle-tag">{bundleHint}</span>
+            </div>
+          )}
+        </div>
+
         {/* Out of stock badge */}
         {!product.in_stock && (
-          <div className="oos-badge" aria-label="Out of stock">
-            <span>Agotado</span>
-          </div>
-        )}
-
-        {/* Featured badge */}
-        {product.featured && (
-          <div className="featured-badge" aria-label="Featured product">
-            <span>★</span>
+          <div className="oos-sticker">
+            <span>AGOTADO</span>
           </div>
         )}
       </div>
 
-      {/* Info */}
       <div className="card-info">
         <h3 className="card-name">{name}</h3>
-
         {product.size_cm && <p className="card-size">{product.size_cm} cm</p>}
-
-        {product.colors && product.colors.length > 0 && (
-          <p className="card-colors">{product.colors.join(', ')}</p>
-        )}
-
-        {/* Price */}
-        <div className="card-price">
-          <span className="price">${priceStr}</span>
-          <span className="currency">MXN</span>
-        </div>
-
-        {/* Bundle hint */}
-        {bundleHint && <p className="card-bundle">{bundleHint}</p>}
-
-        {/* CTA */}
-        <div className="card-cta">
-          <span className="cta-text">Detalles →</span>
-        </div>
       </div>
 
       <style>{`
-        .product-card {
+        .poster-product-card {
           display: flex;
           flex-direction: column;
-          gap: 10px;
-          background: #1a1a1a;
-          border: 0.5px solid #2a2a2a;
-          border-radius: 10px;
-          padding: 12px;
+          align-items: center;
+          text-decoration: none;
+          color: #fff;
+          width: 140px;
           cursor: pointer;
-          transition: all 0.2s ease;
-          text-align: left;
-          font-family: inherit;
-
-          /* Remove default button styling */
-          appearance: none;
-          -webkit-appearance: none;
-          margin: 0;
+          transition: transform 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+          position: relative;
         }
 
-        .product-card:hover:not(.out-of-stock) {
-          border-color: #CC2222;
-          background: #262626;
-          transform: translateY(-2px);
+        .poster-product-card:hover:not(.out-of-stock) {
+          transform: scale(1.1) translateY(-10px);
+          z-index: 50;
         }
 
-        .product-card:active:not(.out-of-stock) {
-          transform: translateY(0);
-        }
-
-        .product-card.out-of-stock {
-          opacity: 0.45;
+        .poster-product-card.out-of-stock {
+          opacity: 0.5;
+          filter: grayscale(1);
           cursor: not-allowed;
         }
 
-        .product-card:focus-visible {
-          outline: 2px solid #CC2222;
-          outline-offset: 2px;
-        }
-
-        .card-image {
+        .card-image-wrap {
           position: relative;
           width: 100%;
-          aspect-ratio: 1;
-          background: #111;
+          height: 140px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          margin-bottom: 8px;
+        }
+
+          filter: drop-shadow(0 4px 6px rgba(0,0,0,0.5));
+        }
+
+        /* Pricing Sticker */
+        .price-sticker {
+          position: absolute;
+          top: -8px;
+          right: -8px;
+          background: #DC143C; /* Rojo Eléctrico */
+          color: #fff;
+          padding: 6px 10px;
           border-radius: 6px;
-          overflow: hidden;
+          box-shadow: 0 4px 10px rgba(0,0,0,0.8);
           display: flex;
+          flex-direction: column;
           align-items: center;
-          justify-content: center;
+          gap: 2px;
+          z-index: 10;
+          transition: transform 0.2s;
+        }
+        
+        .poster-product-card:hover .price-sticker {
+          transform: scale(1.05) translateY(-2px);
         }
 
-        .card-image img {
-          width: 100%;
-          height: 100%;
-        }
-
-        .no-image {
-          color: #555;
-          font-size: 12px;
-        }
-
-        .oos-badge {
-          position: absolute;
-          top: 8px;
-          right: 8px;
-          background: rgba(0, 0, 0, 0.8);
-          color: #fff;
-          padding: 4px 10px;
-          border-radius: 4px;
-          font-size: 10px;
-          font-weight: 500;
+        .price-main {
+          font-family: var(--font-bebas), sans-serif;
+          font-size: 24px;
+          line-height: 1;
           letter-spacing: 0.05em;
-          text-transform: uppercase;
-          backdrop-filter: blur(4px);
         }
 
-        .featured-badge {
-          position: absolute;
-          top: 8px;
-          left: 8px;
-          background: #CC2222;
+        .price-bundle {
+          background: #111;
           color: #fff;
-          width: 24px;
-          height: 24px;
-          border-radius: 50%;
+          font-family: var(--font-inter), sans-serif;
+          font-size: 11px;
+          font-weight: 800;
+          padding: 3px 6px;
+          border-radius: 20px;
+          white-space: nowrap;
+        }
+
+        .oos-sticker {
+          position: absolute;
+          inset: 0;
+          background: rgba(0, 0, 0, 0.7);
           display: flex;
           align-items: center;
           justify-content: center;
-          font-size: 14px;
-          font-weight: bold;
+          color: #fff;
+          font-family: var(--font-bebas), sans-serif;
+          font-size: 20px;
+          letter-spacing: 0.1em;
+          border-radius: 8px;
+          backdrop-filter: blur(2px);
+          z-index: 20;
         }
 
         .card-info {
+          text-align: center;
           display: flex;
           flex-direction: column;
-          gap: 4px;
+          gap: 2px;
         }
 
         .card-name {
-          font-size: 13px;
-          font-weight: 500;
+          font-family: var(--font-bebas), sans-serif;
+          font-size: 22px;
           color: #fff;
-          line-height: 1.3;
+          line-height: 1;
+          letter-spacing: 0.05em;
+          text-shadow: 1px 1px 2px rgba(0,0,0,0.8);
           margin: 0;
-          display: -webkit-box;
-          -webkit-line-clamp: 2;
-          -webkit-box-orient: vertical;
-          overflow: hidden;
         }
 
-        .card-size,
-        .card-colors {
+        .card-size {
+          font-family: var(--font-inter), sans-serif;
           font-size: 11px;
-          color: #888;
-          margin: 0;
-          line-height: 1.3;
-        }
-
-        .card-price {
-          display: flex;
-          align-items: baseline;
-          gap: 3px;
-          margin-top: 2px;
-        }
-
-        .price {
-          font-size: 15px;
+          color: #aaa;
           font-weight: 600;
-          color: #CC2222;
-          letter-spacing: -0.01em;
+          margin: 0;
         }
 
-        .currency {
-          font-size: 10px;
-          color: #888;
-          text-transform: uppercase;
-          letter-spacing: 0.05em;
-        }
-
-        .card-bundle {
-          font-size: 10px;
-          color: #555;
-          margin: 2px 0 0 0;
-          font-style: italic;
-        }
-
-        .card-cta {
-          margin-top: 6px;
-          padding-top: 6px;
-          border-top: 0.5px solid #2a2a2a;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-        }
-
-        .cta-text {
-          font-size: 11px;
-          color: #888;
-          font-weight: 500;
-          letter-spacing: 0.05em;
-          transition: color 0.2s;
-        }
-
-        .product-card:hover:not(.out-of-stock) .cta-text {
-          color: #CC2222;
-        }
-
-        @media (prefers-reduced-motion: reduce) {
-          .product-card {
-            transition: none;
-          }
-          .cta-text {
-            transition: none;
-          }
+        @media (min-width: 640px) {
+          .poster-product-card { width: 160px; }
+          .card-image-wrap { height: 160px; }
+          .price-main { font-size: 28px; }
+          .card-name { font-size: 26px; }
         }
       `}</style>
-    </button>
+    </div>
   )
 }

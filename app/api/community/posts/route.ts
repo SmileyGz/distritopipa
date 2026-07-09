@@ -75,7 +75,7 @@ export async function POST(req: NextRequest) {
     // Fail open — log it but don't block the user for a system error
   }
 
-  const isBlocked = moderation?.blocked === true
+  const isBlocked = (moderation as any)?.blocked === true
   const status = isBlocked ? 'blocked' : 'approved'
 
   // Insert the post regardless of outcome (blocked posts stay hidden)
@@ -88,7 +88,7 @@ export async function POST(req: NextRequest) {
       parent_id: parent_id || null,
       customer_id: customer_id || null,
       status,
-      block_reason: isBlocked ? `Blocked word: ${moderation?.matched_word}` : null,
+      block_reason: isBlocked ? `Blocked word: ${(moderation as any)?.matched_word}` : null,
     })
     .select('id, status, created_at')
     .single()

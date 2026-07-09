@@ -6,7 +6,7 @@
 // open pre-filled WhatsApp confirmations per payment mode.
 // ─────────────────────────────────────────────────────────────
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useMemo } from 'react'
 import { supabaseAdmin } from '@/lib/supabase'
 import {
   buildConfirmationUrl,
@@ -16,6 +16,7 @@ import {
   DELIVERY_LABELS,
   type OrderForMessage,
 } from '@/lib/whatsapp'
+import { getVIPStatus, getTierIcon, getTierColor } from '@/lib/clients'
 
 // ─── Types ────────────────────────────────────────────────────
 
@@ -83,6 +84,14 @@ export default function AdminOrdersPage() {
 
   const load = useCallback(async () => {
     setLoading(true)
+    if (process.env.NEXT_PUBLIC_SUPABASE_URL === 'https://dummy.supabase.co' || !process.env.NEXT_PUBLIC_SUPABASE_URL) {
+      const mockOrders = JSON.parse(localStorage.getItem('dp_mock_orders') || '[]')
+      mockOrders.sort((a: any, b: any) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+      setOrders(mockOrders)
+      setLoading(false)
+      return
+    }
+
     const { data, error } = await supabaseAdmin
       .from('orders')
       .select('*')
@@ -117,11 +126,11 @@ export default function AdminOrdersPage() {
       order_number: o.order_number,
       customer_name: o.customer_name,
       customer_phone: o.customer_phone,
-      items: o.items,
-      subtotal_mxn: o.subtotal_mxn,
-      delivery_fee: o.delivery_fee,
-      total_mxn: o.total_mxn,
-      anticipo_mxn: o.anticipo_mxn,
+      items: o.items || [],
+      subtotal_mxn: o.subtotal_mxn || 0,
+      delivery_fee: o.delivery_fee || 0,
+      total_mxn: o.total_mxn || 0,
+      anticipo_mxn: o.anticipo_mxn || 0,
       delivery_mode: o.delivery_mode,
       delivery_zone: o.delivery_zone,
       is_night: o.is_night,
@@ -132,18 +141,27 @@ export default function AdminOrdersPage() {
   }
 
   // ── Actions ────────────────────────────────────────────────
+  
+  async function performUpdate(id: string, updates: Partial<Order>): Promise<boolean> {
+    if (process.env.NEXT_PUBLIC_SUPABASE_URL === 'https://dummy.supabase.co' || !process.env.NEXT_PUBLIC_SUPABASE_URL) {
+      const mockOrders = JSON.parse(localStorage.getItem('dp_mock_orders') || '[]')
+      const updated = mockOrders.map((o: any) => o.id === id ? { ...o, ...updates } : o)
+      localStorage.setItem('dp_mock_orders', JSON.stringify(updated))
+      return true
+    } else {
+      const { error } = await supabaseAdmin.from('orders').update(updates).eq('id', id)
+      return !error
+    }
+  }
 
   async function advanceStatus(order: Order) {
     const next = NEXT_STATUS[order.status]
     if (!next) return
 
     setUpdating(order.id)
-    const { error } = await supabaseAdmin
-      .from('orders')
-      .update({ status: next })
-      .eq('id', order.id)
+    const success = await performUpdate(order.id, { status: next })
 
-    if (error) {
+    if (!success) {
       showToast('❌ Error actualizando pedido')
     } else {
       setOrders(os => os.map(o => o.id === order.id ? { ...o, status: next } : o))
@@ -162,7 +180,7 @@ export default function AdminOrdersPage() {
     if (!confirm(`¿Cancelar el pedido ${order.order_number}?`)) return
 
     setUpdating(order.id)
-    await supabaseAdmin.from('orders').update({ status: 'cancelled' }).eq('id', order.id)
+    await performUpdate(order.id, { status: 'cancelled' })
     setOrders(os => os.map(o => o.id === order.id ? { ...o, status: 'cancelled' } : o))
     setUpdating(null)
     showToast(`🚫 ${order.order_number} cancelado`)
@@ -170,13 +188,13 @@ export default function AdminOrdersPage() {
 
   async function toggleAnticipo(order: Order) {
     const newVal = !order.anticipo_paid
-    await supabaseAdmin.from('orders').update({ anticipo_paid: newVal }).eq('id', order.id)
+    await performUpdate(order.id, { anticipo_paid: newVal })
     setOrders(os => os.map(o => o.id === order.id ? { ...o, anticipo_paid: newVal } : o))
     showToast(newVal ? '💳 Anticipo marcado como recibido' : '💳 Anticipo desmarcado')
   }
 
   async function saveNotes(order: Order, notes: string) {
-    await supabaseAdmin.from('orders').update({ admin_notes: notes }).eq('id', order.id)
+    await performUpdate(order.id, { admin_notes: notes })
     setOrders(os => os.map(o => o.id === order.id ? { ...o, admin_notes: notes } : o))
   }
 
@@ -207,6 +225,22 @@ export default function AdminOrdersPage() {
   const depositsPending = orders.filter(o =>
     o.payment_mode !== 'pickup_cash' && !o.anticipo_paid && !['delivered','cancelled'].includes(o.status)
   ).length
+
+  // ── Calculate VIP status per phone ─────────────────────────
+  const vipByPhone = useMemo(() => {
+    const totals: Record<string, number> = {}
+    orders.forEach(o => {
+      if (o.status !== 'cancelled') {
+        const phone = o.customer_phone.replace(/\D/g, '') || o.customer_phone
+        totals[phone] = (totals[phone] || 0) + o.total_mxn
+      }
+    })
+    const vip: Record<string, ReturnType<typeof getVIPStatus>> = {}
+    for (const phone in totals) {
+      vip[phone] = getVIPStatus(totals[phone])
+    }
+    return vip
+  }, [orders])
 
   // ─────────────────────────────────────────────────────────────
   // RENDER
@@ -363,10 +397,29 @@ export default function AdminOrdersPage() {
               {/* ── Summary row (always visible) ── */}
               <div className="card-summary">
                 <span className="summary-name">{order.customer_name}</span>
+                {(() => {
+                  const phone = order.customer_phone.replace(/\D/g, '') || order.customer_phone
+                  const vip = vipByPhone[phone]
+                  if (vip && vip.tier !== 'Ninguno') {
+                    const color = getTierColor(vip.tier)
+                    return (
+                      <span style={{ fontSize: '10px', fontWeight: 600, color: color, background: `${color}11`, padding: '2px 6px', borderRadius: '10px', border: `1px solid ${color}44`, marginLeft: '4px', display: 'inline-flex', alignItems: 'center', gap: '2px' }}>
+                        {getTierIcon(vip.tier)} {vip.tier}
+                      </span>
+                    )
+                  }
+                  return null
+                })()}
                 <span className="summary-sep">·</span>
-                <span className="summary-mode">{DELIVERY_LABELS[order.delivery_mode]}</span>
-                <span className="summary-sep">·</span>
-                <span className="summary-pay">{PAYMENT_LABELS[order.payment_mode]}</span>
+                {order.status === 'wholesale_inquiry' ? (
+                  <span className="summary-mode" style={{ color: '#f59e0b' }}>Cotización de Mayoreo</span>
+                ) : (
+                  <>
+                    <span className="summary-mode">{DELIVERY_LABELS[order.delivery_mode] || '—'}</span>
+                    <span className="summary-sep">·</span>
+                    <span className="summary-pay">{PAYMENT_LABELS[order.payment_mode] || '—'}</span>
+                  </>
+                )}
                 <span className="summary-sep">·</span>
                 <span className="summary-date">
                   {new Date(order.created_at).toLocaleString('es-MX', {
@@ -382,28 +435,39 @@ export default function AdminOrdersPage() {
 
                     {/* Items */}
                     <div className="detail-section">
-                      <div className="detail-section-title">Productos</div>
-                      <div className="items-list">
-                        {order.items.map((item, i) => (
-                          <div key={i} className="item-row">
-                            <span className="item-qty">{item.qty}x</span>
-                            <span className="item-name">
-                              {item.name}
-                              {item.color ? ` — ${item.color}` : ''}
-                              {item.bundle_qty ? ` (pack ${item.bundle_qty}x)` : ''}
-                            </span>
-                            <span className="item-price">
-                              ${(item.bundle_price ?? item.unit_price * item.qty).toLocaleString('es-MX')}
-                            </span>
-                          </div>
-                        ))}
+                      <div className="detail-section-title">
+                        {order.status === 'wholesale_inquiry' ? 'Detalles de Solicitud' : 'Productos'}
                       </div>
-                      <div className="price-summary">
-                        <div className="price-row">
-                          <span>Subtotal</span>
-                          <span>${order.subtotal_mxn.toLocaleString('es-MX')}</span>
+                      
+                      {order.status === 'wholesale_inquiry' ? (
+                        <div className="admin-notes">
+                          {(order.admin_notes || '').split('\n').map((line, idx) => (
+                            <p key={idx}>{line}</p>
+                          ))}
                         </div>
-                        {order.delivery_fee > 0 && (
+                      ) : (
+                        <>
+                          <div className="items-list">
+                            {(order.items || []).map((item, i) => (
+                              <div key={i} className="item-row">
+                                <span className="item-qty">{item.qty}x</span>
+                                <span className="item-name">
+                                  {item.name}
+                                  {item.color ? ` — ${item.color}` : ''}
+                                  {item.bundle_qty ? ` (pack ${item.bundle_qty}x)` : ''}
+                                </span>
+                                <span className="item-price">
+                                  ${(item.bundle_price ?? item.unit_price * item.qty).toLocaleString('es-MX')}
+                                </span>
+                              </div>
+                            ))}
+                          </div>
+                          <div className="price-summary">
+                            <div className="price-row">
+                              <span>Subtotal</span>
+                              <span>${(order.subtotal_mxn || 0).toLocaleString('es-MX')}</span>
+                            </div>
+                        {(order.delivery_fee || 0) > 0 && (
                           <div className="price-row">
                             <span>Envío</span>
                             <span>${order.delivery_fee.toLocaleString('es-MX')}</span>
@@ -413,14 +477,15 @@ export default function AdminOrdersPage() {
                           <span>TOTAL</span>
                           <span>${order.total_mxn.toLocaleString('es-MX')}</span>
                         </div>
-                        {order.anticipo_mxn > 0 && (
+                        {(order.anticipo_mxn || 0) > 0 && (
                           <div className="price-row anticipo-row">
                             <span>Anticipo requerido</span>
-                            <span>${order.anticipo_mxn.toLocaleString('es-MX')}</span>
+                            <span>${(order.anticipo_mxn || 0).toLocaleString('es-MX')}</span>
                           </div>
                         )}
                       </div>
-                    </div>
+                    </>)}
+                  </div>
 
                     {/* Customer + delivery */}
                     <div className="detail-section">
@@ -472,10 +537,10 @@ export default function AdminOrdersPage() {
                   </div>
 
                   {/* Deposit toggle */}
-                  {order.payment_mode !== 'pickup_cash' && (
+                  {order.payment_mode !== 'pickup_cash' && (order.anticipo_mxn || 0) > 0 && (
                     <div className="anticipo-bar">
                       <div className="anticipo-info">
-                        <span className="anticipo-label">Anticipo ${order.anticipo_mxn.toLocaleString('es-MX')} MXN</span>
+                        <span className="anticipo-label">Anticipo ${(order.anticipo_mxn || 0).toLocaleString('es-MX')} MXN</span>
                         <span className={`anticipo-status ${order.anticipo_paid ? 'paid' : 'unpaid'}`}>
                           {order.anticipo_paid ? '✓ Recibido' : '⏳ Pendiente'}
                         </span>

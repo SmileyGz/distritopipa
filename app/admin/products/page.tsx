@@ -21,6 +21,7 @@ const CATEGORIES = [
 ]
 
 const COLORS = ['Rojo','Verde','Azul','Amarillo','Negro','Blanco','Gris','Naranja','Púrpura','Rosa','Transparente','Ahumado']
+const SIZES = ['CH', 'M', 'G', 'XL', 'XXL']
 
 const EMPTY_PRODUCT: Partial<Product> = {
   name_es: '',
@@ -30,6 +31,7 @@ const EMPTY_PRODUCT: Partial<Product> = {
   bundle_pricing: [],
   size_cm: null,
   colors: [],
+  sizes: [],
   description_es: '',
   description_en: '',
   image_paths: [],
@@ -496,6 +498,27 @@ export default function AdminProductsPage() {
                         }}
                       />
                       <span>{c}</span>
+                    </label>
+                  ))}
+                </div>
+              </div>
+
+              {/* Sizes */}
+              <div className="form-section">
+                <div className="section-title">Tallas (Mismo precio)</div>
+                <div className="color-grid">
+                  {SIZES.map(s => (
+                    <label key={s} className="color-checkbox">
+                      <input
+                        type="checkbox"
+                        checked={(form.sizes || []).includes(s)}
+                        onChange={e => {
+                          const current = form.sizes || []
+                          if (e.target.checked) setField('sizes', [...current, s])
+                          else setField('sizes', current.filter(x => x !== s))
+                        }}
+                      />
+                      <span>{s}</span>
                     </label>
                   ))}
                 </div>

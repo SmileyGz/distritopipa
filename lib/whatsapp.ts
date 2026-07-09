@@ -68,6 +68,7 @@ export const STATUS_LABELS: Record<string,{label:string;color:string}> = {
   ready:     {label:'Listo',      color:'#34d399'},
   delivered: {label:'Entregado',  color:'#4ade80'},
   cancelled: {label:'Cancelado',  color:'#f87171'},
+  wholesale_inquiry: {label:'Cotización Mayoreo', color:'#f59e0b'},
 }
 
 export const PAYMENT_LABELS: Record<string,string> = {

@@ -1,49 +1,82 @@
 'use client'
-// components/Shelf.tsx — Supabase edition (no Sanity)
-// ─────────────────────────────────────────────────────────────
-// Reads products from Supabase, groups by category, renders shelf.
-// ProductCard and ProductDetail are unchanged from previous version.
-// ─────────────────────────────────────────────────────────────
-
 import { useState, useEffect } from 'react'
-import { AnimatePresence, motion } from 'framer-motion'
+import { useSearchParams } from 'next/navigation'
 import { supabase, getImageUrl, type Product } from '@/lib/supabase'
+import { mockProducts } from '@/lib/mockProducts'
 import ProductCard from './ProductCard'
 import ProductDetail from './ProductDetail'
+import { AnimatePresence } from 'framer-motion'
 
 const CATEGORIES = [
-  { id: 'pipes',       label_es: 'Pipes · Burbujas de vidrio',  order: 1 },
-  { id: 'accessories', label_es: 'Accessories · Accesorios',    order: 2 },
-  { id: 'rolling',     label_es: 'Rolling · Para armar',        order: 3 },
-  { id: 'torches',     label_es: 'Torches · Sopletes',          order: 4 },
-  { id: 'bongs',       label_es: 'Bongs · Agua',                order: 5 },
-  { id: 'parts',       label_es: 'Parts · Repuestos',           order: 6 },
+  { id: 'all',         title: 'Todo el Catálogo' },
+  { id: 'pipes',       title: 'Pipas y Burbujas' },
+  { id: 'bongs',       title: 'Bongs' },
+  { id: 'rolling',     title: 'Para Forjar' },
+  { id: 'accessories', title: 'Accesorios' },
+  { id: 'torches',     title: 'Sopletes' },
+  { id: 'parts',       title: 'Repuestos' },
 ]
 
-export default function Shelf({ language = 'es' }: { language?: 'es' | 'en' }) {
-  const [products, setProducts]           = useState<Product[]>([])
-  const [loading, setLoading]             = useState(true)
-  const [selectedProduct, setSelected]    = useState<Product | null>(null)
+export default function Shelf({ language = 'es', initialProducts = [] }: { language?: 'es' | 'en', initialProducts?: Product[] }) {
+  const searchParams = useSearchParams()
+  const initialCategory = searchParams.get('category') || 'all'
+
+  const [products, setProducts] = useState<Product[]>(initialProducts)
+  const [loading, setLoading]   = useState(initialProducts.length === 0)
+  const [activeCategory, setActiveCategory] = useState<string>(initialCategory)
+  const [selectedProduct, setSelectedProduct] = useState<Product | null>(null)
 
   useEffect(() => {
-    supabase
-      .from('products')
-      .select('*')
-      .order('category')
-      .order('sort_order')
-      .then(({ data, error }) => {
-        if (!error && data) setProducts(data as Product[])
-        setLoading(false)
-      })
+    // If the URL param changes, update local state
+    const cat = searchParams.get('category')
+    if (cat && CATEGORIES.some(c => c.id === cat)) {
+      setActiveCategory(cat)
+    }
+  }, [searchParams])
 
-    // Real-time updates: if you toggle stock in admin, shelf updates live
-    const channel = supabase
-      .channel('products-shelf')
+  useEffect(() => {
+    if (initialProducts.length === 0) {
+      if (!process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL === 'https://dummy.supabase.co') {
+        const stored = localStorage.getItem('dp_mock_products')
+        if (stored) {
+          setProducts(JSON.parse(stored))
+        } else {
+          setProducts(mockProducts)
+        }
+        setLoading(false)
+      } else {
+        supabase.from('products').select('*').order('category').order('sort_order')
+          .then(({ data, error }) => {
+            if (error) {
+              console.error('Supabase fetch failed, falling back to mock data:', error)
+              const stored = localStorage.getItem('dp_mock_products')
+              if (stored) {
+                setProducts(JSON.parse(stored))
+              } else {
+                setProducts(mockProducts)
+              }
+              setLoading(false)
+              return
+            }
+            if (data && data.length > 0) {
+              setProducts(data as Product[])
+            } else {
+              const stored = localStorage.getItem('dp_mock_products')
+              if (stored) {
+                setProducts(JSON.parse(stored))
+              } else {
+                setProducts(mockProducts)
+              }
+            }
+            setLoading(false)
+          })
+      }
+    }
+
+    const channel = supabase.channel('products-shelf')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'products' }, payload => {
         if (payload.eventType === 'UPDATE') {
-          setProducts(ps =>
-            ps.map(p => p.id === (payload.new as Product).id ? payload.new as Product : p)
-          )
+          setProducts(ps => ps.map(p => p.id === (payload.new as Product).id ? payload.new as Product : p))
         }
         if (payload.eventType === 'INSERT') {
           setProducts(ps => [...ps, payload.new as Product].sort((a, b) => a.sort_order - b.sort_order))
@@ -51,31 +84,23 @@ export default function Shelf({ language = 'es' }: { language?: 'es' | 'en' }) {
         if (payload.eventType === 'DELETE') {
           setProducts(ps => ps.filter(p => p.id !== (payload.old as Product).id))
         }
-      })
-      .subscribe()
+      }).subscribe()
 
     return () => { supabase.removeChannel(channel) }
   }, [])
 
-  const grouped = CATEGORIES.reduce((acc, cat) => {
-    acc[cat.id] = products.filter(p => p.category === cat.id)
-    return acc
-  }, {} as Record<string, Product[]>)
-
-  const visible = CATEGORIES.filter(c => grouped[c.id]?.length > 0)
+  const displayedProducts = activeCategory === 'all' 
+    ? products 
+    : products.filter(p => p.category === activeCategory)
 
   if (loading) {
     return (
       <div className="shelf-loading">
         <div className="loading-pulse" />
         <div className="loading-pulse" style={{ width: '60%' }} />
-        <div className="loading-pulse" style={{ width: '80%' }} />
         <style>{`
-          .shelf-loading { padding: 48px 20px; display: flex; flex-direction: column; gap: 16px; }
-          .loading-pulse {
-            height: 140px; background: #1a1a1a; border-radius: 8px;
-            animation: pulse 1.5s ease-in-out infinite;
-          }
+          .shelf-loading { padding: 48px 20px; display: flex; flex-direction: column; gap: 16px; width: 100%; }
+          .loading-pulse { height: 140px; background: var(--surface-1); border-radius: 12px; animation: pulse 1.5s ease-in-out infinite; }
           @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
         `}</style>
       </div>
@@ -83,80 +108,129 @@ export default function Shelf({ language = 'es' }: { language?: 'es' | 'en' }) {
   }
 
   return (
-    <>
-      <div className="shelf-wrap">
-        <header className="shelf-header">
-          <p className="shelf-eyebrow">Explora el estante</p>
-          <h1 className="shelf-title">Accesorios premium</h1>
-          <p className="shelf-sub">Selecciona, reserva y recibe en casa</p>
-        </header>
-
-        {visible.map(cat => (
-          <section key={cat.id} className="shelf-row">
-            <div className="row-label">
-              <span className="label-text">
-                {language === 'es' ? cat.label_es : cat.label_es}
-              </span>
-              <span className="label-line" />
-            </div>
-
-            <div className="row-scroll">
-              <div className="row-track">
-                {grouped[cat.id].map((p, i) => (
-                  <motion.div
-                    key={p.id}
-                    className="card-wrap"
-                    initial={{ opacity: 0, y: 8 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: i * 0.04 }}
-                  >
-                    <ProductCard
-                      product={p}
-                      language={language}
-                      imageUrl={p.image_paths?.[0] ? getImageUrl(p.image_paths[0]) : null}
-                      onClick={() => setSelected(p)}
-                    />
-                  </motion.div>
-                ))}
-              </div>
-            </div>
-          </section>
-        ))}
+    <div className="catalog-container">
+      {/* Category Chips */}
+      <div className="category-scroll">
+        <div className="category-chips">
+          {CATEGORIES.map(cat => (
+            <button
+              key={cat.id}
+              className={`chip ${activeCategory === cat.id ? 'active' : ''}`}
+              onClick={() => setActiveCategory(cat.id)}
+            >
+              {cat.title}
+            </button>
+          ))}
+        </div>
       </div>
 
+      {/* Grid */}
+      <div className="product-grid">
+        {displayedProducts.length > 0 ? (
+          displayedProducts.map(p => (
+            <ProductCard
+              key={p.id}
+              product={p}
+              language={language}
+              imageUrl={p.image_paths?.[0] ? getImageUrl(p.image_paths[0]) : null}
+              onClick={() => setSelectedProduct(p)}
+            />
+          ))
+        ) : (
+          <div className="empty-state">No hay productos en esta categoría por el momento.</div>
+        )}
+      </div>
+
+      {/* Modal Drawer */}
       <AnimatePresence>
         {selectedProduct && (
           <ProductDetail
             product={selectedProduct}
             language={language}
-            imageUrls={(selectedProduct.image_paths || []).map(getImageUrl)}
-            onClose={() => setSelected(null)}
+            onClose={() => setSelectedProduct(null)}
           />
         )}
       </AnimatePresence>
 
       <style>{`
-        .shelf-wrap { max-width: 1280px; margin: 0 auto; background: #111; }
-        .shelf-header { padding: 48px 20px 32px; border-bottom: 1px solid #2a2a2a; }
-        .shelf-eyebrow { font-size: 11px; letter-spacing: .15em; color: #888; text-transform: uppercase; margin-bottom: 8px; }
-        .shelf-title { font-size: clamp(28px,5vw,42px); font-weight: 600; color: #fff; margin-bottom: 12px; }
-        .shelf-sub { font-size: 15px; color: #888; line-height: 1.6; }
-        .shelf-row { padding: 32px 20px; border-bottom: 1px solid #1a1a1a; }
-        .row-label { display: flex; align-items: center; gap: 12px; margin-bottom: 16px; }
-        .label-text { font-family: Georgia,serif; font-style: italic; font-size: 14px; color: #fff; white-space: nowrap; }
-        .label-line { flex: 1; height: 1px; background: linear-gradient(to right, #CC2222, transparent); }
-        .row-scroll { overflow-x: auto; overflow-y: hidden; -webkit-overflow-scrolling: touch; padding-bottom: 8px; }
-        .row-scroll::-webkit-scrollbar { height: 5px; }
-        .row-scroll::-webkit-scrollbar-thumb { background: #333; border-radius: 3px; }
-        .row-track { display: flex; gap: 12px; min-width: min-content; }
-        .card-wrap { flex-shrink: 0; width: 160px; }
-        @media (min-width: 640px) { .card-wrap { width: 180px; } }
-        @media (min-width: 900px) {
-          .row-scroll { overflow-x: visible; }
-          .row-track { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px,1fr)); }
-          .card-wrap { width: auto; }
+        .catalog-container {
+          display: flex;
+          flex-direction: column;
+          gap: 24px;
+          width: 100%;
+        }
+
+        .category-scroll {
+          width: 100%;
+          overflow-x: auto;
+          -webkit-overflow-scrolling: touch;
+          padding-bottom: 8px; /* space for scrollbar */
+        }
+        
+        .category-scroll::-webkit-scrollbar {
+          height: 4px;
+        }
+        .category-scroll::-webkit-scrollbar-track {
+          background: transparent;
+        }
+        .category-scroll::-webkit-scrollbar-thumb {
+          background: var(--border);
+          border-radius: 4px;
+        }
+
+        .category-chips {
+          display: flex;
+          gap: 12px;
+          width: max-content;
+        }
+
+        .chip {
+          background: var(--surface-1);
+          color: var(--text-secondary);
+          border: 1px solid var(--border);
+          padding: 8px 16px;
+          border-radius: 20px;
+          font-family: var(--font-inter), sans-serif;
+          font-size: 14px;
+          font-weight: 500;
+          cursor: pointer;
+          transition: all 0.2s;
+        }
+
+        .chip:hover {
+          color: var(--text-primary);
+          border-color: #666;
+        }
+
+        .chip.active {
+          background: #DC143C;
+          color: #fff;
+          border-color: #DC143C;
+          box-shadow: 0 4px 10px rgba(220, 20, 60, 0.3);
+        }
+
+        .product-grid {
+          display: grid;
+          grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+          gap: 24px 16px;
+          justify-items: center;
+        }
+
+        @media (min-width: 640px) {
+          .product-grid {
+            grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+            gap: 32px 24px;
+          }
+        }
+
+        .empty-state {
+          grid-column: 1 / -1;
+          padding: 40px;
+          text-align: center;
+          color: var(--text-secondary);
+          font-family: var(--font-inter), sans-serif;
         }
       `}</style>
-    </>
+    </div>
   )
 }

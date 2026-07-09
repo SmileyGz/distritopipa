@@ -10,7 +10,9 @@
 import { useState } from 'react'
 import { motion } from 'framer-motion'
 import Image from 'next/image'
-import { Product } from './Shelf'
+import { Product } from '@/lib/supabase'
+import { useStore } from '@/lib/store'
+import toast from 'react-hot-toast'
 
 interface ProductDetailProps {
   product: Product
@@ -23,35 +25,28 @@ export default function ProductDetail({ product, language, onClose }: ProductDet
   const desc = language === 'es' ? product.description_es : product.description_en
 
   const [selectedColor, setSelectedColor] = useState<string | null>(product.colors?.[0] || null)
+  const [selectedSize, setSelectedSize] = useState<string | null>(product.sizes?.[0] || null)
   const [quantity, setQuantity] = useState(1)
-  const [selectedBundleQty, setSelectedBundleQty] = useState<number | null>(null)
-
-  // Determine effective price
+  // Calculate effective price with bundle discounts
   const basePrice = product.price_mxn
   let effectivePrice = basePrice * quantity
-  let bundleLabel = ''
-
-  if (selectedBundleQty && product.bundle_pricing) {
-    const bundle = product.bundle_pricing.find(b => b.qty === selectedBundleQty)
-    if (bundle) {
-      effectivePrice = bundle.price * quantity
-      bundleLabel = `${selectedBundleQty}x paquete`
+  let discount = 0
+  
+  if (product.bundle_pricing && product.bundle_pricing.length > 0) {
+    let remainingQty = quantity;
+    let bestPriceTotal = 0;
+    const tiers = [...product.bundle_pricing].sort((a, b) => b.qty - a.qty);
+    for (const tier of tiers) {
+      if (remainingQty >= tier.qty) {
+        const bundles = Math.floor(remainingQty / tier.qty);
+        bestPriceTotal += bundles * tier.price;
+        remainingQty %= tier.qty;
+      }
     }
+    bestPriceTotal += remainingQty * basePrice;
+    discount = (basePrice * quantity) - bestPriceTotal;
+    effectivePrice = bestPriceTotal;
   }
-
-  // Build WhatsApp message
-  const buildWhatsAppMessage = () => {
-    let msg = `Hola! Quiero reservar:\n\n`
-    msg += `📦 ${name}\n`
-    msg += `Cantidad: ${quantity}\n`
-    if (selectedColor) msg += `Color: ${selectedColor}\n`
-    if (bundleLabel) msg += `Opción: ${bundleLabel}\n`
-    msg += `\nTotal estimado: $${effectivePrice.toLocaleString('es-MX')} MXN\n\n`
-    msg += `¿Está disponible? ¿Cuál sería la fecha de entrega?`
-    return encodeURIComponent(msg)
-  }
-
-  const whatsappUrl = `https://wa.me/${process.env.NEXT_PUBLIC_WHATSAPP_NUMBER || '528987099999'}?text=${buildWhatsAppMessage()}`
 
   const drawerVariants = {
     hidden: { y: '100%', opacity: 0 },
@@ -108,12 +103,12 @@ export default function ProductDetail({ product, language, onClose }: ProductDet
         {/* Scrollable content */}
         <div className="drawer-content">
           {/* Images carousel */}
-          {product.images && product.images.length > 0 && (
+          {product.image_paths && product.image_paths.length > 0 && (
             <div className="image-carousel">
-              {product.images.map((img, idx) => (
+              {product.image_paths.map((img, idx) => (
                 <div key={idx} className="carousel-item">
                   <Image
-                    src={img.asset.url}
+                    src={img.startsWith('http') ? img : `/products/${img}`}
                     alt={`${name} - imagen ${idx + 1}`}
                     width={400}
                     height={400}
@@ -155,6 +150,24 @@ export default function ProductDetail({ product, language, onClose }: ProductDet
               )}
             </div>
 
+            {/* Size selector */}
+            {product.sizes && product.sizes.length > 0 && (
+              <div className="selector-group" style={{ marginTop: 20 }}>
+                <label className="selector-label">Talla / Modelo</label>
+                <div className="size-options">
+                  {product.sizes.map(s => (
+                    <button
+                      key={s}
+                      className={`size-btn ${selectedSize === s ? 'active' : ''}`}
+                      onClick={() => setSelectedSize(s)}
+                    >
+                      {s}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
             {/* Color selector */}
             {product.colors && product.colors.length > 0 && (
               <div className="selector-group">
@@ -185,27 +198,15 @@ export default function ProductDetail({ product, language, onClose }: ProductDet
               <label className="selector-label">Cantidad</label>
 
               {product.bundle_pricing && product.bundle_pricing.length > 0 && (
-                <div className="bundle-options">
-                  <button
-                    className={`bundle-btn ${selectedBundleQty === null ? 'active' : ''}`}
-                    onClick={() => setSelectedBundleQty(null)}
-                  >
-                    <span className="bundle-qty">1</span>
-                    <span className="bundle-price">${basePrice}</span>
-                  </button>
-                  {product.bundle_pricing.map(bundle => (
-                    <button
-                      key={bundle.qty}
-                      className={`bundle-btn ${selectedBundleQty === bundle.qty ? 'active' : ''}`}
-                      onClick={() => setSelectedBundleQty(bundle.qty)}
-                    >
-                      <span className="bundle-qty">{bundle.qty}x</span>
-                      <span className="bundle-price">${bundle.price}</span>
-                      <span className="bundle-save">
-                        Ahorra ${Math.round((basePrice * bundle.qty - bundle.price) / 100) * 100}
+                <div className="promo-banner">
+                  <div className="promo-title">🔥 Promociones por Volumen</div>
+                  <div className="promo-list">
+                    {product.bundle_pricing.map(bundle => (
+                      <span key={bundle.qty} className="promo-chip">
+                        Lleva {bundle.qty}x por ${bundle.price} (Ahorra ${Math.round(basePrice * bundle.qty - bundle.price)})
                       </span>
-                    </button>
-                  ))}
+                    ))}
+                  </div>
                 </div>
               )}
 
@@ -241,21 +242,43 @@ export default function ProductDetail({ product, language, onClose }: ProductDet
             <div className="price-summary">
               <div className="price-line">
                 <span>Total estimado:</span>
-                <span className="total-price">${effectivePrice.toLocaleString('es-MX')}</span>
+                <div style={{ textAlign: 'right' }}>
+                  {discount > 0 && (
+                    <span className="original-price" style={{ textDecoration: 'line-through', color: '#888', marginRight: '8px', fontSize: '14px' }}>
+                      ${(basePrice * quantity).toLocaleString('es-MX')}
+                    </span>
+                  )}
+                  <span className="total-price">${effectivePrice.toLocaleString('es-MX')}</span>
+                </div>
               </div>
+              {discount > 0 && (
+                <div className="discount-applied">
+                  ¡Se aplicó un descuento por volumen de ${discount}!
+                </div>
+              )}
               <p className="price-note">Anticipo (25%) y opciones de entrega en el siguiente paso.</p>
             </div>
 
             {/* CTAs */}
             <div className="cta-group">
-              <a
-                href={whatsappUrl}
-                target="_blank"
-                rel="noopener noreferrer"
+              <button
+                onClick={() => {
+                  if (product.sizes?.length && !selectedSize) {
+                    toast.error('Por favor, selecciona una talla primero.');
+                    return;
+                  }
+                  if (product.colors?.length && !selectedColor) {
+                    toast.error('Por favor, selecciona un color primero.');
+                    return;
+                  }
+                  useStore.getState().addToCart(product, quantity, selectedSize, selectedColor);
+                  toast.success(`Agregado: ${quantity}x ${name}`);
+                  onClose();
+                }}
                 className="cta-primary"
               >
-                💬 Reservar via WhatsApp
-              </a>
+                🛒 Agregar al carrito
+              </button>
 
               <button className="cta-secondary" onClick={onClose}>
                 Seguir viendo el estante
@@ -289,20 +312,24 @@ export default function ProductDetail({ product, language, onClose }: ProductDet
           bottom: 0;
           left: 0;
           right: 0;
-          top: 40%;
+          top: 15%; /* Give it more room vertically */
+          max-width: 600px; /* Constrain width on desktop */
+          margin: 0 auto; /* Center on desktop */
           max-height: 90vh;
           background: #111;
-          border-top: 1px solid #2a2a2a;
+          border: 1px solid #2a2a2a;
+          border-bottom: none;
           border-radius: 20px 20px 0 0;
           z-index: 99;
           overflow: hidden;
           display: flex;
           flex-direction: column;
+          box-shadow: 0 -10px 40px rgba(0,0,0,0.5);
         }
 
         @media (max-height: 640px) {
           .detail-drawer {
-            top: 10%;
+            top: 5%;
           }
         }
 
@@ -327,20 +354,24 @@ export default function ProductDetail({ product, language, onClose }: ProductDet
           right: 16px;
           top: 50%;
           transform: translateY(-50%);
-          background: transparent;
-          border: none;
+          background: #1a1a1a;
+          border: 1px solid #333;
+          border-radius: 50%;
           color: #888;
-          font-size: 20px;
+          font-size: 16px;
           cursor: pointer;
-          padding: 8px;
+          width: 32px;
+          height: 32px;
           display: flex;
           align-items: center;
           justify-content: center;
-          transition: color 0.2s;
+          transition: all 0.2s;
         }
 
         .close-btn:hover {
           color: #fff;
+          background: #DC143C;
+          border-color: #DC143C;
         }
 
         .drawer-content {
@@ -364,6 +395,7 @@ export default function ProductDetail({ product, language, onClose }: ProductDet
 
         .image-carousel {
           width: 100%;
+          max-height: 350px; /* Constrain image height */
           aspect-ratio: 1;
           background: #1a1a1a;
           display: flex;
@@ -378,6 +410,7 @@ export default function ProductDetail({ product, language, onClose }: ProductDet
           align-items: center;
           justify-content: center;
           padding: 20px;
+          height: 100%;
         }
 
         .info-section {
@@ -491,52 +524,65 @@ export default function ProductDetail({ product, language, onClose }: ProductDet
           font-style: italic;
         }
 
-        .bundle-options {
+        .size-options {
           display: flex;
-          flex-direction: column;
-          gap: 8px;
-          margin-bottom: 16px;
+          flex-wrap: wrap;
+          gap: 10px;
+          margin-bottom: 8px;
         }
 
-        .bundle-btn {
-          display: flex;
-          justify-content: space-between;
-          align-items: center;
-          padding: 12px 14px;
+        .size-btn {
           background: #1a1a1a;
           border: 1px solid #2a2a2a;
           border-radius: 8px;
+          padding: 8px 16px;
+          color: #fff;
+          font-size: 14px;
+          font-weight: 500;
           cursor: pointer;
           transition: all 0.2s;
-          color: #fff;
-          font-size: 13px;
         }
 
-        .bundle-btn:hover {
+        .size-btn:hover {
           border-color: #CC2222;
-          background: #262626;
         }
 
-        .bundle-btn.active {
+        .size-btn.active {
           border-color: #CC2222;
+          background: rgba(204, 34, 34, 0.15);
+        }
+
+        .promo-banner {
           background: rgba(204, 34, 34, 0.1);
+          border: 1px solid rgba(204, 34, 34, 0.2);
+          border-radius: 6px;
+          padding: 10px;
+          margin-bottom: 12px;
         }
 
-        .bundle-qty {
-          font-weight: 600;
-          min-width: 40px;
-        }
-
-        .bundle-price {
-          color: #CC2222;
-          font-weight: 600;
-        }
-
-        .bundle-save {
+        .promo-title {
           font-size: 11px;
-          color: #4ade80;
-          margin-left: auto;
+          font-weight: 700;
+          text-transform: uppercase;
+          letter-spacing: 0.05em;
+          color: #CC2222;
+          margin-bottom: 6px;
         }
+
+        .promo-list {
+          display: flex;
+          flex-direction: column;
+          gap: 4px;
+        }
+
+        .promo-chip {
+          font-size: 12px;
+          color: #ccc;
+          display: flex;
+          align-items: center;
+          line-height: 1.3;
+        }
+
 
         .quantity-stepper {
           display: flex;
@@ -616,6 +662,13 @@ export default function ProductDetail({ product, language, onClose }: ProductDet
           font-size: 18px;
           font-weight: 600;
           color: #CC2222;
+        }
+
+        .discount-applied {
+          font-size: 13px;
+          color: #4ade80;
+          margin-bottom: 6px;
+          font-weight: 500;
         }
 
         .price-note {

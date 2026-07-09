@@ -73,7 +73,7 @@ export default function AdminAnalyticsPage() {
           const key = item.name
           if (!productMap[key]) productMap[key] = { name: key, category: '', total_ordered: 0, revenue: 0 }
           productMap[key].total_ordered += item.qty || 1
-          productMap[key].revenue += item.bundle_price ?? (item.unit_price * item.qty) ?? 0
+          productMap[key].revenue += item.bundle_price ?? (item.unit_price * item.qty)
         })
       })
       setTopProducts(

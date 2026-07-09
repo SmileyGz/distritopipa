@@ -14,6 +14,7 @@ import { usePathname } from 'next/navigation'
 const NAV = [
   { href: '/admin/products',  label: 'Productos',   icon: '📦' },
   { href: '/admin/orders',    label: 'Pedidos',     icon: '🛒' },
+  { href: '/admin/clients',   label: 'Clientes',    icon: '👑' },
   { href: '/admin/community', label: 'Comunidad',   icon: '💬' },
   { href: '/admin/analytics', label: 'Analytics',   icon: '📊' },
 ]
@@ -147,7 +148,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         </nav>
 
         <div className="sidebar-footer">
-          <Link href="/menu" className="nav-item" target="_blank">
+          <Link href="/catalogo" className="nav-item" target="_blank">
             <span className="nav-icon">🏪</span>
             <span>Ver tienda</span>
           </Link>
@@ -164,7 +165,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         <div className="topbar">
           <button className="menu-btn" onClick={() => setSideOpen(!sideOpen)}>☰</button>
           <span className="topbar-title">
-            {NAV.find(n => n.pathname === pathname)?.label || 'Admin'}
+            {NAV.find(n => n.href === pathname)?.label || 'Admin'}
           </span>
         </div>
 
