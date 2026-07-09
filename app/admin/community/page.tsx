@@ -1,6 +1,8 @@
 'use client'
 import { useState, useEffect } from 'react'
 
+import { supabase } from '@/lib/supabase'
+
 type UserProfile = { phone: string, nickname: string }
 type Answer = { id: string, author: UserProfile, content: string, upvotes: number }
 type Post = { id: string, author: UserProfile, content: string, upvotes: number, answers: Answer[] }
@@ -15,36 +17,57 @@ export default function AdminCommunityPage() {
     setTimeout(() => setToast(null), 3000)
   }
 
-  useEffect(() => {
-    const storedPosts = localStorage.getItem('dp_mock_community_posts')
-    if (storedPosts) {
-      setPosts(JSON.parse(storedPosts))
+  const fetchPosts = async () => {
+    setLoading(true)
+    const { data: rawPosts, error } = await supabase
+      .from('community_posts')
+      .select('*')
+      .order('created_at', { ascending: false })
+
+    if (rawPosts) {
+      const questions = rawPosts.filter(p => !p.parent_id)
+      const answers = rawPosts.filter(p => p.parent_id)
+
+      const formattedPosts = questions.map(q => {
+        const postAnswers = answers
+          .filter(a => a.parent_id === q.id)
+          .sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime())
+          .map(a => ({
+            id: a.id,
+            author: { phone: a.customer_id || '', nickname: a.author_name },
+            content: a.content,
+            upvotes: a.upvotes || 0
+          }))
+
+        return {
+          id: q.id,
+          author: { phone: q.customer_id || '', nickname: q.author_name },
+          content: q.content,
+          upvotes: q.upvotes || 0,
+          answers: postAnswers
+        }
+      })
+      setPosts(formattedPosts)
     }
     setLoading(false)
-  }, [])
-
-  const savePosts = (newPosts: Post[]) => {
-    setPosts(newPosts)
-    localStorage.setItem('dp_mock_community_posts', JSON.stringify(newPosts))
   }
+
+  useEffect(() => {
+    fetchPosts()
+  }, [])
 
   async function deletePost(id: string) {
     if (!confirm('¿Eliminar permanentemente este post de la comunidad?')) return
-    const newPosts = posts.filter(p => p.id !== id)
-    savePosts(newPosts)
+    await supabase.from('community_posts').delete().eq('id', id)
     showToast('🗑️ Post eliminado')
+    fetchPosts()
   }
 
   async function deleteAnswer(postId: string, answerId: string) {
     if (!confirm('¿Eliminar permanentemente esta respuesta?')) return
-    const newPosts = posts.map(p => {
-      if (p.id === postId) {
-        return { ...p, answers: p.answers.filter(a => a.id !== answerId) }
-      }
-      return p
-    })
-    savePosts(newPosts)
+    await supabase.from('community_posts').delete().eq('id', answerId)
     showToast('🗑️ Respuesta eliminada')
+    fetchPosts()
   }
 
   if (loading) return <div className="p-8 text-white">Cargando comunidad...</div>

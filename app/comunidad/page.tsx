@@ -9,34 +9,8 @@ export const metadata: Metadata = {
 
 export const revalidate = 60
 
-const defaultPosts: Post[] = [
-  {
-    id: 'q1',
-    author: { phone: '1234567890', nickname: 'Pedro_Cancun' },
-    content: '¿Cuánto tarda el envío?',
-    upvotes: 8,
-    answers: [
-      { id: 'a1', author: { phone: '9999999999', nickname: 'DistritoPipa' }, content: 'El envío suele tardar entre 1 a 6 km toma alrededor de 45 mins - 1 hora en llegar a tu puerta.', upvotes: 12 },
-    ]
-  },
-  {
-    id: 'q2',
-    author: { phone: '8888888888', nickname: 'SmokeKing' },
-    content: '¿El empaque es discreto?',
-    upvotes: 5,
-    answers: []
-  },
-  {
-    id: 'q3',
-    author: { phone: '5555555555', nickname: 'MariaG' },
-    content: '¿Cómo pago el anticipo?',
-    upvotes: 2,
-    answers: []
-  }
-]
-
 export default async function ComunidadPage() {
-  let initialPosts: Post[] = defaultPosts
+  let initialPosts: Post[] = []
 
   try {
     const { data: rawPosts, error } = await supabase
