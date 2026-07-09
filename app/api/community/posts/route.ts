@@ -11,8 +11,8 @@ import { NextRequest, NextResponse } from 'next/server'
 
 // Service role client — used server-side only, never exposed to browser
 const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!   // server-side only
+  process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://dummy.supabase.co',
+  process.env.SUPABASE_SERVICE_ROLE_KEY || 'dummy'
 )
 
 // Rate limiting: max 3 posts per IP per hour (simple in-memory, upgrade to KV for prod)
