@@ -70,20 +70,25 @@ export async function POST(req: NextRequest) {
   const anticipo = 50 // Fixed $50 anticipo per founder request
 
   // Upsert customer (create or find by phone)
-  const { data: customer } = await supabase
-    .from('customers')
-    .upsert(
-      {
-        id: crypto.randomUUID(), // Provide ID if inserting new
-        phone: customer_phone,
-        first_name: customer_name,
-        email: customer_email,
-      },
-      { onConflict: 'phone', ignoreDuplicates: false }
-    )
-    .select('id, current_tier_id')
-    .single()
-    .catch(() => ({ data: null })) // Ignore error if upsert fails, we still want to create order
+  let customer = null
+  try {
+    const { data } = await supabase
+      .from('customers')
+      .upsert(
+        {
+          id: crypto.randomUUID(), // Provide ID if inserting new
+          phone: customer_phone,
+          first_name: customer_name,
+          email: customer_email,
+        },
+        { onConflict: 'phone', ignoreDuplicates: false }
+      )
+      .select('id, current_tier_id')
+      .single()
+    customer = data
+  } catch (err) {
+    console.error('Customer upsert error:', err)
+  }
 
   // Create the order
   const { data: order, error } = await supabase
