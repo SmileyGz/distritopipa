@@ -182,34 +182,33 @@ export default function AgeGate({ children, minimumAge = 18 }: AgeGateProps) {
           }}
         >
           {/* Logo wordmark */}
-          <div style={{ marginBottom: 28 }}>
+          <div style={{ marginBottom: 28, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
             <div style={{
-              fontSize: 11,
-              letterSpacing: '0.2em',
+              fontSize: 10,
+              letterSpacing: '0.25em',
               color: '#888',
               textTransform: 'uppercase',
-              marginBottom: 4,
+              marginBottom: 0,
+              fontWeight: 500
             }}>
-              Distrito
+              DISTRITO
             </div>
             <div style={{
-              fontFamily: "'Georgia', serif",
-              fontSize: 38,
-              fontStyle: 'italic',
+              fontFamily: 'var(--font-vibes), cursive',
+              fontSize: 48,
               color: '#ffffff',
-              lineHeight: 1,
-              letterSpacing: '-0.01em',
+              lineHeight: 0.9,
+              padding: '4px 0'
             }}>
               Pipa
             </div>
             <div style={{
               fontSize: 10,
-              letterSpacing: '0.3em',
-              color: '#555',
+              letterSpacing: '0.25em',
+              color: '#DC143C',
               textTransform: 'uppercase',
-              marginTop: 4,
             }}>
-              Cancún
+              CANCÚN
             </div>
           </div>
 
