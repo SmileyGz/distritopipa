@@ -28,6 +28,7 @@ export interface Product {
   category: 'pipes'|'accessories'|'rolling'|'torches'|'bongs'|'parts'
   price_mxn: number; bundle_pricing: Array<{qty:number;price:number}>
   size_cm: number | null; colors: string[]; sizes?: string[]; description_es: string | null
+  meta_description_es?: string | null
   image_paths: string[]; in_stock: boolean
   featured: boolean; sort_order: number; slug: string
   created_at: string; updated_at: string

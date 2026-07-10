@@ -33,6 +33,7 @@ const EMPTY_PRODUCT: Partial<Product> = {
   colors: [],
   sizes: [],
   description_es: '',
+  meta_description_es: '',
   image_paths: [],
   in_stock: true,
   featured: false,
@@ -601,6 +602,15 @@ export default function AdminProductsPage() {
                   onChange={e => setField('description_es', e.target.value)}
                   placeholder="Material, características, tamaño..."
                   rows={3}
+                />
+
+                <label className="field-label" style={{ marginTop: '16px' }}>Meta Descripción (SEO)</label>
+                <textarea
+                  className="field-textarea"
+                  value={form.meta_description_es || ''}
+                  onChange={e => setField('meta_description_es', e.target.value)}
+                  placeholder="Si se deja vacío, se generará automáticamente a partir de la descripción principal. (Ideal 150 caracteres)"
+                  rows={2}
                 />
               </div>
 

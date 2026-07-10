@@ -20,12 +20,16 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 
   if (!product) return { title: 'Producto no encontrado | Distrito Pipa' }
 
+  const metaDesc = product.meta_description_es 
+    ? product.meta_description_es
+    : (product.description_es || '').slice(0, 150) + '... Entregas el mismo día en Cancún, empaque discreto.'
+
   return {
     title: `${product.name_es} con Entrega Rápida en Cancún | Distrito Pipa`,
-    description: (product.description_es || '').slice(0, 150) + '... Entregas el mismo día en Cancún, empaque discreto.',
+    description: metaDesc,
     openGraph: {
       title: `${product.name_es} | Distrito Pipa Cancún`,
-      description: 'Compra accesorios de vidrio con entrega el mismo día en Cancún. Trato directo y seguro.',
+      description: metaDesc,
       images: product.image_paths?.[0] ? [{ url: product.image_paths[0] }] : [],
     }
   }
