@@ -25,6 +25,16 @@ export async function POST(req: NextRequest) {
   }
 
   const body = await req.json()
+  
+  // Generate a URL-friendly slug from the Spanish name if not provided
+  if (!body.slug && body.name_es) {
+    body.slug = body.name_es
+      .toLowerCase()
+      .normalize("NFD").replace(/[\u0300-\u036f]/g, "") // Remove accents
+      .replace(/[^a-z0-9]+/g, '-') // Replace spaces/special chars with hyphens
+      .replace(/(^-|-$)+/g, '') // Trim hyphens from start and end
+  }
+
   const { data, error } = await supabaseAdmin
     .from('products')
     .insert(body)
