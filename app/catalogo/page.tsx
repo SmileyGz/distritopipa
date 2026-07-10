@@ -25,7 +25,7 @@ export default async function MenuPage() {
         
         {/* Main Shelf Content */}
         <Suspense fallback={<div style={{ color: 'white', textAlign: 'center' }}>Cargando catálogo...</div>}>
-          <Shelf language="es" initialProducts={products} />
+          <Shelf initialProducts={products} />
         </Suspense>
 
         {/* Bottom Logistics Footer */}

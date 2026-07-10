@@ -17,7 +17,7 @@ const CATEGORIES = [
   { id: 'parts',       title: 'Repuestos' },
 ]
 
-export default function Shelf({ language = 'es', initialProducts = [] }: { language?: 'es' | 'en', initialProducts?: Product[] }) {
+export default function Shelf({ initialProducts = [] }: { initialProducts?: Product[] }) {
   const searchParams = useSearchParams()
   const initialCategory = searchParams.get('category') || 'all'
 
@@ -131,7 +131,6 @@ export default function Shelf({ language = 'es', initialProducts = [] }: { langu
             <ProductCard
               key={p.id}
               product={p}
-              language={language}
               imageUrl={p.image_paths?.[0] ? getImageUrl(p.image_paths[0]) : null}
               onClick={() => setSelectedProduct(p)}
             />
@@ -146,7 +145,6 @@ export default function Shelf({ language = 'es', initialProducts = [] }: { langu
         {selectedProduct && (
           <ProductDetail
             product={selectedProduct}
-            language={language}
             onClose={() => setSelectedProduct(null)}
           />
         )}
