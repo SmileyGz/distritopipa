@@ -3,9 +3,9 @@ import Link from 'next/link'
 import { getSortedPostsData } from '../../lib/markdown'
 
 export const metadata: Metadata = {
-  title: 'Cultura & Barrio | Distrito Pipa Cancún',
+  title: 'Blog | Distrito Pipa Cancún',
   description: 'Artículos, guías y contenido local sobre accesorios de cristal y entregas en Cancún.',
-  keywords: ['Cultura smoke shop Cancún', 'Distrito Pipa blog', 'Pipas de cristal Cancún']
+  keywords: ['Blog smoke shop Cancún', 'Distrito Pipa blog', 'Pipas de cristal Cancún']
 }
 
 export default function CulturaPage() {
@@ -16,7 +16,7 @@ export default function CulturaPage() {
       <div className="cultura-container">
         
         <header className="cultura-header">
-          <h1>Cultura & Barrio</h1>
+          <h1>Blog</h1>
           <p>Artículos, guías y contenido local de Cancún.</p>
         </header>
 
