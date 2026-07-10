@@ -26,11 +26,10 @@ export default async function HomePage() {
     featured = mockProducts.filter(p => p.featured).slice(0, 8)
   } else {
     const { data, error } = await supabase.from('products').select('*').eq('featured', true).eq('in_stock', true).order('sort_order').limit(8)
-    if (!error && data && data.length > 0) {
+    if (!error && data) {
       featured = data as Product[]
-    } else {
-      if (error) console.error('Supabase fetch failed on home:', error)
-      featured = mockProducts.filter(p => p.featured).slice(0, 8)
+    } else if (error) {
+      console.error('Supabase fetch failed on home:', error)
     }
 
     const { data: postsData } = await supabase.from('community_posts').select('id, author_name, content, upvotes, created_at')

@@ -48,25 +48,12 @@ export default function Shelf({ initialProducts = [] }: { initialProducts?: Prod
         supabase.from('products').select('*').order('category').order('sort_order')
           .then(({ data, error }) => {
             if (error) {
-              console.error('Supabase fetch failed, falling back to mock data:', error)
-              const stored = localStorage.getItem('dp_mock_products')
-              if (stored) {
-                setProducts(JSON.parse(stored))
-              } else {
-                setProducts(mockProducts)
-              }
+              console.error('Supabase fetch failed:', error)
               setLoading(false)
               return
             }
-            if (data && data.length > 0) {
+            if (data) {
               setProducts(data as Product[])
-            } else {
-              const stored = localStorage.getItem('dp_mock_products')
-              if (stored) {
-                setProducts(JSON.parse(stored))
-              } else {
-                setProducts(mockProducts)
-              }
             }
             setLoading(false)
           })
