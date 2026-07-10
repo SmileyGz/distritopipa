@@ -35,7 +35,8 @@ export interface Product {
 
 export function getImageUrl(path: string): string {
   if (path.startsWith('http') || path.startsWith('/')) return path
-  return `/products/${path}`
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://dummy.supabase.co'
+  return `${supabaseUrl}/storage/v1/object/public/product-images/${path}`
 }
 
 export async function getProducts(): Promise<Product[]> {
