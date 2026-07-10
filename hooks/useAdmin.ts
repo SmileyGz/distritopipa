@@ -178,26 +178,9 @@ export function useImageUpload() {
       setUploading(true)
       setError(null)
       try {
-        // 1. Compress the image before uploading
-        const options = {
-          maxSizeMB: 0.3,          // Target max weight (300KB)
-          maxWidthOrHeight: 1080,  // Target max resolution
-          useWebWorker: true,
-          initialQuality: 0.85,    // Good balance of quality/size
-          // fileType is automatically preserved! (PNG stays PNG, JPEG stays JPEG)
-        }
-        
-        let compressedFile = file
-        try {
-          compressedFile = await imageCompression(file, options)
-          console.log(`Compressed from ${(file.size/1024).toFixed(1)}KB to ${(compressedFile.size/1024).toFixed(1)}KB`)
-        } catch (compError) {
-          console.warn('Image compression failed, using original file', compError)
-        }
-
-        // 2. Upload the compressed image
+        // Upload the original file directly (no compression) to avoid blob corruption
         const form = new FormData()
-        form.append('file', compressedFile, file.name) // Guarantee original filename is sent
+        form.append('file', file) 
         form.append('category', category)
 
         const res = await fetch('/api/upload', {
