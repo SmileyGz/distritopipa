@@ -9,8 +9,7 @@
 
 import { useState } from 'react'
 import { motion } from 'framer-motion'
-import Image from 'next/image'
-import { Product } from '@/lib/supabase'
+import { Product, getImageUrl } from '@/lib/supabase'
 import { useStore } from '@/lib/store'
 import toast from 'react-hot-toast'
 
@@ -106,13 +105,9 @@ export default function ProductDetail({ product, onClose }: ProductDetailProps) 
             <div className="image-carousel">
               {product.image_paths.map((img, idx) => (
                 <div key={idx} className="carousel-item">
-                  <Image
-                    src={img.startsWith('http') ? img : `/products/${img}`}
+                  <img
+                    src={getImageUrl(img)}
                     alt={`${name} - imagen ${idx + 1}`}
-                    width={400}
-                    height={400}
-                    quality={90}
-                    priority={idx === 0}
                     style={{ objectFit: 'contain', width: '100%', height: 'auto' }}
                   />
                 </div>
