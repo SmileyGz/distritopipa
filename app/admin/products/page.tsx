@@ -100,8 +100,10 @@ export default function AdminProductsPage() {
 
     for (const file of Array.from(files)) {
       const result = await uploadImage(file, category)
-      if (result) {
-        setForm(f => ({ ...f, image_paths: [...(f.image_paths || []), result.path] }))
+      if (result && result.path) {
+        setForm(f => ({ ...f, image_paths: [...(f.image_paths || []), result.path as string] }))
+      } else {
+        showToast(`❌ Error: ${result?.error || 'Desconocido'}`)
       }
     }
   }

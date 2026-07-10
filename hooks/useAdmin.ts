@@ -174,7 +174,7 @@ export function useImageUpload() {
   const [error, setError] = useState<string | null>(null)
 
   const uploadImage = useCallback(
-    async (file: File, category: string): Promise<{ path: string; url: string } | null> => {
+    async (file: File, category: string): Promise<{ path?: string; url?: string; error?: string }> => {
       setUploading(true)
       setError(null)
       try {
@@ -210,7 +210,7 @@ export function useImageUpload() {
         return { path: json.path, url: json.url }
       } catch (e: any) {
         setError(e.message || 'Error subiendo imagen')
-        return null
+        return { error: e.message || 'Error subiendo imagen' }
       } finally {
         setUploading(false)
       }
