@@ -4,8 +4,6 @@ import { useSearchParams } from 'next/navigation'
 import { supabase, getImageUrl, type Product } from '@/lib/supabase'
 import { mockProducts } from '@/lib/mockProducts'
 import ProductCard from './ProductCard'
-import ProductDetail from './ProductDetail'
-import { AnimatePresence } from 'framer-motion'
 
 const CATEGORIES = [
   { id: 'all',         title: 'Todo el Catálogo' },
@@ -24,7 +22,6 @@ export default function Shelf({ initialProducts = [] }: { initialProducts?: Prod
   const [products, setProducts] = useState<Product[]>(initialProducts)
   const [loading, setLoading]   = useState(initialProducts.length === 0)
   const [activeCategory, setActiveCategory] = useState<string>(initialCategory)
-  const [selectedProduct, setSelectedProduct] = useState<Product | null>(null)
 
   useEffect(() => {
     // If the URL param changes, update local state
@@ -119,23 +116,12 @@ export default function Shelf({ initialProducts = [] }: { initialProducts?: Prod
               key={p.id}
               product={p}
               imageUrl={p.image_paths?.[0] ? getImageUrl(p.image_paths[0]) : null}
-              onClick={() => setSelectedProduct(p)}
             />
           ))
         ) : (
           <div className="empty-state">No hay productos en esta categoría por el momento.</div>
         )}
       </div>
-
-      {/* Modal Drawer */}
-      <AnimatePresence>
-        {selectedProduct && (
-          <ProductDetail
-            product={selectedProduct}
-            onClose={() => setSelectedProduct(null)}
-          />
-        )}
-      </AnimatePresence>
 
       <style>{`
         .catalog-container {

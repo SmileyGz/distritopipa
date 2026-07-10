@@ -1,14 +1,13 @@
 // components/ProductCard.tsx
-import Image from 'next/image'
+import Link from 'next/link'
 import { Product } from '@/lib/supabase'
 
 interface ProductCardProps {
   product: Product
   imageUrl: string | null
-  onClick?: () => void
 }
 
-export default function ProductCard({ product, imageUrl, onClick }: ProductCardProps) {
+export default function ProductCard({ product, imageUrl }: ProductCardProps) {
   const name = product.name_es || 'Producto'
   const priceStr = product.price_mxn.toLocaleString('es-MX')
 
@@ -17,11 +16,9 @@ export default function ProductCard({ product, imageUrl, onClick }: ProductCardP
   const bundleHint = hasBundle && product.bundle_pricing[0] ? `${product.bundle_pricing[0].qty} x $${product.bundle_pricing[0].price}` : null
 
   return (
-    <div
-      onClick={onClick}
+    <Link
+      href={`/producto/${product.slug}`}
       className={`poster-product-card ${!product.in_stock ? 'out-of-stock' : ''}`}
-      role="button"
-      tabIndex={0}
       aria-label={`${name}, $${priceStr} MXN`}
     >
       <div className="card-image-wrap">
@@ -180,6 +177,6 @@ export default function ProductCard({ product, imageUrl, onClick }: ProductCardP
           .card-name { font-size: 26px; }
         }
       `}</style>
-    </div>
+    </Link>
   )
 }

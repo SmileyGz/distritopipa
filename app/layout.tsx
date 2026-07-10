@@ -24,13 +24,20 @@ import AgeGate from '@/components/AgeGate'
 import { Toaster } from 'react-hot-toast'
 import LayoutWrapper from '@/components/LayoutWrapper'
 
-export default function RootLayout({ children }: { children: React.ReactNode }) {
+export default function RootLayout({
+  children,
+  modal,
+}: {
+  children: React.ReactNode
+  modal: React.ReactNode
+}) {
   return (
     <html lang="es" className={`${inter.variable} ${bebas.variable} ${vibes.variable}`}>
       <body style={{ fontFamily: 'var(--font-inter), sans-serif' }}>
         <AgeGate>
           <LayoutWrapper>
             {children}
+            {modal}
           </LayoutWrapper>
         </AgeGate>
         <Toaster position="bottom-center" toastOptions={{ style: { background: '#111', color: '#fff', border: '1px solid #333' } }} />

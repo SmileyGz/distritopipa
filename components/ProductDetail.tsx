@@ -13,12 +13,19 @@ import { Product, getImageUrl } from '@/lib/supabase'
 import { useStore } from '@/lib/store'
 import toast from 'react-hot-toast'
 
+import { useRouter } from 'next/navigation'
+
 interface ProductDetailProps {
   product: Product
-  onClose: () => void
+  onClose?: () => void
 }
 
 export default function ProductDetail({ product, onClose }: ProductDetailProps) {
+  const router = useRouter()
+  const handleClose = () => {
+    if (onClose) onClose()
+    else router.back()
+  }
   const name = product.name_es
   const desc = product.description_es
 
@@ -93,7 +100,7 @@ export default function ProductDetail({ product, onClose }: ProductDetailProps) 
         {/* Handle bar + close */}
         <div className="drawer-header">
           <div className="handle" aria-hidden="true" />
-          <button className="close-btn" onClick={onClose} aria-label="Cerrar">
+          <button className="close-btn" onClick={handleClose} aria-label="Cerrar">
             ✕
           </button>
         </div>
@@ -267,14 +274,14 @@ export default function ProductDetail({ product, onClose }: ProductDetailProps) 
                   }
                   useStore.getState().addToCart(product, quantity, selectedSize, selectedColor);
                   toast.success(`Agregado: ${quantity}x ${name}`);
-                  onClose();
+                  handleClose();
                 }}
                 className="cta-primary"
               >
                 🛒 Agregar al carrito
               </button>
 
-              <button className="cta-secondary" onClick={onClose}>
+              <button className="cta-secondary" onClick={handleClose}>
                 Seguir viendo el estante
               </button>
             </div>
