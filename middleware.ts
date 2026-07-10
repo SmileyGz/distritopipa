@@ -62,7 +62,7 @@ export function middleware(request: NextRequest) {
       "script-src 'self' 'unsafe-inline' 'unsafe-eval'", // Next.js needs unsafe-eval in dev
       "style-src 'self' 'unsafe-inline' fonts.googleapis.com",
       "font-src 'self' fonts.gstatic.com",
-      "img-src 'self' data: blob: cdn.sanity.io",
+      "img-src 'self' data: blob: cdn.sanity.io *.supabase.co",
       "connect-src 'self' *.supabase.co wss://*.supabase.co",
       "frame-ancestors 'none'",
     ].join('; ')
