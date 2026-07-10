@@ -37,12 +37,9 @@ export async function POST(req: NextRequest) {
   // Path: category/filename-timestamp.ext
   const storagePath = `${category}/${safeName}-${timestamp}.${ext}`
 
-  const bytes = await file.arrayBuffer()
-  const buffer = Buffer.from(bytes)
-
   const { error } = await supabaseAdmin.storage
     .from(BUCKET)
-    .upload(storagePath, buffer, {
+    .upload(storagePath, file, {
       contentType: file.type,
       upsert: false,
     })
