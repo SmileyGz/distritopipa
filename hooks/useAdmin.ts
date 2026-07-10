@@ -197,7 +197,7 @@ export function useImageUpload() {
 
         // 2. Upload the compressed image
         const form = new FormData()
-        form.append('file', compressedFile)
+        form.append('file', compressedFile, file.name) // Guarantee original filename is sent
         form.append('category', category)
 
         const res = await fetch('/api/upload', {
