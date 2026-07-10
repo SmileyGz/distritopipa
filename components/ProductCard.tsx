@@ -4,13 +4,12 @@ import { Product } from '@/lib/supabase'
 
 interface ProductCardProps {
   product: Product
-  language: 'es' | 'en'
   imageUrl: string | null
   onClick?: () => void
 }
 
-export default function ProductCard({ product, language, imageUrl, onClick }: ProductCardProps) {
-  const name = (language === 'es' ? product.name_es : product.name_en) || 'Producto'
+export default function ProductCard({ product, imageUrl, onClick }: ProductCardProps) {
+  const name = product.name_es || 'Producto'
   const priceStr = product.price_mxn.toLocaleString('es-MX')
 
   // Check if there's bundle pricing

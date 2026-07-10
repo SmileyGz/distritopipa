@@ -16,13 +16,12 @@ import toast from 'react-hot-toast'
 
 interface ProductDetailProps {
   product: Product
-  language: 'es' | 'en'
   onClose: () => void
 }
 
-export default function ProductDetail({ product, language, onClose }: ProductDetailProps) {
-  const name = language === 'es' ? product.name_es : product.name_en
-  const desc = language === 'es' ? product.description_es : product.description_en
+export default function ProductDetail({ product, onClose }: ProductDetailProps) {
+  const name = product.name_es
+  const desc = product.description_es
 
   const [selectedColor, setSelectedColor] = useState<string | null>(product.colors?.[0] || null)
   const [selectedSize, setSelectedSize] = useState<string | null>(product.sizes?.[0] || null)

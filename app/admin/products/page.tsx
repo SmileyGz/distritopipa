@@ -25,7 +25,7 @@ const SIZES = ['CH', 'M', 'G', 'XL', 'XXL']
 
 const EMPTY_PRODUCT: Partial<Product> = {
   name_es: '',
-  name_en: '',
+  cost_mxn: 0,
   category: 'pipes',
   price_mxn: 0,
   bundle_pricing: [],
@@ -33,7 +33,6 @@ const EMPTY_PRODUCT: Partial<Product> = {
   colors: [],
   sizes: [],
   description_es: '',
-  description_en: '',
   image_paths: [],
   in_stock: true,
   featured: false,
@@ -381,20 +380,12 @@ export default function AdminProductsPage() {
               <div className="form-section">
                 <div className="section-title">Información básica</div>
 
-                <label className="field-label">Nombre (Español) *</label>
+                <label className="field-label">Nombre *</label>
                 <input
                   className="field-input"
                   value={form.name_es || ''}
                   onChange={e => setField('name_es', e.target.value)}
                   placeholder="Ej: Burbuja Reforzada"
-                />
-
-                <label className="field-label">Name (English)</label>
-                <input
-                  className="field-input"
-                  value={form.name_en || ''}
-                  onChange={e => setField('name_en', e.target.value)}
-                  placeholder="E.g. Reinforced Bubble Pipe"
                 />
 
                 <label className="field-label">Categoría *</label>
@@ -410,7 +401,18 @@ export default function AdminProductsPage() {
 
                 <div className="field-row">
                   <div>
-                    <label className="field-label">Precio MXN *</label>
+                    <label className="field-label">Costo de Proveedor (MXN)</label>
+                    <input
+                      className="field-input"
+                      type="number"
+                      min="0"
+                      value={form.cost_mxn || ''}
+                      onChange={e => setField('cost_mxn', parseFloat(e.target.value) || 0)}
+                      placeholder="0"
+                    />
+                  </div>
+                  <div>
+                    <label className="field-label">Precio Público (MXN) *</label>
                     <input
                       className="field-input"
                       type="number"
@@ -590,21 +592,12 @@ export default function AdminProductsPage() {
               <div className="form-section">
                 <div className="section-title">Descripciones</div>
 
-                <label className="field-label">Descripción (Español)</label>
+                <label className="field-label">Descripción</label>
                 <textarea
                   className="field-textarea"
                   value={form.description_es || ''}
                   onChange={e => setField('description_es', e.target.value)}
                   placeholder="Material, características, tamaño..."
-                  rows={3}
-                />
-
-                <label className="field-label">Description (English)</label>
-                <textarea
-                  className="field-textarea"
-                  value={form.description_en || ''}
-                  onChange={e => setField('description_en', e.target.value)}
-                  placeholder="Material, features, size..."
                   rows={3}
                 />
               </div>
