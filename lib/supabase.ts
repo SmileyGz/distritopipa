@@ -35,7 +35,7 @@ export interface Product {
 
 export function getImageUrl(path: string): string {
   if (path.startsWith('http') || path.startsWith('/')) return path
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://dummy.supabase.co'
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://zlhyelvzmwwtrjvhhhov.supabase.co'
   return `${supabaseUrl}/storage/v1/object/public/product-images/${path}`
 }
 

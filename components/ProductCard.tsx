@@ -26,14 +26,10 @@ export default function ProductCard({ product, imageUrl, onClick }: ProductCardP
     >
       <div className="card-image-wrap">
         {imageUrl ? (
-          <Image
+          <img
             src={imageUrl}
             alt={name}
-            width={140}
-            height={140}
-            quality={85}
-            unoptimized={true}
-            style={{ objectFit: 'contain', filter: 'drop-shadow(0 10px 10px rgba(0,0,0,0.5))' }}
+            style={{ width: '140px', height: '140px', objectFit: 'contain', filter: 'drop-shadow(0 10px 10px rgba(0,0,0,0.5))' }}
           />
         ) : (
           <div className="no-image">No image</div>
@@ -94,9 +90,6 @@ export default function ProductCard({ product, imageUrl, onClick }: ProductCardP
           align-items: center;
           justify-content: center;
           margin-bottom: 8px;
-        }
-
-          filter: drop-shadow(0 4px 6px rgba(0,0,0,0.5));
         }
 
         /* Pricing Sticker */
