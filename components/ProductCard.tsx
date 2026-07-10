@@ -29,7 +29,7 @@ export default function ProductCard({ product, imageUrl, onClick }: ProductCardP
           <img
             src={imageUrl}
             alt={name}
-            style={{ width: '140px', height: '140px', objectFit: 'contain', filter: 'drop-shadow(0 10px 10px rgba(0,0,0,0.5))' }}
+            style={{ width: '140px', height: '140px', objectFit: 'contain' }}
           />
         ) : (
           <div className="no-image">No image</div>
