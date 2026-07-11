@@ -387,7 +387,7 @@ export default function AdminClientsPage() {
                     </div>
                   </div>
                   
-                  <div className="card-actions" style={{ marginTop: 16 }}>
+                  <div className="card-actions" style={{ marginTop: 16, display: 'flex', gap: '8px' }}>
                     <a 
                       className="btn-whatsapp-sm" 
                       href={`https://wa.me/${client.phone.replace(/\D/g,'')}`}
@@ -395,6 +395,19 @@ export default function AdminClientsPage() {
                     >
                       💬 Enviar WhatsApp
                     </a>
+                    <button
+                      className="btn-whatsapp-sm"
+                      style={{ background: 'transparent', border: '1px solid #f87171', color: '#f87171' }}
+                      onClick={async () => {
+                        if (confirm(`¿Estás seguro de que quieres eliminar a ${client.name} y TODOS sus pedidos?`)) {
+                          const res = await adminFetch(`/api/admin/clients?phone=${encodeURIComponent(client.phone)}`, { method: 'DELETE' })
+                          if (res.ok) load()
+                          else alert('Error al eliminar el cliente.')
+                        }
+                      }}
+                    >
+                      🗑️ Eliminar Cliente
+                    </button>
                   </div>
                 </div>
               )}
