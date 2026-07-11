@@ -131,7 +131,7 @@ export async function POST(req: NextRequest) {
       is_night,
       delivery_fee,
       total,
-      payment_mode: payment_preference === 'total' ? 'full_prepay' : 'deposit',
+      payment_mode: payment_preference === 'total' ? 'full_prepay' : (delivery_zone === 'pickup' ? 'pickup_cash' : 'deposit'),
       anticipo_amount: anticipo,
       anticipo_status: 'pending',
       fulfillment_type: delivery_zone === 'pickup' ? 'pickup' : 'delivery',
