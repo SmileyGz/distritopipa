@@ -9,6 +9,7 @@ export default function CheckoutSuccessPage() {
   const searchParams = useSearchParams()
   const payment_id = searchParams.get('payment_id')
   const status = searchParams.get('status')
+  const external_reference = searchParams.get('external_reference')
   
   const clearCart = useStore(state => state.clearCart)
   const [mounted, setMounted] = useState(false)
@@ -25,16 +26,19 @@ export default function CheckoutSuccessPage() {
         setOrderData(orderInfo)
         localStorage.removeItem('dp_pending_order')
 
-        if (status === 'approved' && orderInfo.order_id) {
-          fetch('/api/orders', {
-            method: 'PATCH',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              order_id: orderInfo.order_id,
-              payment_reference: payment_id || 'mercadopago_redirect',
-              gateway: 'mercadopago'
-            })
-          }).catch(console.error)
+        if (status === 'approved') {
+          const finalOrderId = external_reference || orderInfo.order_id
+          if (finalOrderId) {
+            fetch('/api/orders', {
+              method: 'PATCH',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                order_id: finalOrderId,
+                payment_reference: payment_id || 'mercadopago_redirect',
+                gateway: 'mercadopago'
+              })
+            }).catch(console.error)
+          }
         }
       }
     } catch (e) {}
