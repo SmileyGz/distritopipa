@@ -127,6 +127,8 @@ export async function POST(req: NextRequest) {
       items,
       subtotal,
       delivery_zone,
+      delivery_address,
+      is_night,
       delivery_fee,
       total,
       anticipo_amount: anticipo,
