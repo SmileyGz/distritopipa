@@ -96,7 +96,7 @@ export default function CheckoutPage() {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            items: items.map(i => ({ product_id: i.product.id, name: i.product.name_es, qty: i.quantity, unit_price: i.product.price_mxn, color: i.color, size: i.size })),
+            items: items.map(i => ({ product_id: i.product.id, name: i.product.name_es, qty: i.quantity, unit_price: i.product.price_mxn, color: i.color, size: i.size, bundle_price: i.bundle_price, bundle_qty: i.bundle_qty })),
             delivery_zone: 'pickup',
             customer_name: customerName,
             customer_phone: customerPhone,
@@ -115,7 +115,7 @@ export default function CheckoutPage() {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            items: items.map(i => ({ product_id: i.product.id, name: i.product.name_es, qty: i.quantity, unit_price: i.product.price_mxn, color: i.color, size: i.size })),
+            items: items.map(i => ({ product_id: i.product.id, name: i.product.name_es, qty: i.quantity, unit_price: i.product.price_mxn, color: i.color, size: i.size, bundle_price: i.bundle_price, bundle_qty: i.bundle_qty })),
             delivery_zone: zone,
             customer_name: customerName,
             customer_phone: customerPhone,

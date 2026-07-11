@@ -63,11 +63,17 @@ export async function POST(req: NextRequest) {
   if (!customer_phone) return NextResponse.json({ error: 'Teléfono requerido.' }, { status: 400 })
   if (!delivery_zone) return NextResponse.json({ error: 'Selecciona opción de entrega.' }, { status: 400 })
 
-  // Calculate totals
-  const subtotal = items.reduce((sum, item) => sum + item.unit_price * item.qty, 0)
+  // Calculate totals (respect bundle discounts if they exist)
+  const subtotal = items.reduce((sum: number, item: any) => {
+    if (item.bundle_price !== undefined) {
+      return sum + item.bundle_price
+    }
+    return sum + (item.unit_price * item.qty)
+  }, 0)
   const delivery_fee = delivery_zone === 'pickup' ? 0 : is_night ? 100 : delivery_zone === 'zone1' ? 40 : 60
   const total = subtotal + delivery_fee
-  const anticipo = 50 // Fixed $50 anticipo per founder request
+  // Anticipo is $0 for pickup, $50 for delivery
+  const anticipo = delivery_zone === 'pickup' ? 0 : 50
 
   // Upsert customer (create or find by phone)
   let customer = null
@@ -116,39 +122,41 @@ export async function POST(req: NextRequest) {
   // --- MercadoPago Integration ---
   let mpInitPoint = null
   let mpErrorMessage = null
-  try {
-    const { MercadoPagoConfig, Preference } = require('mercadopago')
-    // Initialize the MercadoPago client
-    const client = new MercadoPagoConfig({ accessToken: process.env.MERCADOPAGO_ACCESS_TOKEN || '' })
-    const preference = new Preference(client)
-    
-    // We enforce exactly 50 MXN as the anticipo per the founder's requirement
-    const result = await preference.create({
-      body: {
-        items: [
-          {
-            id: order.id,
-            title: 'Anticipo de Orden - Distrito Pipa',
-            quantity: 1,
-            unit_price: 50,
-            currency_id: 'MXN'
-          }
-        ],
-        back_urls: {
-          success: 'https://www.distritopipa.com/checkout/success',
-          failure: 'https://www.distritopipa.com/checkout',
-          pending: 'https://www.distritopipa.com/checkout/success'
-        },
-        auto_return: 'approved',
-        external_reference: order.id,
-      }
-    })
-    
-    mpInitPoint = result.init_point
-  } catch (mpError: any) {
-    console.error('MercadoPago error:', mpError)
-    mpErrorMessage = mpError.message || 'Error desconocido de MercadoPago'
-    // We do not fail the order creation, just fallback to standard response
+  if (anticipo > 0) {
+    try {
+      const { MercadoPagoConfig, Preference } = require('mercadopago')
+      // Initialize the MercadoPago client
+      const client = new MercadoPagoConfig({ accessToken: process.env.MERCADOPAGO_ACCESS_TOKEN || '' })
+      const preference = new Preference(client)
+      
+      // We enforce the calculated anticipo
+      const result = await preference.create({
+        body: {
+          items: [
+            {
+              id: order.id,
+              title: 'Anticipo de Orden - Distrito Pipa',
+              quantity: 1,
+              unit_price: anticipo,
+              currency_id: 'MXN'
+            }
+          ],
+          back_urls: {
+            success: 'https://www.distritopipa.com/checkout/success',
+            failure: 'https://www.distritopipa.com/checkout',
+            pending: 'https://www.distritopipa.com/checkout/success'
+          },
+          auto_return: 'approved',
+          external_reference: order.id,
+        }
+      })
+      
+      mpInitPoint = result.init_point
+    } catch (mpError: any) {
+      console.error('MercadoPago error:', mpError)
+      mpErrorMessage = mpError.message || 'Error desconocido de MercadoPago'
+      // We do not fail the order creation, just fallback to standard response
+    }
   }
 
   // Return everything the frontend needs to show the payment instructions
