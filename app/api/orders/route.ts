@@ -136,7 +136,7 @@ export async function POST(req: NextRequest) {
         ],
         back_urls: {
           success: 'https://www.distritopipa.com/checkout/success',
-          failure: 'https://www.distritopipa.com/checkout/success',
+          failure: 'https://www.distritopipa.com/checkout',
           pending: 'https://www.distritopipa.com/checkout/success'
         },
         auto_return: 'approved',
