@@ -5,7 +5,7 @@
 // ─────────────────────────────────────────────────────────────
 
 import { useState, useEffect, useCallback } from 'react'
-import { supabaseAdmin } from '@/lib/supabase'
+import { adminFetch } from '@/hooks/useAdmin'
 import { getVIPStatus, getTierColor, getTierIcon, type VIPStatus } from '@/lib/clients'
 
 interface Order {
@@ -54,20 +54,22 @@ export default function AdminClientsPage() {
     if (process.env.NEXT_PUBLIC_SUPABASE_URL === 'https://dummy.supabase.co' || !process.env.NEXT_PUBLIC_SUPABASE_URL) {
       orders = JSON.parse(localStorage.getItem('dp_mock_orders') || '[]')
     } else {
-      const { data, error } = await supabaseAdmin
-        .from('orders')
-        .select('id, order_number, status, customer_name, customer_phone, customer_email, total_mxn, created_at')
-        .order('created_at', { ascending: false })
-
-      if (!error && data) {
-        orders = data as Order[]
+      try {
+        const res = await adminFetch('/api/admin/orders')
+        const json = await res.json()
+        if (res.ok && json.orders) {
+          orders = json.orders as Order[]
+        }
+      } catch (err) {
+        console.error(err)
       }
     }
 
     // Group by phone
     const grouped = orders.reduce((acc, order) => {
       // Normalizar teléfono
-      const phone = order.customer_phone.replace(/\D/g, '') || order.customer_phone
+      const cp = order.customer_phone || ''
+      const phone = cp.replace(/\D/g, '') || cp
       if (!acc[phone]) {
         acc[phone] = {
           phone: phone,
@@ -175,14 +177,8 @@ export default function AdminClientsPage() {
       const updated = mockOrders.map((o: any) => o.customer_phone.replace(/\D/g, '') === oldPhone ? { ...o, customer_phone: newPhone } : o)
       localStorage.setItem('dp_mock_orders', JSON.stringify(updated))
     } else {
-      // Find all orders for this old phone and update them
-      const { data } = await supabaseAdmin.from('orders').select('id, customer_phone')
-      if (data) {
-        const toUpdate = data.filter(o => o.customer_phone.replace(/\D/g, '') === oldPhone)
-        for (const order of toUpdate) {
-          await supabaseAdmin.from('orders').update({ customer_phone: newPhone }).eq('id', order.id)
-        }
-      }
+      // TODO: Implement phone number update via an API route that updates the customers table
+      console.warn('Phone number updates are currently disabled pending CRM migration')
     }
     
     setEditingPhone(null)
