@@ -1,5 +1,6 @@
 // components/ProductCard.tsx
 import Link from 'next/link'
+import Image from 'next/image'
 import { Product } from '@/lib/supabase'
 
 interface ProductCardProps {
@@ -23,10 +24,12 @@ export default function ProductCard({ product, imageUrl }: ProductCardProps) {
     >
       <div className="card-image-wrap">
         {imageUrl ? (
-          <img
+          <Image
             src={imageUrl}
             alt={name}
-            style={{ width: '140px', height: '140px', objectFit: 'contain' }}
+            width={140}
+            height={140}
+            style={{ objectFit: 'contain' }}
           />
         ) : (
           <div className="no-image">No image</div>

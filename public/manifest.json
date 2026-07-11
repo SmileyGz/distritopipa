@@ -1,0 +1,16 @@
+{
+  "name": "Distrito Pipa",
+  "short_name": "Distrito Pipa",
+  "description": "Tu Smoke Shop Local en Cancún. Pipas artesanales, grinders, bongs y entregas a domicilio.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0f0f0f",
+  "theme_color": "#0f0f0f",
+  "icons": [
+    {
+      "src": "/icon.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}

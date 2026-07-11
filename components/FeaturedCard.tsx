@@ -1,6 +1,7 @@
 'use client'
 
 import Link from 'next/link'
+import Image from 'next/image'
 import { getImageUrl, type Product } from '@/lib/supabase'
 import { useStore } from '@/lib/store'
 import toast from 'react-hot-toast'
@@ -20,7 +21,7 @@ export default function FeaturedCard({ product }: { product: Product }) {
     <div className="feat-card">
       <Link href={`/producto/${product.slug}`} style={{ textDecoration: 'none', color: 'inherit', display: 'block' }}>
         <div className="feat-img">
-          {imageUrl ? <img src={imageUrl} alt={name} /> : <span className="feat-placeholder">📦</span>}
+          {imageUrl ? <Image src={imageUrl} alt={name} width={200} height={200} style={{ width: '100%', height: '100%', objectFit: 'contain' }} /> : <span className="feat-placeholder">📦</span>}
           <span className="feat-star">★</span>
         </div>
         <div className="feat-name">{name}</div>

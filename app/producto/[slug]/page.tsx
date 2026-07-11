@@ -1,4 +1,4 @@
-import { supabase, type Product } from '@/lib/supabase'
+import { supabase, type Product, getImageUrl } from '@/lib/supabase'
 import { mockProducts } from '@/lib/mockProducts'
 import { Metadata } from 'next'
 import { notFound } from 'next/navigation'
@@ -30,7 +30,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
     openGraph: {
       title: `${product.name_es} | Distrito Pipa Cancún`,
       description: metaDesc,
-      images: product.image_paths?.[0] ? [{ url: product.image_paths[0] }] : [],
+      images: product.image_paths?.[0] ? [{ url: getImageUrl(product.image_paths[0]) }] : [],
     }
   }
 }

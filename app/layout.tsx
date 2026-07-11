@@ -7,6 +7,7 @@ const bebas = Bebas_Neue({ weight: '400', subsets: ['latin'], variable: '--font-
 const vibes = Great_Vibes({ weight: '400', subsets: ['latin'], variable: '--font-vibes' })
 
 export const metadata: Metadata = {
+  metadataBase: new URL('https://distritopipa.com'),
   title: 'Distrito Pipa — Cancún',
   description: 'Accesorios de uso personal en Cancún. Pipas de vidrio, grinders, bongs y más. Envío a domicilio.',
   keywords: ['pipas cancun', 'distrito pipa', 'accesorios fumar cancun', 'bongs cancun'],
@@ -18,6 +19,13 @@ export const metadata: Metadata = {
     locale: 'es_MX',
     type: 'website',
   },
+}
+
+export const viewport = {
+  themeColor: '#0f0f0f',
+  width: 'device-width',
+  initialScale: 1,
+  maximumScale: 1,
 }
 
 import AgeGate from '@/components/AgeGate'
