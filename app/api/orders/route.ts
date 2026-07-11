@@ -115,6 +115,7 @@ export async function POST(req: NextRequest) {
 
   // --- MercadoPago Integration ---
   let mpInitPoint = null
+  let mpErrorMessage = null
   try {
     const { MercadoPagoConfig, Preference } = require('mercadopago')
     // Initialize the MercadoPago client
@@ -144,8 +145,9 @@ export async function POST(req: NextRequest) {
     })
     
     mpInitPoint = result.init_point
-  } catch (mpError) {
+  } catch (mpError: any) {
     console.error('MercadoPago error:', mpError)
+    mpErrorMessage = mpError.message || 'Error desconocido de MercadoPago'
     // We do not fail the order creation, just fallback to standard response
   }
 
@@ -154,6 +156,7 @@ export async function POST(req: NextRequest) {
     success: true,
     order_id: order.id,
     init_point: mpInitPoint, // The URL to redirect the user to
+    mp_error: mpErrorMessage,
     summary: {
       subtotal,
       delivery_fee,
