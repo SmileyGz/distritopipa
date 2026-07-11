@@ -95,7 +95,7 @@ export default function CheckoutPage() {
         // Pickup doesn't use MercadoPago, goes straight to WhatsApp
         let msg = `Hola! Quiero agendar una visita (Pickup) para recoger:\n\n`
         items.forEach(item => {
-          msg += `📦 ${item.quantity}x ${item.product.name_es} ($${item.quantity * item.product.price_mxn})\n`
+          msg += `📦 ${item.quantity}x ${item.product.name_es.split('|')[0].trim()} ($${item.quantity * item.product.price_mxn})\n`
         })
         msg += `\nCliente: ${customerName} (${customerPhone})`
         msg += `\nHorario agendado: ${pickupTime}`

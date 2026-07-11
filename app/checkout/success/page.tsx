@@ -39,7 +39,7 @@ export default function CheckoutSuccessPage() {
     
     let msg = `Hola Distrito Pipa, he completado mi pedido por Envío a Domicilio:\n\n`
     orderData.items.forEach((item: any) => {
-      msg += `📦 ${item.quantity}x ${item.product.name_es} ($${item.quantity * item.product.price_mxn})\n`
+      msg += `📦 ${item.quantity}x ${item.product.name_es.split('|')[0].trim()} ($${item.quantity * item.product.price_mxn})\n`
     })
     msg += `\nCliente: ${orderData.customerName} (${orderData.customerPhone})`
     msg += `\nDirección: ${orderData.address}`
