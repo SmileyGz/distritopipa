@@ -518,9 +518,22 @@ export default function AdminOrdersPage() {
                           <span className="info-value">{DELIVERY_LABELS[order.delivery_mode]}</span>
                         </div>
                         {order.delivery_address && (
-                          <div className="info-row">
-                            <span className="info-label">Dirección</span>
-                            <span className="info-value">{order.delivery_address}</span>
+                          <div className="info-row" style={{ flexDirection: 'column', alignItems: 'flex-start' }}>
+                            <span className="info-label" style={{ marginBottom: '8px' }}>Dirección de Entrega</span>
+                            <div style={{
+                              background: '#1a1a1a',
+                              border: '1px solid #333',
+                              padding: '12px',
+                              borderRadius: '8px',
+                              width: '100%',
+                              color: '#fff',
+                              whiteSpace: 'pre-wrap',
+                              userSelect: 'all',
+                              fontSize: '14px',
+                              lineHeight: '1.5'
+                            }}>
+                              {order.delivery_address}
+                            </div>
                           </div>
                         )}
                         {order.scheduled_at && (
