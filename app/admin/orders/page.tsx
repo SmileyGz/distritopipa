@@ -395,7 +395,7 @@ export default function AdminOrdersPage() {
                 </div>
 
                 <div className="head-right">
-                  <span className="order-total">${order.total_mxn.toLocaleString('es-MX')}</span>
+                  <span className="order-total">${(order.total_mxn || 0).toLocaleString('es-MX')}</span>
                   <span className="expand-icon">{isExpanded ? '▲' : '▼'}</span>
                 </div>
               </div>
@@ -477,12 +477,12 @@ export default function AdminOrdersPage() {
                         {(order.delivery_fee || 0) > 0 && (
                           <div className="price-row">
                             <span>Envío</span>
-                            <span>${order.delivery_fee.toLocaleString('es-MX')}</span>
+                            <span>${(order.delivery_fee || 0).toLocaleString('es-MX')}</span>
                           </div>
                         )}
                         <div className="price-row total-row">
                           <span>TOTAL</span>
-                          <span>${order.total_mxn.toLocaleString('es-MX')}</span>
+                          <span>${(order.total_mxn || 0).toLocaleString('es-MX')}</span>
                         </div>
                         {(order.anticipo_mxn || 0) > 0 && (
                           <div className="price-row anticipo-row">
