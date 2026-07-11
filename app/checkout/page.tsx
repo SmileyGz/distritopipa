@@ -72,12 +72,6 @@ export default function CheckoutPage() {
   const balanceDue = finalTotal - amountToPayNow;
 
   const handleNext = () => {
-    if (step === 1 && fulfillment === 'pickup') {
-      setPaymentMethod('cash')
-    }
-    if (step === 1 && fulfillment === 'delivery') {
-      if (paymentMethod === 'cash') setPaymentMethod(null)
-    }
     setStep(s => Math.min(s + 1, 3))
   }
   
