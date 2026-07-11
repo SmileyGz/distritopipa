@@ -70,7 +70,14 @@ export async function POST(req: NextRequest) {
     }
     return sum + (item.unit_price * item.qty)
   }, 0)
-  const delivery_fee = delivery_zone === 'pickup' ? 0 : is_night ? 100 : delivery_zone === 'zone1' ? 40 : 60
+  let delivery_fee = 0
+  if (delivery_zone !== 'pickup') {
+    if (is_night) {
+      delivery_fee = delivery_zone === 'zone1' ? 80 : 100
+    } else {
+      delivery_fee = delivery_zone === 'zone1' ? 50 : 80
+    }
+  }
   const total = subtotal + delivery_fee
   // Anticipo is $0 for pickup, $50 for delivery
   const anticipo = delivery_zone === 'pickup' ? 0 : 50
@@ -78,22 +85,32 @@ export async function POST(req: NextRequest) {
   // Upsert customer (create or find by phone)
   let customer = null
   try {
-    const { data } = await supabase
+    const { data: existing } = await supabase
       .from('customers')
-      .upsert(
-        {
-          id: crypto.randomUUID(), // Provide ID if inserting new
+      .select('id, current_tier_id')
+      .eq('phone', customer_phone)
+      .single()
+
+    if (existing) {
+      customer = existing
+      // Opt: update their latest name
+      await supabase.from('customers').update({ first_name: customer_name }).eq('id', existing.id)
+    } else {
+      const { data: newCust, error: insErr } = await supabase
+        .from('customers')
+        .insert({
           phone: customer_phone,
           first_name: customer_name,
           email: customer_email,
-        },
-        { onConflict: 'phone', ignoreDuplicates: false }
-      )
-      .select('id, current_tier_id')
-      .single()
-    customer = data
+        })
+        .select('id, current_tier_id')
+        .single()
+      
+      if (insErr) throw insErr
+      customer = newCust
+    }
   } catch (err) {
-    console.error('Customer upsert error:', err)
+    console.error('Customer lookup/insert error:', err)
   }
 
   // Create the order
