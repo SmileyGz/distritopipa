@@ -13,10 +13,14 @@ export async function DELETE(req: NextRequest) {
 
   try {
     const { searchParams } = new URL(req.url)
-    const phone = searchParams.get('phone')
+    const phone = searchParams.get('phone') || ''
 
+    // If there is no phone number, it means these are orphaned test orders (no customer profile)
+    // We should safely wipe any order that has no customer_id.
     if (!phone) {
-      return NextResponse.json({ error: 'Falta el teléfono' }, { status: 400 })
+      const { error: orphanErr } = await supabaseAdmin.from('orders').delete().is('customer_id', null)
+      if (orphanErr) throw orphanErr
+      return NextResponse.json({ success: true })
     }
 
     // Find the customer by phone (use limit instead of single to prevent crashes if zero or multiple exist)
