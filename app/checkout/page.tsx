@@ -122,10 +122,8 @@ export default function CheckoutPage() {
           })
         }).catch(console.error)
 
-        setTimeout(() => {
-          window.open(whatsappUrl, '_blank')
-          router.push('/')
-        }, 1500)
+        // Directly redirect to prevent popup blockers
+        window.location.href = whatsappUrl
       } else {
         // Delivery -> MercadoPago
         const res = await fetch('/api/orders', {
