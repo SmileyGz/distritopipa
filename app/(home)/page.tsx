@@ -4,6 +4,8 @@ import { mockProducts } from '@/lib/mockProducts'
 import FeaturedCard from '@/components/FeaturedCard'
 import { Metadata } from 'next'
 
+export const revalidate = 0 // Disable static caching so featured products update instantly
+
 export const metadata: Metadata = {
   title: 'Tu Smoke Shop Local en Cancún | Distrito Pipa',
   description: 'Pipas artesanales, bongs y accesorios de vidrio con entregas rápidas en Cancún. La opción local de confianza en la Región 96 y más.',

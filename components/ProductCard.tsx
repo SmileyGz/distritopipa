@@ -154,7 +154,7 @@ export default function ProductCard({ product, imageUrl }: ProductCardProps) {
 
         .card-name {
           font-family: var(--font-bebas), sans-serif;
-          font-size: 22px;
+          font-size: 20px;
           color: #fff;
           line-height: 1;
           letter-spacing: 0.05em;
@@ -174,7 +174,7 @@ export default function ProductCard({ product, imageUrl }: ProductCardProps) {
           .poster-product-card { width: 160px; }
           .card-image-wrap { height: 160px; }
           .price-main { font-size: 28px; }
-          .card-name { font-size: 26px; }
+          .card-name { font-size: 22px; }
         }
       `}</style>
     </Link>
