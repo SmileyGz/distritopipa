@@ -37,7 +37,7 @@ export async function GET(req: NextRequest) {
     delivery_mode: o.fulfillment_type || 'delivery',
     delivery_zone: o.delivery_zone || '',
     is_night: !!o.is_night,
-    payment_mode: o.fulfillment_type === 'pickup' ? 'pickup_cash' : 'deposit',
+    payment_mode: o.payment_mode || (o.fulfillment_type === 'pickup' ? 'pickup_cash' : 'deposit'),
     delivery_address: o.delivery_address || '',
     admin_notes: o.admin_notes || '',
     created_at: o.created_at,
