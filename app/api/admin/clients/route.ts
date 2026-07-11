@@ -19,18 +19,24 @@ export async function DELETE(req: NextRequest) {
       return NextResponse.json({ error: 'Falta el teléfono' }, { status: 400 })
     }
 
-    // Find the customer by phone
-    const { data: customer } = await supabaseAdmin
+    // Find the customer by phone (use limit instead of single to prevent crashes if zero or multiple exist)
+    const { data: customers, error: fetchErr } = await supabaseAdmin
       .from('customers')
       .select('id')
       .eq('phone', phone)
-      .single()
+      .limit(1)
 
-    if (customer) {
+    if (fetchErr) throw fetchErr
+
+    if (customers && customers.length > 0) {
+      const customer = customers[0]
       // 1. Delete all their orders
-      await supabaseAdmin.from('orders').delete().eq('customer_id', customer.id)
+      const { error: orderErr } = await supabaseAdmin.from('orders').delete().eq('customer_id', customer.id)
+      if (orderErr) throw orderErr
+      
       // 2. Delete the customer profile
-      await supabaseAdmin.from('customers').delete().eq('id', customer.id)
+      const { error: custErr } = await supabaseAdmin.from('customers').delete().eq('id', customer.id)
+      if (custErr) throw custErr
     }
 
     return NextResponse.json({ success: true })

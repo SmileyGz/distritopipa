@@ -401,8 +401,12 @@ export default function AdminClientsPage() {
                       onClick={async () => {
                         if (confirm(`¿Estás seguro de que quieres eliminar a ${client.name} y TODOS sus pedidos?`)) {
                           const res = await adminFetch(`/api/admin/clients?phone=${encodeURIComponent(client.phone)}`, { method: 'DELETE' })
-                          if (res.ok) load()
-                          else alert('Error al eliminar el cliente.')
+                          if (res.ok) {
+                            load()
+                          } else {
+                            const errorData = await res.json()
+                            alert(`Error al eliminar el cliente: ${errorData.error}`)
+                          }
                         }
                       }}
                     >
