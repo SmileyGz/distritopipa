@@ -37,6 +37,7 @@ type OrderBody = {
   delivery_address?: string
   delivery_notes?: string
   is_night?: boolean         // after 8pm flag
+  payment_preference?: 'anticipo' | 'total'
 }
 
 export async function POST(req: NextRequest) {
