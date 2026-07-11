@@ -110,7 +110,7 @@ export async function POST(req: NextRequest) {
 
   if (error) {
     console.error('Order creation error:', error)
-    return NextResponse.json({ error: 'Error al crear pedido. Intenta de nuevo.' }, { status: 500 })
+    return NextResponse.json({ error: 'Error al crear pedido. Intenta de nuevo.', sb_error: error.message }, { status: 500 })
   }
 
   // --- MercadoPago Integration ---
