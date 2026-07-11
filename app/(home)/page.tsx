@@ -356,19 +356,21 @@ const styles = `
   .vip-perks-title { font-family: var(--font-bebas), sans-serif; font-size: 36px; line-height: 1.1; margin-bottom: 8px; letter-spacing: 0.02em; }
   .vip-perks-sub { color: #888; font-size: 14px; max-width: 400px; margin: 0 auto; }
   
-  .vip-tiers-grid { display: grid; gap: 20px; grid-template-columns: 1fr; margin-bottom: 30px; }
+  .vip-tiers-grid { display: grid; gap: 16px; grid-template-columns: 1fr; margin-bottom: 30px; }
   @media (min-width: 768px) { .vip-tiers-grid { grid-template-columns: repeat(3, 1fr); } }
-  
+
   .vip-tier-card { 
-    background: rgba(255, 255, 255, 0.03); 
-    backdrop-filter: blur(10px); 
-    -webkit-backdrop-filter: blur(10px);
-    border-radius: 12px; 
-    padding: 12px;
-    border: 1px solid rgba(255, 255, 255, 0.08);
-    transition: transform 0.2s, box-shadow 0.2s;
+    background: rgba(26,26,26,0.5); 
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    border: 1px solid rgba(255,255,255,0.05); 
+    border-radius: 8px; 
+    padding: 14px 16px; 
+    display: flex; 
+    flex-direction: column; 
+    transition: all 0.3s ease; 
   }
-  .vip-tier-card:hover { transform: translateY(-4px); }
+  .vip-tier-card:hover { transform: translateY(-3px); box-shadow: 0 4px 15px rgba(0,0,0,0.3); border-color: rgba(255,255,255,0.1); }
   
   .tier-bronce { border-top: 3px solid #cd7f32; }
   .tier-plata { border-top: 3px solid #c0c0c0; }
@@ -378,16 +380,16 @@ const styles = `
     box-shadow: 0 8px 32px rgba(255, 215, 0, 0.05);
   }
   
-  .tier-header { text-align: center; margin-bottom: 12px; padding-bottom: 12px; border-bottom: 1px solid rgba(255,255,255,0.1); }
-  .tier-icon { font-size: 20px; display: block; margin-bottom: 4px; }
-  .tier-name { font-size: 16px; font-weight: 700; margin-bottom: 2px; letter-spacing: 0.05em; text-transform: uppercase; }
+  .tier-header { text-align: center; margin-bottom: 10px; padding-bottom: 10px; border-bottom: 1px solid rgba(255,255,255,0.05); }
+  .tier-icon { font-size: 18px; display: block; margin-bottom: 2px; }
+  .tier-name { font-size: 15px; font-weight: 700; margin-bottom: 2px; letter-spacing: 0.05em; text-transform: uppercase; }
   .tier-bronce .tier-name { color: #cd7f32; }
   .tier-plata .tier-name { color: #c0c0c0; }
   .tier-oro .tier-name { color: #ffd700; }
   .tier-req { font-size: 10px; color: #888; text-transform: uppercase; letter-spacing: 0.05em; font-weight: 600; }
   
-  .tier-perks { list-style: none; padding: 0; margin: 0; font-size: 13px; color: #ddd; line-height: 1.4; display: flex; flex-direction: column; gap: 8px; }
-  .tier-perks li { display: flex; gap: 8px; align-items: flex-start; }
+  .tier-perks { list-style: none; padding: 0; margin: 0; font-size: 12px; color: #ccc; line-height: 1.4; display: flex; flex-direction: column; gap: 6px; }
+  .tier-perks li { display: flex; gap: 6px; align-items: flex-start; }
   .perk-check { flex-shrink: 0; font-size: 11px; margin-top: 2px; }
   .tier-perks li span:not(.perk-check) { flex: 1; }
   .tier-perks li strong { color: #fff; }
@@ -404,9 +406,9 @@ const styles = `
     .cat-grid, .delivery-grid { grid-template-columns: repeat(4, 1fr); gap: 16px; }
     .community-card, .mayoreo-banner { max-width: 800px; margin: 0 auto; }
     .sp-text { font-size: 15px; }
-    .vip-tier-card { padding: 24px; }
-    .tier-icon { font-size: 32px; }
-    .tier-name { font-size: 20px; }
-    .tier-header { margin-bottom: 24px; padding-bottom: 20px; }
+    .vip-tier-card { padding: 18px 20px; }
+    .tier-icon { font-size: 24px; }
+    .tier-name { font-size: 17px; }
+    .tier-header { margin-bottom: 16px; padding-bottom: 14px; }
   }
 `
