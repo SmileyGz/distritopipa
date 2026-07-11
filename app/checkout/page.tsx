@@ -345,7 +345,7 @@ export default function CheckoutPage() {
 
                       <div className="deposit-box">
                         <strong>Anticipo de Garantía</strong>
-                        <p className="hint-text">Para proteger tu envío, pagas un anticipo de $50 MXN hoy por MercadoPago. El resto del total (${finalTotal - 50} MXN) lo liquidas en <b>efectivo</b> al recibir tu pedido.</p>
+                        <p className="hint-text">Se pide un anticipo de $50 MXN por MercadoPago como pago del repartidor y garantía para coordinar el transporte. El resto del total (${finalTotal - 50} MXN) lo liquidas en <b>efectivo</b> al recibir tu pedido.</p>
                       </div>
                     </>
                   ) : (
