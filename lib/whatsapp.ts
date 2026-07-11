@@ -9,10 +9,10 @@ export interface OrderForMessage {
 
 const CLABE = '1676 9100 0009 7700 36'
 
-function formatMXN(n: number) { return `$${n.toLocaleString('es-MX', {minimumFractionDigits:0})} MXN` }
+function formatMXN(n: number) { return `$${(n || 0).toLocaleString('es-MX', {minimumFractionDigits:0})} MXN` }
 
 function formatItems(items: OrderForMessage['items']): string {
-  return items.map(i => {
+  return (items || []).map(i => {
     const bundle = i.bundle_qty ? ` (pack ${i.bundle_qty}x)` : ''
     const color  = i.color ? ` — ${i.color}` : ''
     const price  = i.bundle_price ?? i.unit_price * i.qty
@@ -29,7 +29,7 @@ function formatDeliveryLabel(o: OrderForMessage): string {
 }
 
 function depositMsg(o: OrderForMessage): string {
-  const resta = o.total_mxn - o.anticipo_mxn
+  const resta = (o.total_mxn || 0) - (o.anticipo_mxn || 0)
   return `✅ *¡Confirmamos tu pedido, ${o.customer_name}!*\n\n🧾 *Pedido ${o.order_number}*\n${formatItems(o.items)}\n\n📦 *Subtotal:* ${formatMXN(o.subtotal_mxn)}\n🚗 *Envío:* ${formatMXN(o.delivery_fee)}\n💰 *TOTAL:* ${formatMXN(o.total_mxn)}\n\n━━━━━━━━━━━━━━━━━━━\n📍 *Entrega:* ${formatDeliveryLabel(o)}${o.delivery_address?'\n📌 Dirección: '+o.delivery_address:''}\n\n━━━━━━━━━━━━━━━━━━━\n💳 *Anticipo requerido: ${formatMXN(o.anticipo_mxn)}*\n\nTransfiere a esta CLABE:\n\`${CLABE}\`\n\n📝 *Referencia:* ${o.order_number}\n\n⚠️ Una vez recibido el anticipo, preparamos tu pedido.\nEl resto (${formatMXN(resta)}) lo pagas al momento de la entrega en efectivo.\n\n━━━━━━━━━━━━━━━━━━━\n_Accesorios de uso personal · Producto legal · No incluye sustancias_\n_Distrito Pipa — Cancún 🌴_`
 }
 
@@ -48,7 +48,7 @@ export function buildConfirmationUrl(o: OrderForMessage): string {
     case 'full_prepay':  msg = fullPrepayMsg(o); break
     default:             msg = depositMsg(o)
   }
-  const phone = o.customer_phone.replace(/\D/g,'')
+  const phone = (o.customer_phone || '').replace(/\D/g,'')
   const full = phone.startsWith('52') ? phone : `52${phone}`
   return `https://wa.me/${full}?text=${encodeURIComponent(msg)}`
 }
