@@ -461,7 +461,7 @@ export default function CheckoutPage() {
 
         .checkout-layout {
           display: flex;
-          flex-direction: column;
+          flex-direction: column-reverse; /* Put ticket on top for mobile */
           gap: 40px;
         }
 
