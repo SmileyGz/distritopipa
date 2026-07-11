@@ -5,6 +5,23 @@ import { useStore } from '@/lib/store'
 import toast from 'react-hot-toast'
 import { useRouter } from 'next/navigation'
 
+const getItemDiscountedTotal = (item: any) => {
+  if (!item.product.bundle_pricing?.length) return undefined;
+  let remainingQty = item.quantity;
+  let bestPriceTotal = 0;
+  const tiers = [...item.product.bundle_pricing].sort((a: any, b: any) => b.qty - a.qty);
+  for (const tier of tiers) {
+    if (remainingQty >= tier.qty) {
+      const bundles = Math.floor(remainingQty / tier.qty);
+      bestPriceTotal += bundles * tier.price;
+      remainingQty %= tier.qty;
+    }
+  }
+  bestPriceTotal += remainingQty * item.product.price_mxn;
+  const base = item.quantity * item.product.price_mxn;
+  return bestPriceTotal < base ? bestPriceTotal : undefined;
+}
+
 export default function CheckoutPage() {
   const router = useRouter()
   const items = useStore(state => state.items)
@@ -96,7 +113,7 @@ export default function CheckoutPage() {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            items: items.map(i => ({ product_id: i.product.id, name: i.product.name_es, qty: i.quantity, unit_price: i.product.price_mxn, color: i.color, size: i.size, bundle_price: i.bundle_price, bundle_qty: i.bundle_qty })),
+            items: items.map(i => ({ product_id: i.product.id, name: i.product.name_es, qty: i.quantity, unit_price: i.product.price_mxn, color: i.color, size: i.size, bundle_price: getItemDiscountedTotal(i) })),
             delivery_zone: 'pickup',
             customer_name: customerName,
             customer_phone: customerPhone,
@@ -115,7 +132,7 @@ export default function CheckoutPage() {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            items: items.map(i => ({ product_id: i.product.id, name: i.product.name_es, qty: i.quantity, unit_price: i.product.price_mxn, color: i.color, size: i.size, bundle_price: i.bundle_price, bundle_qty: i.bundle_qty })),
+            items: items.map(i => ({ product_id: i.product.id, name: i.product.name_es, qty: i.quantity, unit_price: i.product.price_mxn, color: i.color, size: i.size, bundle_price: getItemDiscountedTotal(i) })),
             delivery_zone: zone,
             customer_name: customerName,
             customer_phone: customerPhone,
