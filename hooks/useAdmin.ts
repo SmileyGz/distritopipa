@@ -15,7 +15,7 @@ const secret = () => {
   return ''
 }
 
-function adminFetch(url: string, options: RequestInit = {}) {
+export function adminFetch(url: string, options: RequestInit = {}) {
   return fetch(url, {
     ...options,
     headers: {

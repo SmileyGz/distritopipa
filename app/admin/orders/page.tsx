@@ -7,7 +7,7 @@
 // ─────────────────────────────────────────────────────────────
 
 import { useState, useEffect, useCallback, useMemo } from 'react'
-import { supabaseAdmin } from '@/lib/supabase'
+import { adminFetch } from '@/hooks/useAdmin'
 import {
   buildConfirmationUrl,
   buildConfirmationText,
@@ -92,26 +92,24 @@ export default function AdminOrdersPage() {
       return
     }
 
-    const { data, error } = await supabaseAdmin
-      .from('orders')
-      .select('*')
-      .order('created_at', { ascending: false })
-
-    if (!error && data) setOrders(data as Order[])
+    try {
+      const res = await adminFetch('/api/admin/orders')
+      const json = await res.json()
+      if (res.ok && json.orders) setOrders(json.orders as Order[])
+    } catch (e) {
+      console.error(e)
+    }
     setLoading(false)
   }, [])
 
   useEffect(() => { load() }, [load])
 
-  // Real-time: new orders appear instantly
+  // Polling fallback since realtime auth is blocked in browser
   useEffect(() => {
-    const channel = supabaseAdmin
-      .channel('admin-orders')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'orders' }, () => {
-        load()
-      })
-      .subscribe()
-    return () => { supabaseAdmin.removeChannel(channel) }
+    const timer = setInterval(() => {
+      load()
+    }, 10000)
+    return () => clearInterval(timer)
   }, [load])
 
   // ── Helpers ────────────────────────────────────────────────
@@ -149,8 +147,15 @@ export default function AdminOrdersPage() {
       localStorage.setItem('dp_mock_orders', JSON.stringify(updated))
       return true
     } else {
-      const { error } = await supabaseAdmin.from('orders').update(updates).eq('id', id)
-      return !error
+      try {
+        const res = await adminFetch('/api/admin/orders', {
+          method: 'PATCH',
+          body: JSON.stringify({ id, updates })
+        })
+        return res.ok
+      } catch (e) {
+        return false
+      }
     }
   }
 
