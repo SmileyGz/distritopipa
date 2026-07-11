@@ -13,14 +13,38 @@ export async function GET(req: NextRequest) {
 
   const { data, error } = await supabaseAdmin
     .from('orders')
-    .select('*')
+    .select('*, customers (first_name, phone)')
     .order('created_at', { ascending: false })
 
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 })
   }
 
-  return NextResponse.json({ orders: data })
+  // Translate the database schema into the frontend schema expected by the admin dashboard
+  const mappedOrders = data.map((o: any) => ({
+    id: o.id,
+    order_number: o.id.split('-')[0].toUpperCase(),
+    status: o.status === 'new' ? 'pending' : o.status,
+    customer_name: o.customers?.first_name || 'Desconocido',
+    customer_phone: o.customers?.phone || '',
+    items: o.items || [],
+    subtotal_mxn: o.subtotal || 0,
+    delivery_fee: o.delivery_fee || 0,
+    total_mxn: o.total || 0,
+    anticipo_mxn: o.anticipo_amount || 0,
+    anticipo_paid: o.anticipo_status === 'paid',
+    full_paid: false,
+    delivery_mode: o.fulfillment_type || 'delivery',
+    delivery_zone: o.delivery_zone || '',
+    is_night: !!o.is_night,
+    payment_mode: o.fulfillment_type === 'pickup' ? 'pickup_cash' : 'deposit',
+    delivery_address: o.delivery_address || '',
+    admin_notes: o.admin_notes || '',
+    created_at: o.created_at,
+    updated_at: o.updated_at,
+  }))
+
+  return NextResponse.json({ orders: mappedOrders })
 }
 
 export async function PATCH(req: NextRequest) {
@@ -36,9 +60,15 @@ export async function PATCH(req: NextRequest) {
       return NextResponse.json({ error: 'Faltan datos' }, { status: 400 })
     }
 
+    // Map frontend updates to database schema
+    const dbUpdates: any = {}
+    if (updates.status !== undefined) dbUpdates.status = updates.status
+    if (updates.anticipo_paid !== undefined) dbUpdates.anticipo_status = updates.anticipo_paid ? 'paid' : 'pending'
+    if (updates.admin_notes !== undefined) dbUpdates.admin_notes = updates.admin_notes
+
     const { error } = await supabaseAdmin
       .from('orders')
-      .update(updates)
+      .update(dbUpdates)
       .eq('id', id)
 
     if (error) throw error
