@@ -236,8 +236,9 @@ export default function AdminOrdersPage() {
     const totals: Record<string, number> = {}
     orders.forEach(o => {
       if (o.status !== 'cancelled') {
-        const phone = o.customer_phone.replace(/\D/g, '') || o.customer_phone
-        totals[phone] = (totals[phone] || 0) + o.total_mxn
+        const cp = o.customer_phone || ''
+        const phone = cp.replace(/\D/g, '') || cp
+        totals[phone] = (totals[phone] || 0) + (o.total_mxn || 0)
       }
     })
     const vip: Record<string, ReturnType<typeof getVIPStatus>> = {}
@@ -403,7 +404,8 @@ export default function AdminOrdersPage() {
               <div className="card-summary">
                 <span className="summary-name">{order.customer_name}</span>
                 {(() => {
-                  const phone = order.customer_phone.replace(/\D/g, '') || order.customer_phone
+                  const cp = order.customer_phone || ''
+                  const phone = cp.replace(/\D/g, '') || cp
                   const vip = vipByPhone[phone]
                   if (vip && vip.tier !== 'Ninguno') {
                     const color = getTierColor(vip.tier)
@@ -503,12 +505,12 @@ export default function AdminOrdersPage() {
                         <div className="info-row">
                           <span className="info-label">WhatsApp</span>
                           <a
-                            href={`https://wa.me/${order.customer_phone.replace(/\D/g,'')}`}
+                            href={`https://wa.me/${(order.customer_phone || '').replace(/\D/g,'')}`}
                             target="_blank"
                             rel="noopener noreferrer"
                             className="info-link"
                           >
-                            {order.customer_phone}
+                            {order.customer_phone || 'Sin teléfono'}
                           </a>
                         </div>
                         <div className="info-row">
