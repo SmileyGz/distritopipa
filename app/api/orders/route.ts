@@ -56,6 +56,7 @@ export async function POST(req: NextRequest) {
     delivery_address,
     delivery_notes,
     is_night = false,
+    payment_preference = 'anticipo',
   } = body
 
   // Validate
@@ -79,8 +80,12 @@ export async function POST(req: NextRequest) {
     }
   }
   const total = subtotal + delivery_fee
-  // Anticipo is $0 for pickup, $50 for delivery
-  const anticipo = delivery_zone === 'pickup' ? 0 : 50
+  
+  // Amount to charge via MP
+  let anticipo = delivery_zone === 'pickup' ? 0 : 50
+  if (payment_preference === 'total') {
+    anticipo = total
+  }
 
   // Upsert customer (create or find by phone)
   let customer = null
@@ -152,7 +157,7 @@ export async function POST(req: NextRequest) {
           items: [
             {
               id: order.id,
-              title: 'Anticipo de Orden - Distrito Pipa',
+              title: payment_preference === 'total' ? 'Pedido Completo - Distrito Pipa' : 'Anticipo de Orden - Distrito Pipa',
               quantity: 1,
               unit_price: anticipo,
               currency_id: 'MXN'

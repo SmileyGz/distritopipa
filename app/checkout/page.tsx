@@ -50,8 +50,7 @@ export default function CheckoutPage() {
   const [address, setAddress] = useState('')
   
   // Step 3: Payment
-  const [paymentMethod, setPaymentMethod] = useState<'mercadopago'|'cash'|null>(null)
-  const [payFull, setPayFull] = useState(false) // For delivery: full or $50 deposit
+  const [paymentPref, setPaymentPref] = useState<'anticipo' | 'total'>('anticipo')
 
   // Math
   const subtotal = getCartSubtotal()
@@ -67,7 +66,9 @@ export default function CheckoutPage() {
   const finalTotal = getCartTotal() + deliveryFee;
 
   const isDelivery = fulfillment === 'delivery';
-  const amountToPayNow = isDelivery ? 50 : finalTotal;
+  const amountToPayNow = isDelivery 
+    ? (paymentPref === 'total' ? finalTotal : 50)
+    : (paymentPref === 'total' ? finalTotal : 0);
   const balanceDue = finalTotal - amountToPayNow;
 
   const handleNext = () => {
@@ -91,8 +92,8 @@ export default function CheckoutPage() {
     toast.loading('Generando pago seguro...')
     
     try {
-      if (fulfillment === 'pickup') {
-        // Pickup doesn't use MercadoPago, goes straight to WhatsApp
+      if (fulfillment === 'pickup' && paymentPref === 'anticipo') {
+        // Pickup cash doesn't use MercadoPago, goes straight to WhatsApp
         let msg = `Hola! Quiero agendar una visita (Pickup) para recoger:\n\n`
         items.forEach(item => {
           msg += `📦 ${item.quantity}x ${item.product.name_es.split('|')[0].trim()} ($${item.quantity * item.product.price_mxn})\n`
@@ -118,24 +119,26 @@ export default function CheckoutPage() {
             customer_name: customerName,
             customer_phone: customerPhone,
             delivery_address: 'Pickup Local',
-            is_night: false
+            is_night: false,
+            payment_preference: 'anticipo'
           })
         }).catch(console.error)
 
         // Directly redirect to prevent popup blockers
         window.location.href = whatsappUrl
       } else {
-        // Delivery -> MercadoPago
+        // Any MP flow (Delivery Anticipo, Delivery Total, Pickup Total)
         const res = await fetch('/api/orders', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             items: items.map(i => ({ product_id: i.product.id, name: i.product.name_es, qty: i.quantity, unit_price: i.product.price_mxn, color: i.color, size: i.size, bundle_price: getItemDiscountedTotal(i) })),
-            delivery_zone: zone,
+            delivery_zone: fulfillment === 'pickup' ? 'pickup' : zone,
             customer_name: customerName,
             customer_phone: customerPhone,
-            delivery_address: address,
-            is_night: timeOfDay === 'night'
+            delivery_address: fulfillment === 'pickup' ? 'Pickup Local' : address,
+            is_night: timeOfDay === 'night',
+            payment_preference: paymentPref
           })
         })
         
@@ -155,7 +158,9 @@ export default function CheckoutPage() {
             address,
             zone,
             timeOfDay,
-            finalTotal
+            finalTotal,
+            paymentPref,
+            fulfillment
           }))
           
           window.location.href = data.init_point
@@ -345,35 +350,49 @@ export default function CheckoutPage() {
               {/* STEP 3 */}
               {step === 3 && (
                 <div className="step-body fade-in">
-                  {fulfillment === 'delivery' ? (
-                    <>
-                      <label className="section-label">Método de Pago</label>
-                      <div className="option-group">
-                        <button className={`method-btn ${paymentMethod === 'mercadopago' ? 'active' : ''}`} onClick={() => setPaymentMethod('mercadopago')}>
-                          <span className="icon">💳</span>
+                  <label className="section-label">Opciones de Pago</label>
+                  <div className="option-group">
+                    {fulfillment === 'delivery' ? (
+                      <>
+                        <button className={`method-btn ${paymentPref === 'anticipo' ? 'active' : ''}`} onClick={() => setPaymentPref('anticipo')}>
+                          <span className="icon">💵</span>
                           <div className="text-left">
-                            <strong>MercadoPago</strong>
-                            <p>Tarjetas o transferencia segura.</p>
+                            <strong>Anticipo ($50) + Efectivo</strong>
+                            <p>Paga el anticipo de $50 online. El resto (${finalTotal - 50} MXN) en efectivo al recibir.</p>
                           </div>
                         </button>
-                      </div>
-
-                      <div className="deposit-box">
-                        <strong>Anticipo de Garantía</strong>
-                        <p className="hint-text">Se pide un anticipo de $50 MXN como pago del repartidor y garantía para coordinar el transporte. El resto del total (${finalTotal - 50} MXN) lo liquidas en <b>efectivo</b> al recibir tu pedido.</p>
-                      </div>
-                    </>
-                  ) : (
-                    <div className="deposit-box">
-                      <strong>Recoger en Persona</strong>
-                      <p className="hint-text">Pagarás el total en Efectivo (Cash) al momento de recoger. El punto exacto te lo daremos por WhatsApp.</p>
-                    </div>
-                  )}
+                        <button className={`method-btn ${paymentPref === 'total' ? 'active' : ''}`} onClick={() => setPaymentPref('total')}>
+                          <span className="icon">💳</span>
+                          <div className="text-left">
+                            <strong>Pagar Total Online</strong>
+                            <p>Paga el 100% ahora vía MercadoPago (Tarjeta o Transferencia SPEI).</p>
+                          </div>
+                        </button>
+                      </>
+                    ) : (
+                      <>
+                        <button className={`method-btn ${paymentPref === 'anticipo' ? 'active' : ''}`} onClick={() => setPaymentPref('anticipo')}>
+                          <span className="icon">💵</span>
+                          <div className="text-left">
+                            <strong>Efectivo al Recoger</strong>
+                            <p>Paga el 100% en efectivo cuando pases por tu pedido.</p>
+                          </div>
+                        </button>
+                        <button className={`method-btn ${paymentPref === 'total' ? 'active' : ''}`} onClick={() => setPaymentPref('total')}>
+                          <span className="icon">💳</span>
+                          <div className="text-left">
+                            <strong>Pagar Total Online</strong>
+                            <p>Paga el 100% adelantado vía MercadoPago y solo pasa a recoger.</p>
+                          </div>
+                        </button>
+                      </>
+                    )}
+                  </div>
 
                   <div className="wizard-actions">
                     <button className="btn-ghost" onClick={handleBack}>Regresar</button>
-                    <button className="btn-primary" disabled={!paymentMethod} onClick={handleConfirmOrder}>
-                      {fulfillment === 'pickup' ? 'Confirmar por WhatsApp' : 'Confirmar y Pagar'}
+                    <button className="btn-primary" onClick={handleConfirmOrder}>
+                      {(fulfillment === 'pickup' && paymentPref === 'anticipo') ? 'Confirmar por WhatsApp' : 'Confirmar y Pagar'}
                     </button>
                   </div>
                 </div>

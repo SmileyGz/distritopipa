@@ -35,19 +35,29 @@ export default function CheckoutSuccessPage() {
       return
     }
     
-    const balanceDue = orderData.finalTotal - 50 // They paid $50 anticipo
+    const isPickup = orderData.fulfillment === 'pickup'
+    const isTotal = orderData.paymentPref === 'total'
+    const balanceDue = isTotal ? 0 : orderData.finalTotal - 50 // They paid $50 anticipo or total
     
-    let msg = `Hola Distrito Pipa, he completado mi pedido por Envío a Domicilio:\n\n`
+    let msg = `Hola Distrito Pipa, he completado mi pedido por ${isPickup ? 'Pick-up' : 'Envío a Domicilio'}:\n\n`
     orderData.items.forEach((item: any) => {
       msg += `📦 ${item.quantity}x ${item.product.name_es.split('|')[0].trim()} ($${item.quantity * item.product.price_mxn})\n`
     })
     msg += `\nCliente: ${orderData.customerName} (${orderData.customerPhone})`
-    msg += `\nDirección: ${orderData.address}`
-    msg += `\nZona: ${orderData.zone === 'zone1' ? '1 a 6 km' : '6 a 10 km'}`
-    msg += `\nHorario: ${orderData.timeOfDay === 'day' ? 'Día' : 'Noche'}`
-    msg += `\n\n✅ *Anticipo de $50 MXN pagado por MercadoPago* (ID: ${payment_id || 'N/A'})`
-    msg += `\n💸 *Resto a pagar en efectivo al recibir: $${balanceDue.toLocaleString('es-MX')} MXN*\n\n`
-    msg += `Te comparto mi ubicación exacta para el envío.`
+    if (!isPickup) {
+      msg += `\nDirección: ${orderData.address}`
+      msg += `\nZona: ${orderData.zone === 'zone1' ? '1 a 6 km' : '6 a 10 km'}`
+      msg += `\nHorario: ${orderData.timeOfDay === 'day' ? 'Día' : 'Noche'}`
+    }
+    msg += `\n\n✅ *${isTotal ? 'Total' : 'Anticipo de $50 MXN'} pagado por MercadoPago* (ID: ${payment_id || 'N/A'})`
+    
+    if (balanceDue > 0) {
+      msg += `\n💸 *Resto a pagar en efectivo al recibir: $${balanceDue.toLocaleString('es-MX')} MXN*\n\n`
+    } else {
+      msg += `\n💸 *Pedido liquidado al 100%*\n\n`
+    }
+    
+    msg += isPickup ? `Pasaré a recogerlo pronto.` : `Te comparto mi ubicación exacta para el envío.`
     
     const whatsappUrl = `https://wa.me/${process.env.NEXT_PUBLIC_WHATSAPP_NUMBER || '529987393474'}?text=${encodeURIComponent(msg)}`
     window.open(whatsappUrl, '_blank')
