@@ -159,7 +159,7 @@ export default function CheckoutPage() {
           
           window.location.href = data.init_point
         } else {
-          toast.error(data.mp_error ? `Error MercadoPago: ${data.mp_error}` : 'Hubo un error al generar el pago. Intenta de nuevo.')
+          toast.error(data.sb_error ? `Error DB: ${data.sb_error}` : data.mp_error ? `Error MercadoPago: ${data.mp_error}` : data.error || 'Hubo un error al generar el pago. Intenta de nuevo.')
           console.error(data)
         }
       }
