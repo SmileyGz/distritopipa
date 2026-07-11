@@ -319,13 +319,23 @@ export default function CheckoutPage() {
                   </div>
                   <div className="form-group">
                     <label className="section-label">Hora para agendar tu visita</label>
-                    <div className="option-group grid-2">
-                      {['12:00 PM', '2:00 PM', '4:00 PM', '6:00 PM'].map(t => (
-                        <button key={t} className={`zone-btn ${pickupTime === t ? 'active' : ''}`} onClick={() => setPickupTime(t)}>
-                          <strong>{t}</strong>
-                        </button>
-                      ))}
-                    </div>
+                    <select 
+                      className="sleek-input" 
+                      value={pickupTime} 
+                      onChange={e => setPickupTime(e.target.value)}
+                      style={{ marginTop: '8px' }}
+                    >
+                      <option value="" disabled>Selecciona un horario</option>
+                      {Array.from({ length: 19 }).map((_, i) => {
+                        const totalMins = 9 * 60 + i * 30
+                        const hours = Math.floor(totalMins / 60)
+                        const mins = totalMins % 60
+                        const ampm = hours >= 12 ? 'PM' : 'AM'
+                        const displayHours = hours > 12 ? hours - 12 : hours
+                        const timeStr = `${displayHours}:${mins.toString().padStart(2, '0')} ${ampm}`
+                        return <option key={timeStr} value={timeStr}>{timeStr}</option>
+                      })}
+                    </select>
                     <p className="hint-text">Te enviaremos la ubicación exacta por WhatsApp al confirmar.</p>
                   </div>
                   <div className="wizard-actions">
