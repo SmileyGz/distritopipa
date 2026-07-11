@@ -446,7 +446,7 @@ export default function CheckoutPage() {
                   <span>${finalTotal}</span>
                 </div>
 
-                {step === 3 && paymentMethod && (
+                {step === 3 && (
                   <div className="receipt-breakdown">
                     <div className="r-line highlight">
                       <span>A PAGAR HOY:</span>
