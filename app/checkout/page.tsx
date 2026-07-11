@@ -351,7 +351,7 @@ export default function CheckoutPage() {
                   ) : (
                     <div className="deposit-box">
                       <strong>Recoger en Persona</strong>
-                      <p className="hint-text">Pagarás el total en Efectivo (Cash) directamente en nuestro local. El punto exacto te lo daremos por WhatsApp.</p>
+                      <p className="hint-text">Pagarás el total en Efectivo (Cash) al momento de recoger. El punto exacto te lo daremos por WhatsApp.</p>
                     </div>
                   )}
 
@@ -434,7 +434,7 @@ export default function CheckoutPage() {
                 )}
                 
                 <div className="receipt-footer">
-                  ★ Gracias por elegir local ★
+                  ★ Gracias por elegir Distrito Pipa ★
                 </div>
               </div>
               <div className="receipt-edge bottom"></div>
