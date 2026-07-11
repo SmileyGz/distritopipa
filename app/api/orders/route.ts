@@ -221,7 +221,7 @@ export async function PATCH(req: NextRequest) {
   const { error } = await supabase
     .from('orders')
     .update({
-      anticipo_paid: true,
+      anticipo_status: 'paid',
       anticipo_ref: payment_reference,
       status: 'confirmed',
       updated_at: new Date().toISOString(),

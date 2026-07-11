@@ -21,8 +21,21 @@ export default function CheckoutSuccessPage() {
     try {
       const stored = localStorage.getItem('dp_pending_order')
       if (stored) {
-        setOrderData(JSON.parse(stored))
+        const orderInfo = JSON.parse(stored)
+        setOrderData(orderInfo)
         localStorage.removeItem('dp_pending_order')
+
+        if (status === 'approved' && orderInfo.order_id) {
+          fetch('/api/orders', {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              order_id: orderInfo.order_id,
+              payment_reference: payment_id || 'mercadopago_redirect',
+              gateway: 'mercadopago'
+            })
+          }).catch(console.error)
+        }
       }
     } catch (e) {}
   }, [clearCart])
