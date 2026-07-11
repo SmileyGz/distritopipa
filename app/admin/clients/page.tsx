@@ -15,6 +15,7 @@ interface Order {
   customer_name: string
   customer_phone: string
   customer_email?: string
+  delivery_address?: string
   total_mxn: number
   created_at: string
 }
@@ -23,6 +24,7 @@ interface ClientProfile {
   phone: string
   name: string
   email?: string
+  address?: string
   totalSpent: number      // VIP progress (Real spent + Points)
   realSpent: number       // Real money spent
   orderCount: number
@@ -75,6 +77,7 @@ export default function AdminClientsPage() {
           phone: phone,
           name: order.customer_name,
           email: order.customer_email,
+          address: order.delivery_address,
           totalSpent: 0,
           orderCount: 0,
           lastOrderDate: order.created_at,
@@ -95,6 +98,7 @@ export default function AdminClientsPage() {
         acc[phone].name = order.customer_name
         acc[phone].lastOrderDate = order.created_at
         if (order.customer_email) acc[phone].email = order.customer_email
+        if (order.delivery_address && order.delivery_address !== 'Pickup Local') acc[phone].address = order.delivery_address
       }
       
       return acc
@@ -125,6 +129,7 @@ export default function AdminClientsPage() {
           phone,
           name: `${communityNames[phone]} (Comunidad)`,
           email: '',
+          address: '',
           totalSpent: 0, // No real money spent yet
           orderCount: 0,
           lastOrderDate: new Date().toISOString(),
@@ -364,15 +369,21 @@ export default function AdminClientsPage() {
 
                   <div className="detail-section" style={{ marginTop: 16 }}>
                     <div className="detail-section-title">Historial de Pedidos</div>
-                    {/* CRM Metadata (Birthday) */}
+                    {/* CRM Metadata (Birthday & Address) */}
                     <div className="crm-metadata">
-                      <label className="metadata-label">🎂 Cumpleaños:</label>
-                      <input 
-                        type="date" 
-                        className="metadata-input"
-                        value={birthdays[client.phone] || ''}
-                        onChange={e => handleUpdateBirthday(client.phone, e.target.value)}
-                      />
+                      <div style={{ display: 'flex', gap: '16px', marginBottom: '12px', alignItems: 'center' }}>
+                        <label className="metadata-label" style={{ width: '100px' }}>📍 Dirección:</label>
+                        <span style={{ fontSize: '14px', color: '#ccc' }}>{client.address || 'No registrada'}</span>
+                      </div>
+                      <div style={{ display: 'flex', gap: '16px', alignItems: 'center' }}>
+                        <label className="metadata-label" style={{ width: '100px' }}>🎂 Cumpleaños:</label>
+                        <input 
+                          type="date" 
+                          className="metadata-input"
+                          value={birthdays[client.phone] || ''}
+                          onChange={e => handleUpdateBirthday(client.phone, e.target.value)}
+                        />
+                      </div>
                     </div>
                     
                     <div className="orders-timeline">
