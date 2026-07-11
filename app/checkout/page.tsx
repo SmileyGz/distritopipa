@@ -216,7 +216,7 @@ export default function CheckoutPage() {
                     >
                       <span className="icon">📍</span>
                       <div className="text-left">
-                        <strong>Recoger Local (Cash)</strong>
+                        <strong>Recoger en persona (Efectivo)</strong>
                         <p>Región 96 (Cerca de Coppel Nichupté).</p>
                       </div>
                     </button>

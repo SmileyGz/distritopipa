@@ -133,7 +133,7 @@ export default async function HomePage() {
         <div className="delivery-grid">
           <div className="del-card"><span className="del-icon">🏍</span><span className="del-mode">Envío 1–6 km</span><span className="del-price">$50 · noche $80</span></div>
           <div className="del-card"><span className="del-icon">🏍</span><span className="del-mode">Envío 6–10 km</span><span className="del-price">$80 · noche $100</span></div>
-          <div className="del-card"><span className="del-icon">📍</span><span className="del-mode">Recoger Local</span><span className="del-price">Región 96 · Gratis</span></div>
+          <div className="del-card"><span className="del-icon">📍</span><span className="del-mode">Recoger en persona</span><span className="del-price">Región 96 · Gratis</span></div>
           <div className="del-card"><span className="del-icon">📦</span><span className="del-mode">Empaque Discreto</span><span className="del-price">Bolsa Kraft</span></div>
         </div>
         <div className="anticipo-note">
