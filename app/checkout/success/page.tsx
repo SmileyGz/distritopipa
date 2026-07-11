@@ -82,14 +82,18 @@ export default function CheckoutSuccessPage() {
     <main className="success-page">
       <div className="success-card fade-in">
         <div className="success-icon">✅</div>
-        <h2>¡Anticipo Confirmado!</h2>
+        <h2>{orderData?.paymentPref === 'total' ? '¡Pago Confirmado!' : '¡Anticipo Confirmado!'}</h2>
         <p className="success-text">
-          Tu pago de <strong>$50 MXN</strong> ha sido procesado por MercadoPago con éxito.
+          Tu pago de <strong>${orderData?.paymentPref === 'total' ? (orderData?.finalTotal || 0).toLocaleString('es-MX') : '50'} MXN</strong> ha sido procesado por MercadoPago con éxito.
         </p>
         
         <div className="next-steps">
           <h3>Siguiente paso obligatorio:</h3>
-          <p>Para que podamos despachar tu pedido, envíanos tu ubicación exacta (Pin) por WhatsApp.</p>
+          <p>
+            {orderData?.fulfillment === 'pickup' 
+              ? 'Para poder confirmar tu horario de recolección, envíanos un mensaje por WhatsApp dándole clic al botón de abajo.' 
+              : 'Para que podamos despachar tu pedido, envíanos tu ubicación exacta (Pin) por WhatsApp dándole clic al botón de abajo.'}
+          </p>
         </div>
 
         <div className="action-buttons">
