@@ -30,7 +30,7 @@ export default function CheckoutSuccessPage() {
   const handleWhatsApp = () => {
     if (!orderData) {
       // Fallback if local storage was cleared before redirect
-      const whatsappUrl = `https://wa.me/${process.env.NEXT_PUBLIC_WHATSAPP_NUMBER || '529981234567'}?text=${encodeURIComponent('Hola Distrito Pipa, he completado mi pago de anticipo (ID: ' + payment_id + '). Te envío mi ubicación.')}`
+      const whatsappUrl = `https://wa.me/${process.env.NEXT_PUBLIC_WHATSAPP_NUMBER || '529987393474'}?text=${encodeURIComponent('Hola Distrito Pipa, he completado mi pago de anticipo (ID: ' + payment_id + '). Te envío mi ubicación.')}`
       window.open(whatsappUrl, '_blank')
       return
     }
@@ -49,7 +49,7 @@ export default function CheckoutSuccessPage() {
     msg += `\n💸 *Resto a pagar en efectivo al recibir: $${balanceDue.toLocaleString('es-MX')} MXN*\n\n`
     msg += `Te comparto mi ubicación exacta para el envío.`
     
-    const whatsappUrl = `https://wa.me/${process.env.NEXT_PUBLIC_WHATSAPP_NUMBER || '529981234567'}?text=${encodeURIComponent(msg)}`
+    const whatsappUrl = `https://wa.me/${process.env.NEXT_PUBLIC_WHATSAPP_NUMBER || '529987393474'}?text=${encodeURIComponent(msg)}`
     window.open(whatsappUrl, '_blank')
   }
 

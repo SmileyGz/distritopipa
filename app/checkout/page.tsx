@@ -102,7 +102,7 @@ export default function CheckoutPage() {
         msg += `\nTotal a pagar en efectivo: $${finalTotal.toLocaleString('es-MX')} MXN\n\n`
         msg += `Por favor, envíame la ubicación exacta.`
         
-        const whatsappUrl = `https://wa.me/${process.env.NEXT_PUBLIC_WHATSAPP_NUMBER || '529981234567'}?text=${encodeURIComponent(msg)}`
+        const whatsappUrl = `https://wa.me/${process.env.NEXT_PUBLIC_WHATSAPP_NUMBER || '529987393474'}?text=${encodeURIComponent(msg)}`
         
         toast.dismiss()
         toast.success('Redirigiendo a WhatsApp...')
