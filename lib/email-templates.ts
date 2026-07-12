@@ -19,11 +19,7 @@ export function getBrandedEmailHtml(title: string, contentHtml: string): string 
           <!-- Header -->
           <tr>
             <td align="center" style="padding: 30px 20px; border-bottom: 2px solid #DC143C;">
-              <img src="https://www.distritopipa.com/icon.png" alt="Distrito Pipa Logo" width="64" height="64" style="display: block; margin-bottom: 15px; border-radius: 8px;">
-              <h1 style="margin: 0; font-family: 'Bebas Neue', sans-serif; font-size: 32px; letter-spacing: 2px; color: #DC143C; text-transform: uppercase;">
-                DISTRITO <span style="color: #FFFFFF; font-family: 'Times New Roman', serif; font-style: italic; text-transform: none; font-size: 34px;">Pipa</span>
-              </h1>
-              <p style="margin: 5px 0 0 0; font-size: 11px; letter-spacing: 3px; color: #FFFFFF; text-transform: uppercase;">Cancún</p>
+              <img src="https://www.distritopipa.com/icon.png" alt="Distrito Pipa Logo" width="64" height="64" style="display: block; border-radius: 8px;">
             </td>
           </tr>
 
@@ -43,7 +39,10 @@ export function getBrandedEmailHtml(title: string, contentHtml: string): string 
 
           <!-- Footer -->
           <tr>
-            <td align="center" style="padding: 20px; background-color: #151515; border-top: 1px solid #333333;">
+            <td align="center" style="padding: 30px 20px; background-color: #151515; border-top: 1px solid #333333;">
+              <h1 style="margin: 0 0 10px 0; font-family: 'Bebas Neue', sans-serif; font-size: 28px; letter-spacing: 2px; color: #DC143C; text-transform: uppercase;">
+                DISTRITO <span style="color: #FFFFFF; font-family: 'Times New Roman', serif; font-style: italic; text-transform: none; font-size: 30px;">Pipa</span>
+              </h1>
               <p style="margin: 0; color: #888888; font-size: 12px;">
                 <strong>Distrito Pipa Cancún</strong><br>
                 La opción local de confianza. Entregas rápidas y seguras.
