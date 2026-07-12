@@ -58,3 +58,64 @@ export function getBrandedEmailHtml(title: string, contentHtml: string): string 
 </html>
   `;
 }
+
+export interface OrderItem {
+  title?: string;
+  name?: string;
+  quantity: number;
+  price: number;
+}
+
+export interface OrderSummaryParams {
+  items: OrderItem[];
+  subtotal: number;
+  deliveryFee: number;
+  total: number;
+  anticipoPaid?: number;
+}
+
+export function renderOrderSummaryHtml({ items, subtotal, deliveryFee, total, anticipoPaid = 0 }: OrderSummaryParams): string {
+  const pendingBalance = total - anticipoPaid;
+  
+  const itemsHtml = items.map(item => `
+    <tr>
+      <td style="padding: 10px 0; border-bottom: 1px solid #333333; color: #E0E0E0;">
+        ${item.title || item.name || 'Producto'} <span style="color: #888888;">x${item.quantity}</span>
+      </td>
+      <td align="right" style="padding: 10px 0; border-bottom: 1px solid #333333; color: #E0E0E0;">
+        $${(item.price * item.quantity).toFixed(2)}
+      </td>
+    </tr>
+  `).join('');
+
+  return `
+    <div style="margin: 30px 0; background-color: #222222; border-radius: 8px; padding: 20px;">
+      <h3 style="margin: 0 0 15px 0; color: #FFFFFF; font-size: 16px; border-bottom: 1px solid #444444; padding-bottom: 10px;">Resumen de tu pedido</h3>
+      <table width="100%" border="0" cellspacing="0" cellpadding="0" style="font-size: 14px;">
+        ${itemsHtml}
+        <tr>
+          <td style="padding: 10px 0 5px 0; color: #AAAAAA;">Subtotal</td>
+          <td align="right" style="padding: 10px 0 5px 0; color: #AAAAAA;">$${subtotal.toFixed(2)}</td>
+        </tr>
+        <tr>
+          <td style="padding: 5px 0 15px 0; color: #AAAAAA; border-bottom: 1px solid #444444;">Envío</td>
+          <td align="right" style="padding: 5px 0 15px 0; color: #AAAAAA; border-bottom: 1px solid #444444;">$${deliveryFee.toFixed(2)}</td>
+        </tr>
+        <tr>
+          <td style="padding: 15px 0 5px 0; color: #FFFFFF; font-weight: bold;">Total</td>
+          <td align="right" style="padding: 15px 0 5px 0; color: #FFFFFF; font-weight: bold;">$${total.toFixed(2)}</td>
+        </tr>
+        ${anticipoPaid > 0 ? `
+        <tr>
+          <td style="padding: 5px 0; color: #4CAF50;">Anticipo / Pagado</td>
+          <td align="right" style="padding: 5px 0; color: #4CAF50;">-$${anticipoPaid.toFixed(2)}</td>
+        </tr>
+        <tr>
+          <td style="padding: 15px 0 0 0; color: #DC143C; font-weight: bold; font-size: 16px;">SALDO PENDIENTE</td>
+          <td align="right" style="padding: 15px 0 0 0; color: #DC143C; font-weight: bold; font-size: 16px;">$${pendingBalance.toFixed(2)}</td>
+        </tr>
+        ` : ''}
+      </table>
+    </div>
+  `;
+}

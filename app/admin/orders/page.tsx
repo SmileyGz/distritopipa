@@ -17,7 +17,7 @@ import {
   type OrderForMessage,
 } from '@/lib/whatsapp'
 import { getVIPStatus, getTierIcon, getTierColor } from '@/lib/clients'
-import { getBrandedEmailHtml } from '@/lib/email-templates'
+import { getBrandedEmailHtml, renderOrderSummaryHtml } from '@/lib/email-templates'
 
 // ─── Types ────────────────────────────────────────────────────
 
@@ -263,26 +263,51 @@ export default function AdminOrdersPage() {
       if (order.delivery_mode === 'pickup') {
         if (order.payment_mode === 'full_prepay') {
           copyBody = `<p>Tus piezas ya están separadas y tu pedido <strong>${order.order_number}</strong> está 100% confirmado y pagado. Cero sorpresas.</p>
-                      <p>Tu paquete ya te está esperando. En el siguiente mensaje te pasaremos las coordenadas exactas de nuestro spot y nos pondremos de acuerdo para tu recolección.</p>`
+                      <p>Tu paquete ya te está esperando. Si ya nos contactaste por WhatsApp, en breve te pasaremos las coordenadas exactas de nuestro spot y nos pondremos de acuerdo para tu recolección.</p>`
         } else {
           copyBody = `<p>Tus piezas ya están separadas y tu pedido <strong>${order.order_number}</strong> está confirmado gracias a tu anticipo. Cero sorpresas.</p>
-                      <p>Tu paquete ya te está esperando; recuerda que <strong>el saldo pendiente se liquida al momento de recolectarlo</strong>.</p>
-                      <p>En el siguiente mensaje te pasaremos las coordenadas exactas de nuestro spot y nos pondremos de acuerdo para tu recolección.</p>`
+                      <p>Tu paquete ya te está esperando; recuerda que <strong>el saldo pendiente se liquida en efectivo al momento de recolectarlo</strong>.</p>
+                      <p>Si ya nos contactaste por WhatsApp, en breve te pasaremos las coordenadas exactas de nuestro spot y nos pondremos de acuerdo para tu recolección.</p>
+                      <p><em>¿Ocupas cambio? (avísanos con tiempo porfa si necesitas cambio de algún billete)</em></p>`
         }
       } else {
         if (order.payment_mode === 'full_prepay') {
           copyBody = `<p>Tus piezas ya están separadas y tu pedido <strong>${order.order_number}</strong> está 100% confirmado y pagado. Cero sorpresas.</p>
-                      <p>Seguimos moviéndonos por Cancún para entregarte rápido. En breve nos pondremos de acuerdo por WhatsApp para afinar los detalles de tu entrega.</p>`
+                      <p>Seguimos moviéndonos por Cancún para entregarte rápido. Si ya nos mandaste tu ubicación por WhatsApp, en breve armamos la ruta y afinamos detalles.</p>`
         } else {
           copyBody = `<p>Tus piezas ya están separadas y tu pedido <strong>${order.order_number}</strong> está confirmado gracias a tu anticipo. Cero sorpresas.</p>
-                      <p>Seguimos moviéndonos por Cancún para entregarte rápido; recuerda que <strong>el saldo pendiente se liquida al momento de recibir tus prendas</strong>.</p>
-                      <p>En breve nos pondremos de acuerdo por WhatsApp para armar la entrega.</p>`
+                      <p>Seguimos moviéndonos por Cancún para entregarte rápido; recuerda que <strong>el saldo pendiente se liquida en efectivo al momento de recibir tus artículos</strong>.</p>
+                      <p>Si ya nos mandaste tu ubicación por WhatsApp, en breve armamos la ruta y afinamos detalles.</p>
+                      <p><em>¿Ocupas cambio? (avísanos con tiempo porfa si necesitas cambio de algún billete)</em></p>`
         }
       }
+
+      let items = []
+      try {
+        items = typeof order.items === 'string' ? JSON.parse(order.items) : (order.items || [])
+      } catch (e) {
+        items = []
+      }
+
+      const anticipoPaid = order.payment_mode === 'full_prepay' ? order.total_mxn : (order.delivery_mode === 'pickup' ? 0 : 50)
+      
+      const orderSummaryHtml = renderOrderSummaryHtml({
+        items: items.map((item: any) => ({
+          name: item.name,
+          title: item.title,
+          quantity: item.qty || item.quantity || 1,
+          price: item.unit_price || item.price || 0
+        })),
+        subtotal: order.subtotal_mxn || 0,
+        deliveryFee: order.delivery_fee || 0,
+        total: order.total_mxn || 0,
+        anticipoPaid
+      })
 
       const content = `
         <p>¡Listo ${order.customer_name.split(' ')[0]}! Ya nos cayó tu pago. Gracias por la confianza.</p>
         ${copyBody}
+        ${orderSummaryHtml}
         <p>Mientras empaquetamos tus cosas en nuestra bolsa Kraft, siéntete libre de ver lo que andan armando tus vecinos en nuestro Instagram.</p>
         <p>¡Aquí andamos para cualquier cosa!</p>
       `

@@ -15,7 +15,7 @@ import { NextResponse, NextRequest } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 
 import { sendEmail } from '@/lib/email'
-import { getBrandedEmailHtml } from '@/lib/email-templates'
+import { getBrandedEmailHtml, renderOrderSummaryHtml } from '@/lib/email-templates'
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://dummy.supabase.co',
@@ -218,7 +218,8 @@ export async function POST(req: NextRequest) {
            <p>Al liquidar todo de golpe, tu orden queda completamente cubierta. Una vez hecho el pago, solo escríbenos por WhatsApp para coordinar a qué hora pasas a recogerlo. ¡Puro VIP!</p>`
       } else {
         copyBody = `<p>Tu pedido está separado y listo para ser recolectado en nuestro punto de entrega.</p>
-           <p>Solo escríbenos por WhatsApp para coordinar la hora. El total de <strong>$${amountToPay} MXN</strong> lo liquidas <strong>en efectivo</strong> al momento de recoger tus piezas.</p>`
+           <p>Solo escríbenos por WhatsApp para coordinar la hora. El total pendiente de <strong>$${total} MXN</strong> lo liquidas <strong>en efectivo</strong> al momento de recoger tus piezas.</p>
+           <p><em>¿Ocupas cambio? (avísanos con tiempo porfa si necesitas cambio de algún billete)</em></p>`
       }
     } else {
       if (payment_preference === 'total') {
@@ -226,7 +227,8 @@ export async function POST(req: NextRequest) {
            <p>Al liquidar todo de golpe, te olvidas de pendientes al momento de la entrega y nosotros agilizamos el proceso. ¡Puro VIP!</p>`
       } else {
         copyBody = `<p>Para separar tus piezas y agendar la entrega, pedimos un anticipo de <strong>$${amountToPay} MXN</strong>. (Esto nos ayuda a asegurar que el trato es serio y apartar tu mercancía sin broncas).</p>
-           <p>El resto lo liquidas <strong>en efectivo</strong> al momento de la entrega.</p>`
+           <p>El saldo pendiente lo liquidas <strong>en efectivo</strong> al momento de recibir tus artículos. Si ya nos mandaste tu ubicación por WhatsApp, en breve armamos la ruta.</p>
+           <p><em>¿Ocupas cambio? (avísanos con tiempo porfa si necesitas cambio de algún billete)</em></p>`
       }
     }
 
@@ -248,9 +250,24 @@ export async function POST(req: NextRequest) {
       `
     }
 
+    const orderSummaryHtml = renderOrderSummaryHtml({
+      items: items.map((item: any) => ({
+        name: item.name,
+        title: item.title,
+        quantity: item.qty || item.quantity || 1,
+        price: item.unit_price || item.price || 0
+      })),
+      subtotal,
+      deliveryFee: delivery_fee,
+      total,
+      anticipoPaid: 0 // In Pre-confirmation, nothing is paid yet
+    })
+
     const content = `
       <p>¡Qué onda ${customer_name}! Gracias por armar tu pedido con Distrito Pipa.</p>
       ${copyBody}
+      
+      ${orderSummaryHtml}
       
       ${paymentButton}
 
