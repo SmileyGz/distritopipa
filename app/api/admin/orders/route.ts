@@ -92,10 +92,31 @@ export async function PATCH(req: NextRequest) {
         const orderNumber = order.order_number || order.id.split('-')[0].toUpperCase()
         const customerName = order.customers?.first_name || order.customer_name || 'Desconocido'
         const subject = `¡Pago Confirmado! - Pedido ${orderNumber}`
+        let copyBody = ''
+        if (order.fulfillment_type === 'pickup') {
+          if (order.payment_mode === 'full_prepay') {
+            copyBody = `<p>Tus piezas ya están separadas y tu pedido <strong>${orderNumber}</strong> está 100% confirmado y pagado. Cero sorpresas.</p>
+                        <p>Tu paquete ya te está esperando. En el siguiente mensaje te pasaremos las coordenadas exactas de nuestro spot y nos pondremos de acuerdo para tu recolección.</p>`
+          } else {
+            copyBody = `<p>Tus piezas ya están separadas y tu pedido <strong>${orderNumber}</strong> está confirmado gracias a tu anticipo. Cero sorpresas.</p>
+                        <p>Tu paquete ya te está esperando; recuerda que <strong>el saldo pendiente se liquida al momento de recolectarlo</strong>.</p>
+                        <p>En el siguiente mensaje te pasaremos las coordenadas exactas de nuestro spot y nos pondremos de acuerdo para tu recolección.</p>`
+          }
+        } else {
+          if (order.payment_mode === 'full_prepay') {
+            copyBody = `<p>Tus piezas ya están separadas y tu pedido <strong>${orderNumber}</strong> está 100% confirmado y pagado. Cero sorpresas.</p>
+                        <p>Seguimos moviéndonos por Cancún para entregarte rápido. En breve nos pondremos de acuerdo por WhatsApp para afinar los detalles de tu entrega.</p>`
+          } else {
+            copyBody = `<p>Tus piezas ya están separadas y tu pedido <strong>${orderNumber}</strong> está confirmado gracias a tu anticipo. Cero sorpresas.</p>
+                        <p>Seguimos moviéndonos por Cancún para entregarte rápido; recuerda que <strong>el saldo pendiente se liquida al momento de recibir tus prendas</strong>.</p>
+                        <p>En breve nos pondremos de acuerdo por WhatsApp para armar la entrega.</p>`
+          }
+        }
+
         const content = `
-          <p>¡Listo ${customerName}! Ya nos cayó tu pago. Gracias por la confianza.</p>
-          <p>Tus piezas ya están separadas y tu pedido <strong>${orderNumber}</strong> está 100% confirmado. Cero sorpresas. Seguimos moviéndonos por Cancún para entregarte rápido.</p>
-          <p>En el siguiente mensaje te pasaremos las coordenadas exactas o nos pondremos de acuerdo por WhatsApp para armar la entrega. Mientras empaquetamos tus cosas en nuestra bolsa Kraft, siéntete libre de ver lo que andan armando tus vecinos en nuestro Instagram.</p>
+          <p>¡Listo ${customerName.split(' ')[0]}! Ya nos cayó tu pago. Gracias por la confianza.</p>
+          ${copyBody}
+          <p>Mientras empaquetamos tus cosas en nuestra bolsa Kraft, siéntete libre de ver lo que andan armando tus vecinos en nuestro Instagram.</p>
           <p>¡Aquí andamos para cualquier cosa!</p>
         `
         const html = getBrandedEmailHtml('Pago Confirmado', content)
