@@ -8,7 +8,8 @@ export async function sendEmail({ to, subject, html }: { to: string, subject: st
     const data = await resend.emails.send({
       from: 'Distrito Pipa <pedidos@distritopipa.com>',
       to: [to],
-      bcc: ['pipas@distritopipa.com'],
+      bcc: ['smileygonla@gmail.com'],
+      replyTo: 'smileygonla@gmail.com',
       subject,
       html,
     })
