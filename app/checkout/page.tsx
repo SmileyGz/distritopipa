@@ -46,6 +46,7 @@ export default function CheckoutPage() {
   // Customer info
   const [customerName, setCustomerName] = useState('')
   const [customerPhone, setCustomerPhone] = useState('') 
+  const [customerEmail, setCustomerEmail] = useState('')
   const [pickupTime, setPickupTime] = useState('')
   const [address, setAddress] = useState('')
   
@@ -112,6 +113,7 @@ export default function CheckoutPage() {
             delivery_zone: 'pickup',
             customer_name: customerName,
             customer_phone: customerPhone,
+            customer_email: customerEmail,
             delivery_address: 'Pickup Local',
             is_night: false,
             payment_preference: 'anticipo'
@@ -130,6 +132,7 @@ export default function CheckoutPage() {
             delivery_zone: fulfillment === 'pickup' ? 'pickup' : zone,
             customer_name: customerName,
             customer_phone: customerPhone,
+            customer_email: customerEmail,
             delivery_address: fulfillment === 'pickup' ? 'Pickup Local' : address,
             is_night: timeOfDay === 'night',
             payment_preference: paymentPref
@@ -149,6 +152,7 @@ export default function CheckoutPage() {
             items,
             customerName,
             customerPhone,
+            customerEmail,
             address,
             zone,
             timeOfDay,
@@ -267,6 +271,15 @@ export default function CheckoutPage() {
                     </div>
                   </div>
                   <div className="form-group">
+                    <label className="section-label">Correo Electrónico</label>
+                    <input 
+                      className="sleek-input" 
+                      type="email" 
+                      placeholder="Para enviarte confirmaciones" 
+                      value={customerEmail} onChange={e => setCustomerEmail(e.target.value)}
+                    />
+                  </div>
+                  <div className="form-group">
                     <label className="section-label">Horario de Entrega</label>
                     <select className="sleek-input" value={timeOfDay} onChange={e => setTimeOfDay(e.target.value as any)}>
                       <option value="day">Día (Tarifa normal)</option>
@@ -286,7 +299,7 @@ export default function CheckoutPage() {
                     <button className="btn-ghost" onClick={handleBack}>Regresar</button>
                     <button 
                       className="btn-primary" 
-                      disabled={!address.trim() || !customerName.trim() || customerPhone.length < 10} 
+                      disabled={!address.trim() || !customerName.trim() || customerPhone.length < 10 || !customerEmail.includes('@')} 
                       onClick={handleNext}
                     >
                       Continuar
@@ -318,6 +331,15 @@ export default function CheckoutPage() {
                     </div>
                   </div>
                   <div className="form-group">
+                    <label className="section-label">Correo Electrónico</label>
+                    <input 
+                      className="sleek-input" 
+                      type="email" 
+                      placeholder="Para enviarte confirmaciones" 
+                      value={customerEmail} onChange={e => setCustomerEmail(e.target.value)}
+                    />
+                  </div>
+                  <div className="form-group">
                     <label className="section-label">Hora para agendar tu visita</label>
                     <select 
                       className="sleek-input" 
@@ -342,7 +364,7 @@ export default function CheckoutPage() {
                     <button className="btn-ghost" onClick={handleBack}>Regresar</button>
                     <button 
                       className="btn-primary" 
-                      disabled={!pickupTime || !customerName.trim() || customerPhone.length < 10} 
+                      disabled={!pickupTime || !customerName.trim() || customerPhone.length < 10 || !customerEmail.includes('@')} 
                       onClick={handleNext}
                     >
                       Continuar

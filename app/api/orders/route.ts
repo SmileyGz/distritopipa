@@ -11,8 +11,10 @@
 //   6. Confirmed order triggers WhatsApp contact from you
 // ─────────────────────────────────────────────────────────────
 
+import { NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
-import { NextRequest, NextResponse } from 'next/server'
+import { getMercadoPagoClient } from '@/lib/mercadopago'
+import { sendEmail } from '@/lib/email'
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://dummy.supabase.co',
@@ -124,6 +126,7 @@ export async function POST(req: NextRequest) {
     .from('orders')
     .insert({
       customer_id: customer?.id,
+      customer_email,
       items,
       subtotal,
       delivery_zone,

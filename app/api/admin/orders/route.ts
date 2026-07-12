@@ -1,5 +1,6 @@
 import { NextResponse, NextRequest } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase'
+import { sendEmail } from '@/lib/email'
 
 function checkAuth(req: NextRequest) {
   const secret = req.headers.get('x-admin-secret')
@@ -27,6 +28,7 @@ export async function GET(req: NextRequest) {
     status: o.status === 'new' ? 'pending' : o.status,
     customer_name: o.customers?.first_name || 'Desconocido',
     customer_phone: o.customers?.phone || '',
+    customer_email: o.customer_email || '',
     items: o.items || [],
     subtotal_mxn: o.subtotal || 0,
     delivery_fee: o.delivery_fee || 0,
@@ -66,12 +68,33 @@ export async function PATCH(req: NextRequest) {
     if (updates.anticipo_paid !== undefined) dbUpdates.anticipo_status = updates.anticipo_paid ? 'paid' : 'pending'
     if (updates.admin_notes !== undefined) dbUpdates.admin_notes = updates.admin_notes
 
+    const { data: order } = await supabaseAdmin
+      .from('orders')
+      .select('*, customers(first_name)')
+      .eq('id', id)
+      .single()
+
     const { error } = await supabaseAdmin
       .from('orders')
       .update(dbUpdates)
       .eq('id', id)
 
     if (error) throw error
+
+    // Automation logic
+    if (order && order.customer_email) {
+      const isNewlyConfirmed = updates.status === 'confirmed' && order.status !== 'confirmed'
+      const isNewlyPaid = updates.anticipo_paid === true && order.anticipo_status !== 'paid'
+      
+      if (isNewlyConfirmed || isNewlyPaid) {
+        const orderNumber = order.id.split('-')[0].toUpperCase()
+        const customerName = order.customers?.first_name || order.customer_name || 'Desconocido'
+        const subject = `¡Pago Confirmado! - Pedido ${orderNumber}`
+        const html = `<div style="font-family: sans-serif; color: #111;"><h2>Hola ${customerName},</h2><p>¡Hemos recibido tu pago con éxito!</p><p>Tu pedido <strong>${orderNumber}</strong> ya está en preparación. Te avisaremos en cuanto esté listo.</p></div>`
+        
+        sendEmail({ to: order.customer_email, subject, html }).catch(console.error)
+      }
+    }
 
     return NextResponse.json({ success: true })
   } catch (err: any) {

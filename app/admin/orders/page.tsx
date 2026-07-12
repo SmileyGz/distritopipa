@@ -203,6 +203,46 @@ export default function AdminOrdersPage() {
     setOrders(os => os.map(o => o.id === order.id ? { ...o, admin_notes: notes } : o))
   }
 
+  async function sendEmailAction(order: Order, type: 'pre_confirm' | 'reminder' | 'confirm' | 'location') {
+    if (!order.customer_email) return;
+    
+    setUpdating(order.id)
+    setToast(`Enviando correo...`)
+    
+    let subject = ''
+    let html = ''
+    
+    if (type === 'pre_confirm') {
+      subject = `Instrucciones de Pago - Pedido ${order.order_number}`
+      html = `<div style="font-family: sans-serif; color: #111;"><h2>Hola ${order.customer_name},</h2><p>Recibimos tu pedido <strong>${order.order_number}</strong>.</p><p>Para poder procesarlo, necesitamos que realices el pago de <strong>$${(order.payment_mode === 'total' ? order.total_mxn : order.anticipo_mxn).toLocaleString('es-MX')} MXN</strong>.</p><p>Por favor envíanos tu comprobante por WhatsApp una vez realizado. ¡Gracias!</p></div>`
+    } else if (type === 'reminder') {
+      subject = `Recordatorio de Pago - Pedido ${order.order_number}`
+      html = `<div style="font-family: sans-serif; color: #111;"><h2>Hola ${order.customer_name},</h2><p>Este es un recordatorio amigable de que el pago de tu pedido <strong>${order.order_number}</strong> aún está pendiente.</p><p>Te invitamos a realizar el pago lo antes posible para no retrasar tu entrega.</p></div>`
+    } else if (type === 'confirm') {
+      subject = `¡Pago Confirmado! - Pedido ${order.order_number}`
+      html = `<div style="font-family: sans-serif; color: #111;"><h2>Hola ${order.customer_name},</h2><p>¡Hemos recibido tu pago con éxito!</p><p>Tu pedido <strong>${order.order_number}</strong> ya está en preparación. Te avisaremos en cuanto esté listo.</p></div>`
+    } else if (type === 'location') {
+      subject = `Ubicación de Pick Up - Pedido ${order.order_number}`
+      html = `<div style="font-family: sans-serif; color: #111;"><h2>Hola ${order.customer_name},</h2><p>¡Buenas noticias! Tu pedido <strong>${order.order_number}</strong> ya está listo para ser recogido.</p><p>Nuestra ubicación es: <strong>Región 96, Manzana 14...</strong></p><p>Recuerda que agendaste tu visita. ¡Te esperamos!</p></div>`
+    }
+
+    try {
+      const res = await fetch('/api/admin/send-email', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ to: order.customer_email, subject, html })
+      })
+      if (res.ok) {
+        showToast('✅ Correo enviado con éxito')
+      } else {
+        showToast('❌ Error al enviar correo')
+      }
+    } catch(e) {
+      showToast('❌ Error de conexión')
+    }
+    setUpdating(null)
+  }
+
   // ── Filter ─────────────────────────────────────────────────
 
   const filtered = orders.filter(o => {
@@ -627,6 +667,23 @@ export default function AdminOrdersPage() {
                       </button>
                     )}
                   </div>
+
+                  {/* Email Actions Panel */}
+                  {order.customer_email && (
+                    <div className="email-actions">
+                      <div className="email-title">📧 Correos Operativos: {order.customer_email}</div>
+                      <div className="email-btn-group">
+                        {order.status === 'pending' && <button className="btn-email" onClick={() => sendEmailAction(order, 'pre_confirm')}>Enviar Pre-confirmación</button>}
+                        {(!order.anticipo_paid && order.payment_mode !== 'pickup_cash') && <button className="btn-email" onClick={() => sendEmailAction(order, 'reminder')}>Recordatorio de Pago</button>}
+                        {order.status === 'confirmed' && <button className="btn-email" onClick={() => sendEmailAction(order, 'confirm')}>Confirmación de Pago</button>}
+                        {(order.status === 'ready' && order.delivery_mode === 'pickup') && <button className="btn-email" onClick={() => sendEmailAction(order, 'location')}>Enviar Ubicación Pick Up</button>}
+                        {/* Fallback button if no logical button applies right now */}
+                        {!(order.status === 'pending' || (!order.anticipo_paid && order.payment_mode !== 'pickup_cash') || order.status === 'confirmed' || (order.status === 'ready' && order.delivery_mode === 'pickup')) && (
+                           <span style={{fontSize: '11px', color: '#666'}}>No hay correos operativos sugeridos para el estado actual.</span>
+                        )}
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
             </div>
@@ -798,6 +855,13 @@ export default function AdminOrdersPage() {
         }
         .mark-paid { background: rgba(74,222,128,.1); color: #4ade80; border-color: rgba(74,222,128,.3); }
         .mark-paid:hover { background: rgba(74,222,128,.2); }
+
+        .email-actions { margin-top: 14px; padding: 12px; background: rgba(79, 70, 229, 0.05); border: 1px solid rgba(79, 70, 229, 0.2); border-radius: 8px; }
+        .email-title { font-size: 11px; font-weight: 600; color: #a5b4fc; margin-bottom: 8px; text-transform: uppercase; letter-spacing: 0.05em; }
+        .email-btn-group { display: flex; gap: 8px; flex-wrap: wrap; }
+        .btn-email { padding: 8px 12px; border-radius: 6px; font-size: 11px; font-weight: 600; background: #4f46e5; color: white; border: none; cursor: pointer; transition: background 0.2s; }
+        .btn-email:hover { background: #4338ca; }
+        .btn-email:disabled { opacity: 0.5; cursor: not-allowed; }
         .mark-unpaid { background: rgba(248,113,113,.1); color: #f87171; border-color: rgba(248,113,113,.3); }
 
         /* Notes */
