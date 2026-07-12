@@ -25,7 +25,7 @@ export async function GET(req: NextRequest) {
   // Translate the database schema into the frontend schema expected by the admin dashboard
   const mappedOrders = data.map((o: any) => ({
     id: o.id,
-    order_number: o.id.split('-')[0].toUpperCase(),
+    order_number: o.order_number || o.id.split('-')[0].toUpperCase(),
     status: o.status === 'new' ? 'pending' : o.status,
     customer_name: o.customers?.first_name || 'Desconocido',
     customer_phone: o.customers?.phone || '',
@@ -88,7 +88,7 @@ export async function PATCH(req: NextRequest) {
       const isNewlyPaid = updates.anticipo_paid === true && order.anticipo_status !== 'paid'
       
       if (isNewlyConfirmed || isNewlyPaid) {
-        const orderNumber = order.id.split('-')[0].toUpperCase()
+        const orderNumber = order.order_number || order.id.split('-')[0].toUpperCase()
         const customerName = order.customers?.first_name || order.customer_name || 'Desconocido'
         const subject = `¡Pago Confirmado! - Pedido ${orderNumber}`
         const content = `

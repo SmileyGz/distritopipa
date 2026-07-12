@@ -141,7 +141,7 @@ export async function POST(req: NextRequest) {
       fulfillment_type: delivery_zone === 'pickup' ? 'pickup' : 'delivery',
       status: 'new',
     })
-    .select('id, created_at')
+    .select('id, order_number, created_at')
     .single()
 
   if (error) {
@@ -151,9 +151,8 @@ export async function POST(req: NextRequest) {
 
   // Automatically send Pre-Confirmation Email if they provided one
   if (customer_email) {
-    const orderNumber = order.id.split('-')[0].toUpperCase()
     const amountToPay = (payment_preference === 'total' ? total : anticipo).toLocaleString('es-MX')
-    const subject = `Tu pedido está casi listo 🤝 - Pedido ${orderNumber}`
+    const subject = `Tu pedido está casi listo 🤝 - Pedido ${order.order_number}`
     const content = `
       <p>¡Qué onda ${customer_name}! Gracias por armar tu pedido con Distrito Pipa.</p>
       <p>Para separar tus piezas y agendar la entrega, pedimos un anticipo de <strong>$${amountToPay} MXN</strong>. (Esto nos ayuda a asegurar que el trato es serio y apartar tu mercancía sin broncas).</p>
@@ -163,7 +162,7 @@ export async function POST(req: NextRequest) {
         <li><strong>Banco:</strong> BanCoppel</li>
         <li><strong>CLABE:</strong> 167691000009770036</li>
         <li><strong>A nombre de:</strong> Distrito Pipa</li>
-        <li><strong>Concepto:</strong> ${orderNumber}</li>
+        <li><strong>Concepto:</strong> ${order.order_number}</li>
       </ul>
       <p>En cuanto quede, mándanos captura por WhatsApp y nos coordinamos. ¡Seguimos activos!</p>
     `
@@ -228,8 +227,8 @@ export async function POST(req: NextRequest) {
       clabe: process.env.CLABE_NUMBER || '167691000009770036',
       recipient: 'Distrito Pipa',
       amount: anticipo,
-      reference: order.id.slice(0, 8).toUpperCase(), // short order ref for bank transfer
-      instructions_es: `Transfiere $${anticipo} MXN a la CLABE indicada. Usa la referencia ${order.id.slice(0,8).toUpperCase()} como concepto. Una vez confirmado el anticipo, te contactaremos por WhatsApp al ${customer_phone}.`,
+      reference: order.order_number, // using branded order number
+      instructions_es: `Transfiere $${anticipo} MXN a la CLABE indicada. Usa la referencia ${order.order_number} como concepto. Una vez confirmado el anticipo, te contactaremos por WhatsApp al ${customer_phone}.`,
     },
     customer_tier: customer?.current_tier_id || 'bronze',
     estimated_points: Math.floor(total), // points they'll earn on delivery
