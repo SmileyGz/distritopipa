@@ -148,6 +148,14 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Error al crear pedido. Intenta de nuevo.', sb_error: error.message }, { status: 500 })
   }
 
+  // Automatically send Pre-Confirmation Email if they provided one
+  if (customer_email) {
+    const orderNumber = order.id.split('-')[0].toUpperCase()
+    const subject = `Instrucciones de Pago - Pedido ${orderNumber}`
+    const html = `<div style="font-family: sans-serif; color: #111;"><h2>Hola ${customer_name},</h2><p>Recibimos tu pedido <strong>${orderNumber}</strong>.</p><p>Para poder procesarlo, necesitamos que realices el pago de <strong>$${(payment_preference === 'total' ? total : anticipo).toLocaleString('es-MX')} MXN</strong>.</p><p>Por favor envíanos tu comprobante por WhatsApp una vez realizado. ¡Gracias!</p></div>`
+    await sendEmail({ to: customer_email, subject, html }).catch(console.error)
+  }
+
   // --- MercadoPago Integration ---
   let mpInitPoint = null
   let mpErrorMessage = null
