@@ -214,7 +214,7 @@ export default function AdminOrdersPage() {
     
     if (type === 'pre_confirm') {
       subject = `Instrucciones de Pago - Pedido ${order.order_number}`
-      html = `<div style="font-family: sans-serif; color: #111;"><h2>Hola ${order.customer_name},</h2><p>Recibimos tu pedido <strong>${order.order_number}</strong>.</p><p>Para poder procesarlo, necesitamos que realices el pago de <strong>$${(order.payment_mode === 'total' ? order.total_mxn : order.anticipo_mxn).toLocaleString('es-MX')} MXN</strong>.</p><p>Por favor envíanos tu comprobante por WhatsApp una vez realizado. ¡Gracias!</p></div>`
+      html = `<div style="font-family: sans-serif; color: #111;"><h2>Hola ${order.customer_name},</h2><p>Recibimos tu pedido <strong>${order.order_number}</strong>.</p><p>Para poder procesarlo, necesitamos que realices el pago de <strong>$${(order.payment_mode === 'full_prepay' ? order.total_mxn : order.anticipo_mxn).toLocaleString('es-MX')} MXN</strong>.</p><p>Por favor envíanos tu comprobante por WhatsApp una vez realizado. ¡Gracias!</p></div>`
     } else if (type === 'reminder') {
       subject = `Recordatorio de Pago - Pedido ${order.order_number}`
       html = `<div style="font-family: sans-serif; color: #111;"><h2>Hola ${order.customer_name},</h2><p>Este es un recordatorio amigable de que el pago de tu pedido <strong>${order.order_number}</strong> aún está pendiente.</p><p>Te invitamos a realizar el pago lo antes posible para no retrasar tu entrega.</p></div>`
