@@ -19,6 +19,7 @@ export function getBrandedEmailHtml(title: string, contentHtml: string): string 
           <!-- Header -->
           <tr>
             <td align="center" style="padding: 30px 20px; border-bottom: 2px solid #DC143C;">
+              <img src="https://www.distritopipa.com/icon.png" alt="Distrito Pipa Logo" width="64" height="64" style="display: block; margin-bottom: 15px; border-radius: 8px;">
               <h1 style="margin: 0; font-family: 'Bebas Neue', sans-serif; font-size: 32px; letter-spacing: 2px; color: #DC143C; text-transform: uppercase;">
                 DISTRITO <span style="color: #FFFFFF; font-family: 'Times New Roman', serif; font-style: italic; text-transform: none; font-size: 34px;">Pipa</span>
               </h1>
