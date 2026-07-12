@@ -43,6 +43,7 @@ export async function GET(req: NextRequest) {
     payment_mode: o.payment_mode || (o.fulfillment_type === 'pickup' ? 'pickup_cash' : 'deposit'),
     delivery_address: o.delivery_address || '',
     admin_notes: o.admin_notes || '',
+    payment_link: o.payment_link || null,
     created_at: o.created_at,
     updated_at: o.updated_at,
   }))

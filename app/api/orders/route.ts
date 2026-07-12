@@ -149,27 +149,6 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Error al crear pedido. Intenta de nuevo.', sb_error: error.message }, { status: 500 })
   }
 
-  // Automatically send Pre-Confirmation Email if they provided one
-  if (customer_email) {
-    const amountToPay = (payment_preference === 'total' ? total : anticipo).toLocaleString('es-MX')
-    const subject = `Tu pedido está casi listo 🤝 - Pedido ${order.order_number}`
-    const content = `
-      <p>¡Qué onda ${customer_name}! Gracias por armar tu pedido con Distrito Pipa.</p>
-      <p>Para separar tus piezas y agendar la entrega, pedimos un anticipo de <strong>$${amountToPay} MXN</strong>. (Esto nos ayuda a asegurar que el trato es serio y apartar tu mercancía sin broncas).</p>
-      <p>El resto lo liquidas al momento de la entrega.</p>
-      <p>Aquí te dejo los datos para la transferencia:</p>
-      <ul>
-        <li><strong>Banco:</strong> BanCoppel</li>
-        <li><strong>CLABE:</strong> 167691000009770036</li>
-        <li><strong>A nombre de:</strong> Distrito Pipa</li>
-        <li><strong>Concepto:</strong> ${order.order_number}</li>
-      </ul>
-      <p>En cuanto quede, mándanos captura por WhatsApp y nos coordinamos. ¡Seguimos activos!</p>
-    `
-    const html = getBrandedEmailHtml('Instrucciones de Pago', content)
-    await sendEmail({ to: customer_email, subject, html }).catch(console.error)
-  }
-
   // --- MercadoPago Integration ---
   let mpInitPoint = null
   let mpErrorMessage = null
@@ -208,6 +187,47 @@ export async function POST(req: NextRequest) {
       mpErrorMessage = mpError.message || 'Error desconocido de MercadoPago'
       // We do not fail the order creation, just fallback to standard response
     }
+  }
+
+  if (mpInitPoint) {
+    await supabase.from('orders').update({ payment_link: mpInitPoint }).eq('id', order.id)
+  }
+
+  // Automatically send Pre-Confirmation Email if they provided one
+  if (customer_email) {
+    const amountToPay = (payment_preference === 'total' ? total : anticipo).toLocaleString('es-MX')
+    const subject = `Tu pedido está casi listo 🤝 - Pedido ${order.order_number}`
+    
+    let paymentButton = ''
+    if (mpInitPoint) {
+      paymentButton = `
+        <div style="margin: 30px 0; text-align: center;">
+          <a href="${mpInitPoint}" style="background-color: #009EE3; color: white; padding: 14px 24px; text-decoration: none; border-radius: 6px; font-weight: bold; display: inline-block; font-size: 16px;">
+            Pagar de forma segura con Mercado Pago
+          </a>
+        </div>
+        <p style="text-align: center; font-size: 13px; color: #aaa; margin-bottom: 30px;">(Opcional: Si prefieres transferencia bancaria manual, usa los datos de abajo)</p>
+      `
+    }
+
+    const content = `
+      <p>¡Qué onda ${customer_name}! Gracias por armar tu pedido con Distrito Pipa.</p>
+      <p>Para separar tus piezas y agendar la entrega, pedimos un anticipo de <strong>$${amountToPay} MXN</strong>. (Esto nos ayuda a asegurar que el trato es serio y apartar tu mercancía sin broncas).</p>
+      <p>El resto lo liquidas al momento de la entrega.</p>
+      
+      ${paymentButton}
+
+      <p>Datos para transferencia manual:</p>
+      <ul>
+        <li><strong>Banco:</strong> Hey Banco</li>
+        <li><strong>CLABE:</strong> 167691000009770036</li>
+        <li><strong>A nombre de:</strong> José Luis</li>
+        <li><strong>Concepto:</strong> ${order.order_number}</li>
+      </ul>
+      <p>En cuanto quede (si haces transferencia), mándanos captura por WhatsApp y nos coordinamos. Si usas el botón de Mercado Pago no es necesario enviar captura, se aprueba solo. ¡Seguimos activos!</p>
+    `
+    const html = getBrandedEmailHtml('Instrucciones de Pago', content)
+    await sendEmail({ to: customer_email, subject, html }).catch(console.error)
   }
 
   // Return everything the frontend needs to show the payment instructions

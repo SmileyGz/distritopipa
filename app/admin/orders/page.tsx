@@ -24,6 +24,7 @@ import { getBrandedEmailHtml } from '@/lib/email-templates'
 interface Order {
   id: string
   order_number: string
+  payment_link?: string | null
   status: string
   customer_name: string
   customer_phone: string
@@ -232,9 +233,25 @@ export default function AdminOrdersPage() {
       html = getBrandedEmailHtml('Instrucciones de Pago', content)
     } else if (type === 'reminder') {
       subject = `¿Sigues por ahí? 👀 - Pedido ${order.order_number}`
+      
+      let paymentButton = ''
+      if (order.payment_link) {
+        paymentButton = `
+          <div style="margin: 30px 0; text-align: center;">
+            <a href="${order.payment_link}" style="background-color: #009EE3; color: white; padding: 14px 24px; text-decoration: none; border-radius: 6px; font-weight: bold; display: inline-block; font-size: 16px;">
+              Pagar de forma segura con Mercado Pago
+            </a>
+          </div>
+          <p style="text-align: center; font-size: 13px; color: #aaa; margin-bottom: 30px;">(Si prefieres transferencia manual, avísanos para mandarte los datos de nuevo)</p>
+        `
+      }
+
       const content = `
         <p>¡Qué tal, amigo! Solo paso a recordarte que tenemos tu pedido <strong>${order.order_number}</strong> en pausa.</p>
         <p>Hay buena demanda hoy en Cancún y no queremos que te quedes sin tu pieza. Si todavía la quieres, confírmanos con la captura de tu pago/anticipo.</p>
+        
+        ${paymentButton}
+
         <p>Si cambiaste de opinión no hay ningún problema, nada más avísanos para poder liberar los artículos para alguien más.</p>
         <p>¡Quedamos al pendiente!</p>
       `
