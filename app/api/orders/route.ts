@@ -210,10 +210,15 @@ export async function POST(req: NextRequest) {
       `
     }
 
+    const copyBody = payment_preference === 'total'
+      ? `<p>Para confirmar tu pedido y mandarlo por la vía rápida, necesitamos el pago total de <strong>$${amountToPay} MXN</strong>.</p>
+         <p>Al liquidar todo de golpe, te olvidas de pendientes al momento de la entrega y nosotros agilizamos el proceso. ¡Puro VIP!</p>`
+      : `<p>Para separar tus piezas y agendar la entrega, pedimos un anticipo de <strong>$${amountToPay} MXN</strong>. (Esto nos ayuda a asegurar que el trato es serio y apartar tu mercancía sin broncas).</p>
+         <p>El resto lo liquidas al momento de la entrega.</p>`
+
     const content = `
       <p>¡Qué onda ${customer_name}! Gracias por armar tu pedido con Distrito Pipa.</p>
-      <p>Para separar tus piezas y agendar la entrega, pedimos un anticipo de <strong>$${amountToPay} MXN</strong>. (Esto nos ayuda a asegurar que el trato es serio y apartar tu mercancía sin broncas).</p>
-      <p>El resto lo liquidas al momento de la entrega.</p>
+      ${copyBody}
       
       ${paymentButton}
 
