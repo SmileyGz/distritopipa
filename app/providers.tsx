@@ -10,5 +10,9 @@ if (typeof window !== 'undefined') {
 }
 
 export function CSPostHogProvider({ children }: { children: React.ReactNode }) {
+  if (typeof window !== 'undefined') {
+    console.log('PostHog provider mounted, key:', process.env.NEXT_PUBLIC_POSTHOG_KEY ? 'Present' : 'Missing');
+    posthog.capture('client_mounted');
+  }
   return <PostHogProvider client={posthog}>{children}</PostHogProvider>
 }
