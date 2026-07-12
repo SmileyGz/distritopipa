@@ -11,7 +11,7 @@
 //   6. Confirmed order triggers WhatsApp contact from you
 // ─────────────────────────────────────────────────────────────
 
-import { NextResponse } from 'next/server'
+import { NextResponse, NextRequest } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 
 import { sendEmail } from '@/lib/email'
