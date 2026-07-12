@@ -210,18 +210,29 @@ export async function POST(req: NextRequest) {
       `
     }
 
-    const copyBody = payment_preference === 'total'
-      ? `<p>Para confirmar tu pedido y mandarlo por la vía rápida, necesitamos el pago total de <strong>$${amountToPay} MXN</strong>.</p>
-         <p>Al liquidar todo de golpe, te olvidas de pendientes al momento de la entrega y nosotros agilizamos el proceso. ¡Puro VIP!</p>`
-      : `<p>Para separar tus piezas y agendar la entrega, pedimos un anticipo de <strong>$${amountToPay} MXN</strong>. (Esto nos ayuda a asegurar que el trato es serio y apartar tu mercancía sin broncas).</p>
-         <p>El resto lo liquidas al momento de la entrega.</p>`
+    let copyBody = ''
 
-    const content = `
-      <p>¡Qué onda ${customer_name}! Gracias por armar tu pedido con Distrito Pipa.</p>
-      ${copyBody}
-      
-      ${paymentButton}
+    if (delivery_zone === 'pickup') {
+      if (payment_preference === 'total') {
+        copyBody = `<p>Para mandar tu pedido directo a producción por la vía rápida, necesitamos el pago total de <strong>$${amountToPay} MXN</strong>.</p>
+           <p>Al liquidar todo de golpe, tu orden queda completamente cubierta. Una vez hecho el pago, solo escríbenos por WhatsApp para coordinar a qué hora pasas a recogerlo. ¡Puro VIP!</p>`
+      } else {
+        copyBody = `<p>Tu pedido está separado y listo para ser recolectado en nuestro punto de entrega.</p>
+           <p>Solo escríbenos por WhatsApp para coordinar la hora. El total de <strong>$${amountToPay} MXN</strong> lo liquidas <strong>en efectivo</strong> al momento de recoger tus piezas.</p>`
+      }
+    } else {
+      if (payment_preference === 'total') {
+        copyBody = `<p>Para confirmar tu pedido y mandarlo por la vía rápida, necesitamos el pago total de <strong>$${amountToPay} MXN</strong>.</p>
+           <p>Al liquidar todo de golpe, te olvidas de pendientes al momento de la entrega y nosotros agilizamos el proceso. ¡Puro VIP!</p>`
+      } else {
+        copyBody = `<p>Para separar tus piezas y agendar la entrega, pedimos un anticipo de <strong>$${amountToPay} MXN</strong>. (Esto nos ayuda a asegurar que el trato es serio y apartar tu mercancía sin broncas).</p>
+           <p>El resto lo liquidas <strong>en efectivo</strong> al momento de la entrega.</p>`
+      }
+    }
 
+    let manualBankInfo = ''
+    if (paymentButton !== '') {
+      manualBankInfo = `
       <p>Datos para transferencia manual:</p>
       <ul>
         <li><strong>Banco:</strong> Hey Banco</li>
@@ -230,6 +241,20 @@ export async function POST(req: NextRequest) {
         <li><strong>Concepto:</strong> ${order.order_number}</li>
       </ul>
       <p>En cuanto quede (si haces transferencia), mándanos captura por WhatsApp y nos coordinamos. Si usas el botón de Mercado Pago no es necesario enviar captura, se aprueba solo. ¡Seguimos activos!</p>
+      `
+    } else {
+      manualBankInfo = `
+      <p>¡Seguimos activos! Escríbenos por WhatsApp para coordinar la entrega.</p>
+      `
+    }
+
+    const content = `
+      <p>¡Qué onda ${customer_name}! Gracias por armar tu pedido con Distrito Pipa.</p>
+      ${copyBody}
+      
+      ${paymentButton}
+
+      ${manualBankInfo}
     `
     const html = getBrandedEmailHtml('Instrucciones de Pago', content)
     await sendEmail({ to: customer_email, subject, html }).catch(console.error)
