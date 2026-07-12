@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import { useStore } from '@/lib/store'
+import posthog from 'posthog-js'
 
 export default function CheckoutSuccessPage() {
   const searchParams = useSearchParams()
@@ -38,6 +39,15 @@ export default function CheckoutSuccessPage() {
                 gateway: 'mercadopago'
               })
             }).catch(console.error)
+
+            // PostHog Tracking
+            posthog.capture('purchase', {
+              order_id: finalOrderId,
+              value: orderInfo.paymentPref === 'total' ? orderInfo.finalTotal : 50,
+              currency: 'MXN',
+              payment_type: orderInfo.paymentPref,
+              fulfillment: orderInfo.fulfillment
+            })
           }
         }
       }
