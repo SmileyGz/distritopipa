@@ -1,6 +1,7 @@
 import { NextResponse, NextRequest } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase'
 import { sendEmail } from '@/lib/email'
+import { getBrandedEmailHtml } from '@/lib/email-templates'
 
 function checkAuth(req: NextRequest) {
   const secret = req.headers.get('x-admin-secret')
@@ -90,7 +91,13 @@ export async function PATCH(req: NextRequest) {
         const orderNumber = order.id.split('-')[0].toUpperCase()
         const customerName = order.customers?.first_name || order.customer_name || 'Desconocido'
         const subject = `¡Pago Confirmado! - Pedido ${orderNumber}`
-        const html = `<div style="font-family: sans-serif; color: #111;"><h2>Hola ${customerName},</h2><p>¡Hemos recibido tu pago con éxito!</p><p>Tu pedido <strong>${orderNumber}</strong> ya está en preparación. Te avisaremos en cuanto esté listo.</p></div>`
+        const content = `
+          <p>¡Listo ${customerName}! Ya nos cayó tu pago. Gracias por la confianza.</p>
+          <p>Tus piezas ya están separadas y tu pedido <strong>${orderNumber}</strong> está 100% confirmado. Cero sorpresas. Seguimos moviéndonos por Cancún para entregarte rápido.</p>
+          <p>En el siguiente mensaje te pasaremos las coordenadas exactas o nos pondremos de acuerdo por WhatsApp para armar la entrega. Mientras empaquetamos tus cosas en nuestra bolsa Kraft, siéntete libre de ver lo que andan armando tus vecinos en nuestro Instagram.</p>
+          <p>¡Aquí andamos para cualquier cosa!</p>
+        `
+        const html = getBrandedEmailHtml('Pago Confirmado', content)
         
         sendEmail({ to: order.customer_email, subject, html }).catch(console.error)
       }

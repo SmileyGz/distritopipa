@@ -15,6 +15,7 @@ import { NextResponse, NextRequest } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 
 import { sendEmail } from '@/lib/email'
+import { getBrandedEmailHtml } from '@/lib/email-templates'
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://dummy.supabase.co',
@@ -151,8 +152,22 @@ export async function POST(req: NextRequest) {
   // Automatically send Pre-Confirmation Email if they provided one
   if (customer_email) {
     const orderNumber = order.id.split('-')[0].toUpperCase()
-    const subject = `Instrucciones de Pago - Pedido ${orderNumber}`
-    const html = `<div style="font-family: sans-serif; color: #111;"><h2>Hola ${customer_name},</h2><p>Recibimos tu pedido <strong>${orderNumber}</strong>.</p><p>Para poder procesarlo, necesitamos que realices el pago de <strong>$${(payment_preference === 'total' ? total : anticipo).toLocaleString('es-MX')} MXN</strong>.</p><p>Por favor envíanos tu comprobante por WhatsApp una vez realizado. ¡Gracias!</p></div>`
+    const amountToPay = (payment_preference === 'total' ? total : anticipo).toLocaleString('es-MX')
+    const subject = `Tu pedido está casi listo 🤝 - Pedido ${orderNumber}`
+    const content = `
+      <p>¡Qué onda ${customer_name}! Gracias por armar tu pedido con Distrito Pipa.</p>
+      <p>Para separar tus piezas y agendar la entrega, pedimos un anticipo de <strong>$${amountToPay} MXN</strong>. (Esto nos ayuda a asegurar que el trato es serio y apartar tu mercancía sin broncas).</p>
+      <p>El resto lo liquidas al momento de la entrega.</p>
+      <p>Aquí te dejo los datos para la transferencia:</p>
+      <ul>
+        <li><strong>Banco:</strong> BanCoppel</li>
+        <li><strong>CLABE:</strong> 167691000009770036</li>
+        <li><strong>A nombre de:</strong> Distrito Pipa</li>
+        <li><strong>Concepto:</strong> ${orderNumber}</li>
+      </ul>
+      <p>En cuanto quede, mándanos captura por WhatsApp y nos coordinamos. ¡Seguimos activos!</p>
+    `
+    const html = getBrandedEmailHtml('Instrucciones de Pago', content)
     await sendEmail({ to: customer_email, subject, html }).catch(console.error)
   }
 

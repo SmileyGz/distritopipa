@@ -17,6 +17,7 @@ import {
   type OrderForMessage,
 } from '@/lib/whatsapp'
 import { getVIPStatus, getTierIcon, getTierColor } from '@/lib/clients'
+import { getBrandedEmailHtml } from '@/lib/email-templates'
 
 // ─── Types ────────────────────────────────────────────────────
 
@@ -213,17 +214,50 @@ export default function AdminOrdersPage() {
     let html = ''
     
     if (type === 'pre_confirm') {
-      subject = `Instrucciones de Pago - Pedido ${order.order_number}`
-      html = `<div style="font-family: sans-serif; color: #111;"><h2>Hola ${order.customer_name},</h2><p>Recibimos tu pedido <strong>${order.order_number}</strong>.</p><p>Para poder procesarlo, necesitamos que realices el pago de <strong>$${(order.payment_mode === 'full_prepay' ? order.total_mxn : order.anticipo_mxn).toLocaleString('es-MX')} MXN</strong>.</p><p>Por favor envíanos tu comprobante por WhatsApp una vez realizado. ¡Gracias!</p></div>`
+      const amountToPay = (order.payment_mode === 'full_prepay' ? order.total_mxn : order.anticipo_mxn).toLocaleString('es-MX')
+      subject = `Tu pedido está casi listo 🤝 - Pedido ${order.order_number}`
+      const content = `
+        <p>¡Qué onda ${order.customer_name}! Gracias por armar tu pedido con Distrito Pipa.</p>
+        <p>Para separar tus piezas y agendar la entrega, pedimos un anticipo de <strong>$${amountToPay} MXN</strong>. (Esto nos ayuda a asegurar que el trato es serio y apartar tu mercancía sin broncas).</p>
+        <p>El resto lo liquidas al momento de la entrega.</p>
+        <p>Aquí te dejo los datos para la transferencia:</p>
+        <ul>
+          <li><strong>Banco:</strong> BanCoppel</li>
+          <li><strong>CLABE:</strong> 167691000009770036</li>
+          <li><strong>A nombre de:</strong> Distrito Pipa</li>
+          <li><strong>Concepto:</strong> ${order.order_number}</li>
+        </ul>
+        <p>En cuanto quede, mándanos captura por WhatsApp y nos coordinamos. ¡Seguimos activos!</p>
+      `
+      html = getBrandedEmailHtml('Instrucciones de Pago', content)
     } else if (type === 'reminder') {
-      subject = `Recordatorio de Pago - Pedido ${order.order_number}`
-      html = `<div style="font-family: sans-serif; color: #111;"><h2>Hola ${order.customer_name},</h2><p>Este es un recordatorio amigable de que el pago de tu pedido <strong>${order.order_number}</strong> aún está pendiente.</p><p>Te invitamos a realizar el pago lo antes posible para no retrasar tu entrega.</p></div>`
+      subject = `¿Sigues por ahí? 👀 - Pedido ${order.order_number}`
+      const content = `
+        <p>¡Qué tal, amigo! Solo paso a recordarte que tenemos tu pedido <strong>${order.order_number}</strong> en pausa.</p>
+        <p>Hay buena demanda hoy en Cancún y no queremos que te quedes sin tu pieza. Si todavía la quieres, confírmanos con la captura de tu pago/anticipo.</p>
+        <p>Si cambiaste de opinión no hay ningún problema, nada más avísanos para poder liberar los artículos para alguien más.</p>
+        <p>¡Quedamos al pendiente!</p>
+      `
+      html = getBrandedEmailHtml('Recordatorio de Pago', content)
     } else if (type === 'confirm') {
-      subject = `¡Pago Confirmado! - Pedido ${order.order_number}`
-      html = `<div style="font-family: sans-serif; color: #111;"><h2>Hola ${order.customer_name},</h2><p>¡Hemos recibido tu pago con éxito!</p><p>Tu pedido <strong>${order.order_number}</strong> ya está en preparación. Te avisaremos en cuanto esté listo.</p></div>`
+      subject = `¡Pago Confirmado! ✅ - Pedido ${order.order_number}`
+      const content = `
+        <p>¡Listo ${order.customer_name}! Ya nos cayó tu pago. Gracias por la confianza.</p>
+        <p>Tus piezas ya están separadas y tu pedido <strong>${order.order_number}</strong> está 100% confirmado. Cero sorpresas. Seguimos moviéndonos por Cancún para entregarte rápido.</p>
+        <p>En el siguiente mensaje te pasaremos las coordenadas exactas o nos pondremos de acuerdo por WhatsApp para armar la entrega. Mientras empaquetamos tus cosas en nuestra bolsa Kraft, siéntete libre de ver lo que andan armando tus vecinos en nuestro Instagram.</p>
+        <p>¡Aquí andamos para cualquier cosa!</p>
+      `
+      html = getBrandedEmailHtml('Pago Recibido', content)
     } else if (type === 'location') {
-      subject = `Ubicación de Pick Up - Pedido ${order.order_number}`
-      html = `<div style="font-family: sans-serif; color: #111;"><h2>Hola ${order.customer_name},</h2><p>¡Buenas noticias! Tu pedido <strong>${order.order_number}</strong> ya está listo para ser recogido.</p><p>Nuestra ubicación es: <strong>Región 96, Manzana 14...</strong></p><p>Recuerda que agendaste tu visita. ¡Te esperamos!</p></div>`
+      subject = `Coordenadas para tu entrega 📍 - Pedido ${order.order_number}`
+      const content = `
+        <p>¡Qué onda ${order.customer_name}! Todo listo para entregarte tu paquete.</p>
+        <p>Nos vemos en nuestra zona de entregas en la Región 96:</p>
+        <p>📍 <strong>Punto Acordado (Ej. Coppel Nichupté)</strong></p>
+        <p>Recuerda tener a la mano el resto de tu pago en efectivo y estar puntual. Nos vemos pronto.</p>
+        <p>Si tienes algún contratiempo o vas a llegar tarde, tiranos un mensaje por WhatsApp con anticipación para no cruzarnos. ¡Ahí nos vemos!</p>
+      `
+      html = getBrandedEmailHtml('Ubicación de Pick Up', content)
     }
 
     try {
