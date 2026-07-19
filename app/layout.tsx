@@ -32,6 +32,7 @@ import AgeGate from '@/components/AgeGate'
 import { Toaster } from 'react-hot-toast'
 import LayoutWrapper from '@/components/LayoutWrapper'
 import { CSPostHogProvider } from './providers'
+import { SpeedInsights } from "@vercel/speed-insights/next"
 
 export default function RootLayout({
   children,
@@ -52,6 +53,7 @@ export default function RootLayout({
           </AgeGate>
           <Toaster position="bottom-center" toastOptions={{ style: { background: '#111', color: '#fff', border: '1px solid #333' } }} />
         </CSPostHogProvider>
+        <SpeedInsights />
       </body>
     </html>
   )

@@ -59,11 +59,11 @@ export function middleware(request: NextRequest) {
     'Content-Security-Policy',
     [
       "default-src 'self'",
-      "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://us-assets.i.posthog.com", 
+      "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://t.distritopipa.com https://us-assets.i.posthog.com", 
       "style-src 'self' 'unsafe-inline' fonts.googleapis.com",
       "font-src 'self' fonts.gstatic.com",
       "img-src 'self' data: blob: cdn.sanity.io *.supabase.co",
-      "connect-src 'self' *.supabase.co wss://*.supabase.co https://us.i.posthog.com https://us-assets.i.posthog.com",
+      "connect-src 'self' *.supabase.co wss://*.supabase.co https://t.distritopipa.com https://us.i.posthog.com https://us-assets.i.posthog.com",
       "frame-ancestors 'none'",
     ].join('; ')
   )
