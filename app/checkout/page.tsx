@@ -48,7 +48,10 @@ export default function CheckoutPage() {
   const [customerPhone, setCustomerPhone] = useState('') 
   const [customerEmail, setCustomerEmail] = useState('')
   const [pickupTime, setPickupTime] = useState('')
-  const [address, setAddress] = useState('')
+  const [addressStreet, setAddressStreet] = useState('')
+  const [addressColonia, setAddressColonia] = useState('')
+  const [addressRef, setAddressRef] = useState('')
+  const address = `${addressStreet.trim()}, ${addressColonia.trim()}${addressRef.trim() ? `. Ref: ${addressRef.trim()}` : ''}`
   
   // Step 3: Payment
   const [paymentPref, setPaymentPref] = useState<'anticipo' | 'total'>('anticipo')
@@ -286,20 +289,40 @@ export default function CheckoutPage() {
                       <option value="night">Noche (Después de las 8pm)</option>
                     </select>
                   </div>
+                  <div className="form-group grid-2" style={{ gap: '12px', marginTop: '4px' }}>
+                    <div>
+                      <label className="section-label">Calle y Número / Mz Lote</label>
+                      <input 
+                        className="sleek-input" 
+                        type="text" 
+                        placeholder="Ej. Calle Cedro Mz 2 Lote 3" 
+                        value={addressStreet} onChange={e => setAddressStreet(e.target.value)}
+                      />
+                    </div>
+                    <div>
+                      <label className="section-label">Colonia / Región</label>
+                      <input 
+                        className="sleek-input" 
+                        type="text" 
+                        placeholder="Ej. Región 96" 
+                        value={addressColonia} onChange={e => setAddressColonia(e.target.value)}
+                      />
+                    </div>
+                  </div>
                   <div className="form-group">
-                    <label className="section-label">Dirección Completa</label>
-                    <textarea 
+                    <label className="section-label">Referencias y Cruzamientos (Opcional)</label>
+                    <input 
                       className="sleek-input" 
-                      placeholder="Calle, Número, Cruzamientos..." 
-                      value={address} onChange={e => setAddress(e.target.value)}
-                      rows={3}
+                      type="text"
+                      placeholder="Ej. Casa verde 2 pisos, portón negro. Frente al parque." 
+                      value={addressRef} onChange={e => setAddressRef(e.target.value)}
                     />
                   </div>
                   <div className="wizard-actions">
                     <button className="btn-ghost" onClick={handleBack}>Regresar</button>
                     <button 
                       className="btn-primary" 
-                      disabled={!address.trim() || !customerName.trim() || customerPhone.length < 10 || !customerEmail.includes('@')} 
+                      disabled={!addressStreet.trim() || !addressColonia.trim() || !customerName.trim() || customerPhone.length < 10 || !customerEmail.includes('@')} 
                       onClick={handleNext}
                     >
                       Continuar
