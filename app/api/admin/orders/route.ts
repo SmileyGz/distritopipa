@@ -85,13 +85,17 @@ export async function PATCH(req: NextRequest) {
 
     // Automation logic
     if (order && order.customer_email) {
-      const isNewlyConfirmed = updates.status === 'confirmed' && order.status !== 'confirmed'
+      // ONLY trigger the email when the payment status changes to prevent double emails
       const isNewlyPaid = updates.anticipo_paid === true && order.anticipo_status !== 'paid'
       
-      if (isNewlyConfirmed || isNewlyPaid) {
+      if (isNewlyPaid) {
         const orderNumber = order.order_number || order.id.split('-')[0].toUpperCase()
         const customerName = order.customers?.first_name || order.customer_name || 'Desconocido'
-        const subject = `¡Pago Confirmado! - Pedido ${orderNumber}`
+        
+        const isFullPrepay = order.payment_mode === 'full_prepay'
+        const subject = isFullPrepay 
+          ? `¡Pago 100% Confirmado! - Pedido ${orderNumber}`
+          : `¡Anticipo Recibido! - Pedido ${orderNumber}`
         let copyBody = ''
         if (order.fulfillment_type === 'pickup') {
           if (order.payment_mode === 'full_prepay') {
@@ -122,7 +126,7 @@ export async function PATCH(req: NextRequest) {
           items = []
         }
 
-        const anticipoPaid = order.payment_mode === 'full_prepay' ? order.total_mxn : (order.fulfillment_type === 'pickup' ? 0 : 50)
+        const anticipoPaid = isFullPrepay ? (order.total_mxn || 0) : (order.anticipo_mxn || 50)
         
         const orderSummaryHtml = renderOrderSummaryHtml({
           items: items.map((item: any) => ({
@@ -144,7 +148,8 @@ export async function PATCH(req: NextRequest) {
           <p>Mientras empaquetamos tus cosas en nuestra bolsa Kraft, siéntete libre de ver lo que andan armando tus vecinos en nuestro Instagram (<a href="https://instagram.com/distritopipa" target="_blank">@distritopipa</a>) o en nuestro <a href="https://www.facebook.com/distritopipacancun/" target="_blank">Facebook</a>.</p>
           <p>¡Aquí andamos para cualquier cosa!</p>
         `
-        const html = getBrandedEmailHtml('Pago Confirmado', content)
+        const headerTitle = isFullPrepay ? 'Pago 100% Confirmado' : 'Anticipo Recibido'
+        const html = getBrandedEmailHtml(headerTitle, content)
         
         sendEmail({ to: order.customer_email, subject, html }).catch(console.error)
       }
