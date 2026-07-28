@@ -257,7 +257,7 @@ export default function ProductDetail({ product, onClose }: ProductDetailProps) 
                   ¡Se aplicó un descuento por volumen de ${discount}!
                 </div>
               )}
-              <p className="price-note">Anticipo (25%) y opciones de entrega en el siguiente paso.</p>
+              <p className="price-note">Opciones de entrega en el siguiente paso.</p>
             </div>
 
             {/* CTAs */}
@@ -284,6 +284,17 @@ export default function ProductDetail({ product, onClose }: ProductDetailProps) 
               <button className="cta-secondary" onClick={handleClose}>
                 Seguir viendo el estante
               </button>
+            </div>
+
+            {/* Social Proof (Anti-Abandon) */}
+            <div className="product-social-proof">
+               <div className="trust-badge">
+                 <span>⭐️ Recomendados por +120 vecinos en Cancún</span>
+               </div>
+               <div className="discrete-assurance-mini">
+                 <span className="da-icon">📦</span>
+                 <span>Empaque 100% discreto garantizado. Nadie sabrá qué hay adentro.</span>
+               </div>
             </div>
 
             {/* Community link */}
@@ -759,6 +770,12 @@ export default function ProductDetail({ product, onClose }: ProductDetailProps) 
             transition: none;
           }
         }
+
+        .product-social-proof { margin-top: 16px; margin-bottom: 24px; display: flex; flex-direction: column; gap: 8px; text-align: center; }
+        .trust-badge { font-size: 12px; color: #888; }
+        .trust-badge span { background: rgba(255,255,255,0.05); padding: 4px 8px; border-radius: 4px; display: inline-block; }
+        .discrete-assurance-mini { display: flex; align-items: center; justify-content: center; gap: 6px; font-size: 12px; color: #aaa; background: rgba(255,255,255,0.02); padding: 8px; border-radius: 6px; border: 1px dashed #333; }
+        .da-icon { font-size: 16px; }
       `}</style>
     </>
   )
