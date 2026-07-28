@@ -1,5 +1,6 @@
 import { MetadataRoute } from 'next'
 import { supabase } from '@/lib/supabase'
+import { getSortedPostsData } from '@/lib/markdown'
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const baseUrl = 'https://distritopipa.com'
@@ -11,6 +12,14 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     lastModified: product.updated_at ? new Date(product.updated_at) : new Date(),
     changeFrequency: 'weekly' as const,
     priority: 0.8,
+  }))
+
+  const blogPosts = getSortedPostsData()
+  const blogUrls = blogPosts.map(post => ({
+    url: `${baseUrl}/blog/${post.slug}`,
+    lastModified: new Date(),
+    changeFrequency: 'monthly' as const,
+    priority: 0.7,
   }))
 
   const staticUrls = [
@@ -26,5 +35,5 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     priority: route === '' ? 1 : 0.9,
   }))
 
-  return [...staticUrls, ...productUrls]
+  return [...staticUrls, ...productUrls, ...blogUrls]
 }
