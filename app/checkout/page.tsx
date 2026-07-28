@@ -438,11 +438,22 @@ export default function CheckoutPage() {
                     )}
                   </div>
 
+                  <div className="discrete-assurance">
+                    <div className="kraft-thumb">📦</div>
+                    <div className="da-text">
+                      <strong>Empaque 100% discreto garantizado.</strong>
+                      <p>Nadie sabrá qué hay adentro de tu paquete.</p>
+                    </div>
+                  </div>
+
                   <div className="wizard-actions">
                     <button className="btn-ghost" onClick={handleBack}>Regresar</button>
                     <button className="btn-primary" onClick={handleConfirmOrder}>
                       {(fulfillment === 'pickup' && paymentPref === 'anticipo') ? 'Confirmar por WhatsApp' : 'Confirmar y Pagar'}
                     </button>
+                  </div>
+                  <div className="trust-badge">
+                    <span>⭐️ Recomendados por +120 vecinos en Cancún</span>
                   </div>
                 </div>
               )}
@@ -631,6 +642,14 @@ export default function CheckoutPage() {
           padding: 12px 24px; font-size: 14px; cursor: pointer; transition: color 0.2s;
         }
         .btn-ghost:hover { color: #fff; }
+
+        .discrete-assurance { display: flex; align-items: center; gap: 12px; background: rgba(255,255,255,0.05); padding: 12px 16px; border-radius: 8px; border: 1px dashed #333; margin-top: 20px; }
+        .kraft-thumb { width: 40px; height: 40px; background: #222; border-radius: 6px; display: flex; align-items: center; justify-content: center; font-size: 20px; border: 1px solid #333; }
+        .da-text strong { font-size: 13px; color: #fff; display: block; margin-bottom: 2px; }
+        .da-text p { font-size: 11px; color: #888; margin: 0; }
+
+        .trust-badge { text-align: right; font-size: 11px; color: #888; margin-top: 8px; }
+        .trust-badge span { background: rgba(255,255,255,0.05); padding: 4px 8px; border-radius: 4px; display: inline-block; }
 
         /* RECEIPT (Premium Ticket) */
         .receipt-ticket {
