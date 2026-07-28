@@ -141,7 +141,7 @@ export async function PATCH(req: NextRequest) {
           <p>¡Listo ${customerName.split(' ')[0]}! Ya nos cayó tu pago. Gracias por la confianza.</p>
           ${copyBody}
           ${orderSummaryHtml}
-          <p>Mientras empaquetamos tus cosas en nuestra bolsa Kraft, siéntete libre de ver lo que andan armando tus vecinos en nuestro Instagram.</p>
+          <p>Mientras empaquetamos tus cosas en nuestra bolsa Kraft, siéntete libre de ver lo que andan armando tus vecinos en nuestro Instagram (<a href="https://instagram.com/distritopipa" target="_blank">@distritopipa</a>) o en nuestro <a href="https://www.facebook.com/distritopipacancun/" target="_blank">Facebook</a>.</p>
           <p>¡Aquí andamos para cualquier cosa!</p>
         `
         const html = getBrandedEmailHtml('Pago Confirmado', content)
