@@ -10,6 +10,7 @@ export const metadata: Metadata = {
   title: 'Tu Smoke Shop Local en Cancún | Distrito Pipa',
   description: 'Pipas artesanales, bongs y accesorios de vidrio con entregas rápidas en Cancún. La opción local de confianza en la Región 96 y más.',
   keywords: ['Smoke Shop Local en Cancún', 'Pipas artesanales Cancún', 'Entregas rápidas de accesorios Cancún', 'Accesorios de vidrio Cancún'],
+  alternates: { canonical: '/' },
 }
 
 type Post = {
