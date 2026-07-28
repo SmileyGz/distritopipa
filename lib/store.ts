@@ -65,14 +65,23 @@ export const useStore = create<StoreState>()(
         const { items } = get();
         let totalDiscount = 0;
         
+        // Group items by product.id to apply discounts across variants
+        const grouped = new Map<string, { product: Product, quantity: number }>();
         items.forEach(item => {
-          if (!item.product.bundle_pricing || item.product.bundle_pricing.length === 0) return;
+          if (!grouped.has(item.product.id)) {
+            grouped.set(item.product.id, { product: item.product, quantity: 0 });
+          }
+          grouped.get(item.product.id)!.quantity += item.quantity;
+        });
+        
+        grouped.forEach(group => {
+          if (!group.product.bundle_pricing || group.product.bundle_pricing.length === 0) return;
           
-          let remainingQty = item.quantity;
+          let remainingQty = group.quantity;
           let bestPriceTotal = 0;
           
           // Sort tiers descending by qty
-          const tiers = [...item.product.bundle_pricing].sort((a, b) => b.qty - a.qty);
+          const tiers = [...group.product.bundle_pricing].sort((a, b) => b.qty - a.qty);
           
           for (const tier of tiers) {
             if (remainingQty >= tier.qty) {
@@ -82,9 +91,9 @@ export const useStore = create<StoreState>()(
             }
           }
           // Add remaining single items at base price
-          bestPriceTotal += remainingQty * item.product.price_mxn;
+          bestPriceTotal += remainingQty * group.product.price_mxn;
           
-          const basePriceTotal = item.quantity * item.product.price_mxn;
+          const basePriceTotal = group.quantity * group.product.price_mxn;
           const discount = basePriceTotal - bestPriceTotal;
           if (discount > 0) {
             totalDiscount += discount;

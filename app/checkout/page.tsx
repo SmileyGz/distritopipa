@@ -5,11 +5,19 @@ import { useStore } from '@/lib/store'
 import toast from 'react-hot-toast'
 import { useRouter } from 'next/navigation'
 
-const getItemDiscountedTotal = (item: any) => {
+const getDiscountedPriceForItem = (item: any, allItems: any[]) => {
   if (!item.product.bundle_pricing?.length) return undefined;
-  let remainingQty = item.quantity;
+  
+  // Group all items of the same product to check total quantity
+  const groupItems = allItems.filter((x: any) => x.product.id === item.product.id);
+  const groupQty = groupItems.reduce((sum, x) => sum + x.quantity, 0);
+  
+  if (groupQty <= 1) return undefined;
+  
+  let remainingQty = groupQty;
   let bestPriceTotal = 0;
   const tiers = [...item.product.bundle_pricing].sort((a: any, b: any) => b.qty - a.qty);
+  
   for (const tier of tiers) {
     if (remainingQty >= tier.qty) {
       const bundles = Math.floor(remainingQty / tier.qty);
@@ -18,8 +26,13 @@ const getItemDiscountedTotal = (item: any) => {
     }
   }
   bestPriceTotal += remainingQty * item.product.price_mxn;
-  const base = item.quantity * item.product.price_mxn;
-  return bestPriceTotal < base ? bestPriceTotal : undefined;
+  const baseGroupTotal = groupQty * item.product.price_mxn;
+  
+  if (bestPriceTotal >= baseGroupTotal) return undefined;
+  
+  // Prorate this specific item's share of the discounted total
+  const proportion = item.quantity / groupQty;
+  return bestPriceTotal * proportion;
 }
 
 export default function CheckoutPage() {
@@ -112,7 +125,7 @@ export default function CheckoutPage() {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            items: items.map(i => ({ product_id: i.product.id, name: i.product.name_es, qty: i.quantity, unit_price: i.product.price_mxn, color: i.color, size: i.size, bundle_price: getItemDiscountedTotal(i) })),
+            items: items.map(i => ({ product_id: i.product.id, name: i.product.name_es, qty: i.quantity, unit_price: i.product.price_mxn, color: i.color, size: i.size, bundle_price: getDiscountedPriceForItem(i, items) })),
             delivery_zone: 'pickup',
             customer_name: customerName,
             customer_phone: customerPhone,
@@ -131,7 +144,7 @@ export default function CheckoutPage() {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            items: items.map(i => ({ product_id: i.product.id, name: i.product.name_es, qty: i.quantity, unit_price: i.product.price_mxn, color: i.color, size: i.size, bundle_price: getItemDiscountedTotal(i) })),
+            items: items.map(i => ({ product_id: i.product.id, name: i.product.name_es, qty: i.quantity, unit_price: i.product.price_mxn, color: i.color, size: i.size, bundle_price: getDiscountedPriceForItem(i, items) })),
             delivery_zone: fulfillment === 'pickup' ? 'pickup' : zone,
             customer_name: customerName,
             customer_phone: customerPhone,
