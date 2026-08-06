@@ -634,16 +634,6 @@ function CheckoutContent() {
                     </button>
                   </div>
 
-                  {paymentPref !== 'spei' && (
-                    <div className="alternative-payment-box">
-                      <div className="alt-divider"><span>O SI PREFIERES TRANSFERENCIA MANUAL</span></div>
-                      <button type="button" className="btn-secondary-spei" onClick={() => { setPaymentPref('spei'); }}>
-                        <span className="w-icon">🏦</span>
-                        Pagar Anticipo ($50) por Transferencia Bancaria SPEI
-                      </button>
-                    </div>
-                  )}
-
                   <div className="trust-badge">
                     <span>⭐️ Recomendados por +120 vecinos en Cancún</span>
                   </div>
@@ -940,49 +930,6 @@ function CheckoutContent() {
         .pfn-options {
           font-size: 12px;
           color: #aaa;
-        }
-        .alternative-payment-box {
-          margin-top: 16px;
-          display: flex;
-          flex-direction: column;
-          gap: 10px;
-        }
-        .alt-divider {
-          display: flex;
-          align-items: center;
-          text-align: center;
-          color: #666;
-          font-size: 11px;
-          font-weight: 700;
-          letter-spacing: 0.05em;
-        }
-        .alt-divider::before, .alt-divider::after {
-          content: '';
-          flex: 1;
-          border-bottom: 1px solid #333;
-        }
-        .alt-divider span {
-          padding: 0 10px;
-        }
-        .btn-secondary-spei {
-          background: #18221c;
-          border: 1px solid #234e38;
-          color: #2ecc71;
-          font-weight: 600;
-          padding: 12px 16px;
-          border-radius: 8px;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          gap: 8px;
-          font-size: 14px;
-          cursor: pointer;
-          transition: all 0.2s;
-          width: 100%;
-        }
-        .btn-secondary-spei:hover {
-          background: #1e3327;
-          border-color: #27ae60;
         }
 
         /* PAYMENT PROCESSING OVERLAY */
