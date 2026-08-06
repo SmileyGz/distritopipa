@@ -749,7 +749,7 @@ function CheckoutContent() {
                 <span className="cdc-icon">📦</span>
                 <div>
                   <strong>Empaque 100% Discreto</strong>
-                  <p>Bolsa Kraft sellada, sin logos externos ni etiquetas visibles.</p>
+                  <p>Bolsa Kraft sellada.</p>
                 </div>
               </div>
             </div>

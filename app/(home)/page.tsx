@@ -160,9 +160,9 @@ export default async function HomePage() {
             <div className="tier-header">
               <span className="tier-icon">🥉</span>
               <h3 className="tier-name">Bronce</h3>
-
             </div>
             <ul className="tier-perks">
+              <li><span className="perk-check">✔️</span> <span><strong>Servicio y Entregas 24/7</strong>.</span></li>
               <li><span className="perk-check">✔️</span> <span>Acceso anticipado a restocks y promociones exclusivas.</span></li>
               <li><span className="perk-check">✔️</span> <span>Regalo sorpresa en tu mes de cumpleaños.</span></li>
             </ul>
@@ -173,9 +173,9 @@ export default async function HomePage() {
             <div className="tier-header">
               <span className="tier-icon">🥈</span>
               <h3 className="tier-name">Plata</h3>
-
             </div>
             <ul className="tier-perks">
+              <li><span className="perk-check">✔️</span> <span><strong>Servicio y Entregas 24/7</strong>.</span></li>
               <li><span className="perk-check">✔️</span> <span><strong>2 envíos gratis al mes</strong> (horario de 2 a 6 PM).</span></li>
               <li><span className="perk-check">✔️</span> <span>Básicos de regalo en compras mayores a $500.</span></li>
               <li className="tier-includes">Beneficios Bronce incluidos.</li>
@@ -187,10 +187,10 @@ export default async function HomePage() {
             <div className="tier-header">
               <span className="tier-icon">🥇</span>
               <h3 className="tier-name">Oro</h3>
-
             </div>
             <ul className="tier-perks">
-              <li><span className="perk-check">✔️</span> <span><strong>4 envíos gratis</strong> al mes (incluyendo horario nocturno).</span></li>
+              <li><span className="perk-check">✔️</span> <span><strong>Servicio y Entregas 24/7</strong>.</span></li>
+              <li><span className="perk-check">✔️</span> <span><strong>4 envíos gratis al mes</strong>.</span></li>
               <li><span className="perk-check">✔️</span> <span>Línea directa prioritaria por WhatsApp.</span></li>
               <li><span className="perk-check">✔️</span> <span>10% de descuento permanente.</span></li>
               <li className="tier-includes">Beneficios Plata incluidos.</li>
