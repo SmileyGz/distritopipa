@@ -5,6 +5,9 @@ import ComunidadClient, { Post, Answer } from './ComunidadClient'
 export const metadata: Metadata = {
   title: 'Comunidad · Distrito Pipa',
   description: 'Únete a la comunidad de Distrito Pipa. Resuelve tus dudas sobre bongs, pipas, envíos en Cancún y gana recompensas por participar.',
+  alternates: {
+    canonical: 'https://distritopipa.com/comunidad',
+  },
 }
 
 export const revalidate = 60

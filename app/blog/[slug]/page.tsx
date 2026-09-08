@@ -20,6 +20,9 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
     title: `${postData.title} | Cultura Distrito Pipa Cancún`,
     description: postData.meta_description,
     keywords: [postData.focus_keyword, 'Cancun', 'Distrito Pipa'],
+    alternates: {
+      canonical: `https://distritopipa.com/blog/${params.slug}`,
+    },
   }
 }
 
