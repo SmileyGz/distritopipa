@@ -14,7 +14,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { supabaseAdmin, type Product } from '@/lib/supabase'
 
-const ADMIN_SECRET = process.env.NEXT_PUBLIC_ADMIN_SECRET || ''
+
 
 const POST_TYPES = [
   { value: 'product',   label: 'Producto',   icon: '📦', color: '#CC2222' },
@@ -124,7 +124,7 @@ export default function AdminCampaignsPage() {
   }
 
   function adminHeaders() {
-    return { 'Content-Type': 'application/json', 'x-admin-secret': ADMIN_SECRET }
+    return { 'Content-Type': 'application/json' }
   }
 
   // ── Load campaigns ───────────────────────────────────────────

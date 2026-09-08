@@ -1,15 +1,14 @@
 // app/admin/layout.tsx
 // ─────────────────────────────────────────────────────────────
 // Admin area layout — sidebar nav + main content.
-// All admin routes are under /admin/*
-// Simple password guard using NEXT_PUBLIC_ADMIN_SECRET.
+// Protected by Next.js Middleware.
 // ─────────────────────────────────────────────────────────────
 
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import Link from 'next/link'
-import { usePathname } from 'next/navigation'
+import { usePathname, useRouter } from 'next/navigation'
 
 const NAV = [
   { href: '/admin/products',  label: 'Productos',   icon: '📦' },
@@ -21,99 +20,18 @@ const NAV = [
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname()
-  const [authed, setAuthed]     = useState(false)
-  const [password, setPassword] = useState('')
-  const [error, setError]       = useState(false)
+  const router = useRouter()
   const [sideOpen, setSideOpen] = useState(false)
 
-  // Check session on load
-  useEffect(() => {
-    const stored = sessionStorage.getItem('dp_admin')
-    if (stored === process.env.NEXT_PUBLIC_ADMIN_SECRET) setAuthed(true)
-  }, [])
-
-  function handleLogin() {
-    if (password === process.env.NEXT_PUBLIC_ADMIN_SECRET) {
-      sessionStorage.setItem('dp_admin', password)
-      setAuthed(true)
-    } else {
-      setError(true)
-      setTimeout(() => setError(false), 2000)
-    }
+  // Don't wrap the login page in the admin shell
+  if (pathname === '/admin/login') {
+    return <>{children}</>
   }
 
-  function handleLogout() {
-    sessionStorage.removeItem('dp_admin')
-    setAuthed(false)
-  }
-
-  if (!authed) {
-    return (
-      <div className="login-screen">
-        <div className="login-card">
-          <div className="login-logo">
-            <div className="login-eyebrow">Distrito</div>
-            <div className="login-brand">Pipa</div>
-            <div className="login-tag">Admin</div>
-          </div>
-          <div className="login-rule" />
-          <input
-            className={`login-input ${error ? 'shake' : ''}`}
-            type="password"
-            placeholder="Contraseña"
-            value={password}
-            onChange={e => setPassword(e.target.value)}
-            onKeyDown={e => e.key === 'Enter' && handleLogin()}
-            autoFocus
-          />
-          {error && <p className="login-error">Contraseña incorrecta</p>}
-          <button className="login-btn" onClick={handleLogin}>
-            Entrar →
-          </button>
-        </div>
-
-        <style>{`
-          .login-screen {
-            min-height: 100vh;
-            background: #111;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            padding: 24px;
-          }
-          .login-card {
-            background: #1a1a1a;
-            border: 1px solid #2a2a2a;
-            border-radius: 16px;
-            padding: 40px 32px;
-            max-width: 320px;
-            width: 100%;
-            text-align: center;
-            font-family: -apple-system, sans-serif;
-          }
-          .login-logo { margin-bottom: 24px; }
-          .login-eyebrow { font-size: 11px; letter-spacing: .2em; color: #888; text-transform: uppercase; }
-          .login-brand { font-family: Georgia, serif; font-style: italic; font-size: 36px; color: #fff; }
-          .login-tag { font-size: 10px; letter-spacing: .2em; color: #CC2222; text-transform: uppercase; margin-top: 2px; }
-          .login-rule { width: 32px; height: 2px; background: #CC2222; margin: 0 auto 24px; border-radius: 1px; }
-          .login-input {
-            width: 100%; padding: 12px; background: #111; border: 1px solid #2a2a2a;
-            border-radius: 8px; color: #fff; font-size: 14px; margin-bottom: 8px;
-            text-align: center; letter-spacing: .2em;
-          }
-          .login-input:focus { outline: none; border-color: #CC2222; }
-          .login-input.shake { animation: shake .4s ease; border-color: #f87171; }
-          @keyframes shake { 0%,100%{transform:translateX(0)} 25%{transform:translateX(-8px)} 75%{transform:translateX(8px)} }
-          .login-error { font-size: 12px; color: #f87171; margin-bottom: 12px; }
-          .login-btn {
-            width: 100%; padding: 12px; background: #CC2222; color: #fff;
-            border: none; border-radius: 8px; font-size: 14px; font-weight: 600;
-            cursor: pointer; margin-top: 4px;
-          }
-          .login-btn:hover { background: #e02222; }
-        `}</style>
-      </div>
-    )
+  async function handleLogout() {
+    await fetch('/api/admin/logout', { method: 'POST' })
+    router.push('/admin/login')
+    router.refresh()
   }
 
   return (

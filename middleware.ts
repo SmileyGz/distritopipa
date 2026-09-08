@@ -17,16 +17,23 @@ import type { NextRequest } from 'next/server'
 // Routes that are always public — no gate
 const PUBLIC_PATHS = [
   '/aviso-de-privacidad',
-  '/api/',            // API routes never gated
   '/_next/',          // Next.js internals
   '/favicon.ico',
   '/robots.txt',
   '/sitemap.xml',
 ]
 
+// API routes that require admin authentication
+const PROTECTED_API_ROUTES = [
+  '/api/admin',
+  '/api/upload',
+  '/api/generate-caption'
+]
+
 // Cookie name set by the client after gate confirmation
-// (Upgrade: sign this with a secret for tamper-proof verification)
 const AGE_COOKIE = 'dp_age_v1'
+// Admin session cookie
+const ADMIN_COOKIE = 'dp_admin_session'
 
 export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl
@@ -36,18 +43,35 @@ export function middleware(request: NextRequest) {
     return NextResponse.next()
   }
 
+  // Admin Panel & Admin APIs Protection
+  const isAdminPath = pathname.startsWith('/admin') && pathname !== '/admin/login'
+  const isProtectedApi = PROTECTED_API_ROUTES.some(p => pathname.startsWith(p)) && pathname !== '/api/admin/auth'
+  
+  // Also protect POST/PUT/DELETE to /api/products and /api/campaigns
+  const isProtectedDataApi = (pathname.startsWith('/api/products') || pathname.startsWith('/api/campaigns')) 
+    && ['POST', 'PUT', 'DELETE', 'PATCH'].includes(request.method)
+
+  if (isAdminPath || isProtectedApi || isProtectedDataApi) {
+    const adminSession = request.cookies.get(ADMIN_COOKIE)
+    
+    if (!adminSession || adminSession.value !== 'authenticated') {
+      if (pathname.startsWith('/api')) {
+        return new NextResponse(JSON.stringify({ error: 'Unauthorized' }), {
+          status: 401,
+          headers: { 'Content-Type': 'application/json' }
+        })
+      } else {
+        const loginUrl = new URL('/admin/login', request.url)
+        return NextResponse.redirect(loginUrl)
+      }
+    }
+  }
+
   // Check for age-verified cookie (set by client JS after localStorage confirm)
-  // This is a soft check — the React component is the primary UX enforcement
   const verified = request.cookies.get(AGE_COOKIE)?.value === '1'
 
   if (!verified) {
     // Don't redirect — let the React AgeGate component handle the UX.
-    // This middleware only blocks non-JS clients from accessing API data.
-    // For a full hard gate, uncomment the redirect below:
-    //
-    // if (pathname.startsWith('/api/products')) {
-    //   return new NextResponse('Age verification required', { status: 403 })
-    // }
   }
 
   // Add security headers on every response

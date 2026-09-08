@@ -20,7 +20,7 @@ export function adminFetch(url: string, options: RequestInit = {}) {
     ...options,
     headers: {
       'Content-Type': 'application/json',
-      'x-admin-secret': secret(),
+      
       ...(options.headers || {}),
     },
   })
@@ -185,7 +185,7 @@ export function useImageUpload() {
 
         const res = await fetch('/api/upload', {
           method: 'POST',
-          headers: { 'x-admin-secret': secret() },
+          headers: {},
           body: form,
         })
         const json = await res.json()
