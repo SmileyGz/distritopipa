@@ -58,7 +58,7 @@ export default function AdminProductsPage() {
   const [newBundle, setNewBundle]   = useState({ qty: 2, price: 0 })
   const fileInputRef = useRef<HTMLInputElement>(null)
 
-  useEffect(() => { load() }, [])
+  useEffect(() => { load() }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   async function load() {
     const data = await fetchProducts()

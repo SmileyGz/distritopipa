@@ -28,7 +28,7 @@ export default function AdminAnalyticsPage() {
   const [tierStats, setTierStats]         = useState<TierStat[]>([])
   const [recentOrders, setRecentOrders]   = useState<any[]>([])
 
-  useEffect(() => { loadAll() }, [range])
+  useEffect(() => { loadAll() }, [range]) // eslint-disable-line react-hooks/exhaustive-deps
 
   async function loadAll() {
     setLoading(true)

@@ -70,7 +70,7 @@ export default async function HomePage() {
       {/* 3. SOCIAL PROOF */}
       <div className="social-proof">
         <div className="sp-bag">📦</div>
-        <p className="sp-text"><strong>Más de 120 vecinos</strong> en Cancún ya confían en nosotros. <em>"Llegó en 20 mins a la 96, excelente servicio."</em></p>
+        <p className="sp-text"><strong>Más de 120 vecinos</strong> en Cancún ya confían en nosotros. <em>&quot;Llegó en 20 mins a la 96, excelente servicio.&quot;</em></p>
       </div>
 
       {/* 4. CATEGORY GRID (MOVED UP) */}
