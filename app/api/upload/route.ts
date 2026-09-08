@@ -10,9 +10,7 @@ const MAX_SIZE = 5 * 1024 * 1024 // 5MB
 const ALLOWED = ['image/png', 'image/jpeg', 'image/webp']
 
 export async function POST(req: NextRequest) {
-  if (req.headers.get('x-admin-secret') !== (process.env.ADMIN_SECRET || process.env.NEXT_PUBLIC_ADMIN_SECRET)) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  }
+  
 
   const form = await req.formData()
   const file = form.get('file') as File | null
@@ -54,9 +52,7 @@ export async function POST(req: NextRequest) {
 
 // DELETE /api/upload — remove a single image from storage
 export async function DELETE(req: NextRequest) {
-  if (req.headers.get('x-admin-secret') !== (process.env.ADMIN_SECRET || process.env.NEXT_PUBLIC_ADMIN_SECRET)) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  }
+  
 
   const { path } = await req.json()
   if (!path) return NextResponse.json({ error: 'No path provided' }, { status: 400 })

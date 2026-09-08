@@ -4,7 +4,7 @@ import { cookies } from 'next/headers'
 export async function POST(req: Request) {
   try {
     const { password } = await req.json()
-    const secret = process.env.ADMIN_SECRET || process.env.NEXT_PUBLIC_ADMIN_SECRET // Fallback for backwards compatibility locally until env is updated
+    const secret = process.env.ADMIN_SECRET // Fallback eliminado permanentemente
 
     if (password === secret) {
       cookies().set({

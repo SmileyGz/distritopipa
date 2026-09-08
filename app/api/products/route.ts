@@ -19,10 +19,7 @@ export async function GET() {
 export async function POST(req: NextRequest) {
   // Simple admin guard — check for secret header
   // Upgrade to proper NextAuth session when ready
-  const secret = req.headers.get('x-admin-secret')
-  if (secret !== (process.env.ADMIN_SECRET || process.env.NEXT_PUBLIC_ADMIN_SECRET)) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  }
+  
 
   const body = await req.json()
   
