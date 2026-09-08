@@ -76,6 +76,12 @@ export function middleware(request: NextRequest) {
 
   // Add security headers on every response
   const response = NextResponse.next()
+  
+  const isDev = process.env.NODE_ENV === 'development'
+  const cspScriptSrc = isDev 
+    ? "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://t.distritopipa.com https://us-assets.i.posthog.com"
+    : "script-src 'self' 'unsafe-inline' https://t.distritopipa.com https://us-assets.i.posthog.com"
+
   response.headers.set('X-Content-Type-Options', 'nosniff')
   response.headers.set('X-Frame-Options', 'DENY')
   response.headers.set('Referrer-Policy', 'strict-origin-when-cross-origin')
@@ -83,7 +89,7 @@ export function middleware(request: NextRequest) {
     'Content-Security-Policy',
     [
       "default-src 'self'",
-      "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://t.distritopipa.com https://us-assets.i.posthog.com", 
+      cspScriptSrc,
       "style-src 'self' 'unsafe-inline' fonts.googleapis.com",
       "font-src 'self' fonts.gstatic.com",
       "img-src 'self' data: blob: cdn.sanity.io *.supabase.co",
