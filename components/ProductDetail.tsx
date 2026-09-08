@@ -112,6 +112,7 @@ export default function ProductDetail({ product, onClose }: ProductDetailProps) 
             <div className="image-carousel">
               {product.image_paths.map((img, idx) => (
                 <div key={idx} className="carousel-item">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img
                     src={getImageUrl(img)}
                     alt={`${name} - imagen ${idx + 1}`}

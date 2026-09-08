@@ -71,7 +71,7 @@ export default function Shelf({ initialProducts = [] }: { initialProducts?: Prod
       }).subscribe()
 
     return () => { supabase.removeChannel(channel) }
-  }, [])
+  }, [initialProducts.length]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const displayedProducts = activeCategory === 'all' 
     ? products 
