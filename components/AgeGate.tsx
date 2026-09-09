@@ -19,6 +19,7 @@
  */
 
 import { useEffect, useState, useCallback } from 'react'
+import { usePathname } from 'next/navigation'
 import { createClient } from '@supabase/supabase-js'
 
 const supabase = createClient(
@@ -37,16 +38,18 @@ interface AgeGateProps {
 }
 
 export default function AgeGate({ children, minimumAge = 18 }: AgeGateProps) {
+  const pathname = usePathname()
   const [state, setState] = useState<VerificationState>('pending')
   const [mounted, setMounted] = useState(false)
   const [shaking, setShaking] = useState(false)
 
-  // Avoid SSR flash — only check localStorage on client
+  // Avoid SSR flash — check localStorage and cookie on client
   useEffect(() => {
     setMounted(true)
     try {
       const stored = localStorage.getItem(STORAGE_KEY)
-      if (stored === STORAGE_VERSION) {
+      const hasCookie = typeof document !== 'undefined' && document.cookie.includes('dp_age_v1=1')
+      if (stored === STORAGE_VERSION || hasCookie) {
         setState('verified')
       }
     } catch {
@@ -58,9 +61,7 @@ export default function AgeGate({ children, minimumAge = 18 }: AgeGateProps) {
     try {
       await supabase.from('age_gate_logs').insert({
         granted,
-        user_agent: navigator.userAgent,
-        // No IP stored — Supabase captures it server-side if you enable
-        // the pg_net extension, but we keep this table PII-free by design
+        user_agent: typeof navigator !== 'undefined' ? navigator.userAgent : '',
         created_at: new Date().toISOString(),
       })
     } catch {
@@ -71,6 +72,9 @@ export default function AgeGate({ children, minimumAge = 18 }: AgeGateProps) {
   const handleVerify = useCallback(async () => {
     try {
       localStorage.setItem(STORAGE_KEY, STORAGE_VERSION)
+      if (typeof document !== 'undefined') {
+        document.cookie = 'dp_age_v1=1; path=/; max-age=31536000; SameSite=Lax'
+      }
     } catch { /* private mode */ }
     await logConsent(true)
     setState('verified')
@@ -83,14 +87,24 @@ export default function AgeGate({ children, minimumAge = 18 }: AgeGateProps) {
     setState('denied')
   }, [logConsent])
 
-  // Not mounted yet — render nothing (prevents SSR mismatch)
-  if (!mounted) return null
+  // In admin routes, never block with AgeGate
+  if (pathname?.startsWith('/admin')) {
+    return <>{children}</>
+  }
 
-  // Already verified — render app normally
-  if (state === 'verified') return <>{children}</>
+  // Once verified and mounted, render clean children without overlay
+  if (mounted && state === 'verified') {
+    return <>{children}</>
+  }
 
   return (
     <>
+      {/* 
+        CRITICAL FOR SEO & NOTEBOOKLM / CRAWLERS:
+        Children MUST ALWAYS be rendered in the DOM/HTML so search engines,
+        AI crawlers (NotebookLM), and social link previewers can read article content.
+      */}
+      {children}
       <style>{`
         @keyframes dp-fade-in {
           from { opacity: 0; transform: translateY(8px); }
