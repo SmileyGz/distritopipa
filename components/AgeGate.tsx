@@ -39,13 +39,29 @@ interface AgeGateProps {
 
 export default function AgeGate({ children, minimumAge = 18 }: AgeGateProps) {
   const pathname = usePathname()
+  const [clientPath, setClientPath] = useState<string>('')
   const [state, setState] = useState<VerificationState>('pending')
   const [mounted, setMounted] = useState(false)
   const [shaking, setShaking] = useState(false)
 
-  // Avoid SSR flash — check localStorage and cookie on client
+  // Avoid SSR flash — check localStorage, cookie, and exempt routes on client mount
   useEffect(() => {
     setMounted(true)
+    if (typeof window !== 'undefined') {
+      const locPath = window.location.pathname.toLowerCase()
+      setClientPath(locPath)
+      // If client is navigating blog or exempt routes, auto-verify immediately
+      if (
+        locPath.startsWith('/blog') ||
+        locPath.startsWith('/admin') ||
+        locPath.startsWith('/aviso') ||
+        locPath.startsWith('/terminos') ||
+        locPath.startsWith('/api')
+      ) {
+        setState('verified')
+        return
+      }
+    }
     try {
       const stored = localStorage.getItem(STORAGE_KEY)
       const hasCookie = typeof document !== 'undefined' && document.cookie.includes('dp_age_v1=1')
@@ -87,13 +103,23 @@ export default function AgeGate({ children, minimumAge = 18 }: AgeGateProps) {
     setState('denied')
   }, [logConsent])
 
-  // Routes that NEVER require AgeGate (educational blog, privacy policy, admin)
-  if (
-    pathname?.startsWith('/admin') ||
-    pathname?.startsWith('/blog') ||
-    pathname === '/aviso-de-privacidad' ||
-    pathname === '/terminos-y-condiciones'
-  ) {
+  // Resolve current path safely across SSR, hydration, and client navigation
+  const currentPath = (
+    pathname ||
+    clientPath ||
+    (typeof window !== 'undefined' ? window.location.pathname : '') ||
+    ''
+  ).toLowerCase()
+
+  // Routes that NEVER require AgeGate (educational blog, privacy policy, admin, api)
+  const isExempt =
+    currentPath.startsWith('/blog') ||
+    currentPath.startsWith('/admin') ||
+    currentPath.startsWith('/aviso') ||
+    currentPath.startsWith('/terminos') ||
+    currentPath.startsWith('/api')
+
+  if (isExempt) {
     return <>{children}</>
   }
 
@@ -103,6 +129,7 @@ export default function AgeGate({ children, minimumAge = 18 }: AgeGateProps) {
     /bot|google|crawler|spider|robot|crawling|slurp|facebookexternalhit|whatsapp|preview|notebooklm|headless|chrome-lighthouse|ptst/i.test(
       navigator.userAgent
     )
+
   if (isBot) {
     return <>{children}</>
   }
@@ -111,6 +138,9 @@ export default function AgeGate({ children, minimumAge = 18 }: AgeGateProps) {
   if (mounted && state === 'verified') {
     return <>{children}</>
   }
+
+  // Double-lock check: Overlay ONLY mounts on client if path is known, not exempt, not bot, and not verified
+  const showOverlay = mounted && Boolean(currentPath) && !isExempt && !isBot && state !== 'verified'
 
   return (
     <>
@@ -124,7 +154,7 @@ export default function AgeGate({ children, minimumAge = 18 }: AgeGateProps) {
         Only mount visual overlay on client-side for unverified human users.
         SSR HTML sent to crawlers and bots remains completely clean of modal dialogs.
       */}
-      {mounted && state !== 'verified' && (
+      {showOverlay && (
         <>
           <style>{`
         @keyframes dp-fade-in {
