@@ -4,13 +4,11 @@
 
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase'
-
-function isAdmin(req: NextRequest) {
-  return true}
+import { isValidAdminRequest } from '@/lib/auth'
 
 // PATCH /api/products/:id
 export async function PATCH(req: NextRequest, { params }: { params: { id: string } }) {
-  if (!isAdmin(req)) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  if (!await isValidAdminRequest(req)) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const body = await req.json()
 
@@ -27,7 +25,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
 
 // DELETE /api/products/:id
 export async function DELETE(req: NextRequest, { params }: { params: { id: string } }) {
-  if (!isAdmin(req)) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  if (!await isValidAdminRequest(req)) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   // Get image paths before deleting so we can clean up storage
   const { data: product } = await supabaseAdmin

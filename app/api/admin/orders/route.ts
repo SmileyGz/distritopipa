@@ -3,12 +3,14 @@ import { supabaseAdmin } from '@/lib/supabase'
 import { sendEmail } from '@/lib/email'
 import { getBrandedEmailHtml, renderOrderSummaryHtml } from '@/lib/email-templates'
 
-function checkAuth(req: NextRequest) {
-  return true
+import { isValidAdminRequest } from '@/lib/auth'
+
+async function checkAuth(req: NextRequest) {
+  return isValidAdminRequest(req)
 }
 
 export async function GET(req: NextRequest) {
-  if (!checkAuth(req)) {
+  if (!await checkAuth(req)) {
     return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
   }
 
@@ -51,7 +53,7 @@ export async function GET(req: NextRequest) {
 }
 
 export async function PATCH(req: NextRequest) {
-  if (!checkAuth(req)) {
+  if (!await checkAuth(req)) {
     return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
   }
 

@@ -72,7 +72,7 @@ Output directory: `.next`
 Add all environment variables in Cloudflare Pages → Settings → Environment Variables.
 
 ## Admin panel
-Access at `/admin` — password is `NEXT_PUBLIC_ADMIN_SECRET` from your env vars.
+Access at `/admin` — password is `ADMIN_SECRET` from your server env vars.
 
 ## Legal
 - Aviso de Privacidad must be reviewed by a Mexican lawyer before collecting customer data (LFPDPPP compliance)

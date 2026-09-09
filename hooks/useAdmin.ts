@@ -8,19 +8,11 @@ import { useState, useCallback } from 'react'
 import type { Product } from '@/lib/supabase'
 import { mockProducts } from '@/lib/mockProducts'
 
-const secret = () => {
-  if (typeof window !== 'undefined') {
-    return sessionStorage.getItem('dp_admin') || ''
-  }
-  return ''
-}
-
 export function adminFetch(url: string, options: RequestInit = {}) {
   return fetch(url, {
     ...options,
     headers: {
       'Content-Type': 'application/json',
-      
       ...(options.headers || {}),
     },
   })

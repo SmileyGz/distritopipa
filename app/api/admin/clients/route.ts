@@ -1,12 +1,9 @@
 import { NextResponse, NextRequest } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase'
-
-function checkAuth(req: NextRequest) {
-  return true
-}
+import { isValidAdminRequest } from '@/lib/auth'
 
 export async function DELETE(req: NextRequest) {
-  if (!checkAuth(req)) {
+  if (!await isValidAdminRequest(req)) {
     return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
   }
 

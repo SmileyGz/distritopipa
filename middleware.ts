@@ -23,19 +23,20 @@ const PUBLIC_PATHS = [
   '/sitemap.xml',
 ]
 
+import { ADMIN_COOKIE_NAME, isValidAdminToken } from '@/lib/auth'
+
 // API routes that require admin authentication
 const PROTECTED_API_ROUTES = [
   '/api/admin',
   '/api/upload',
-  '/api/generate-caption'
+  '/api/generate-caption',
+  '/api/campaigns'
 ]
 
 // Cookie name set by the client after gate confirmation
 const AGE_COOKIE = 'dp_age_v1'
-// Admin session cookie
-const ADMIN_COOKIE = 'dp_admin_session'
 
-export function middleware(request: NextRequest) {
+export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl
 
   // Always allow public paths
@@ -47,14 +48,15 @@ export function middleware(request: NextRequest) {
   const isAdminPath = pathname.startsWith('/admin') && pathname !== '/admin/login'
   const isProtectedApi = PROTECTED_API_ROUTES.some(p => pathname.startsWith(p)) && pathname !== '/api/admin/auth'
   
-  // Also protect POST/PUT/DELETE to /api/products and /api/campaigns
-  const isProtectedDataApi = (pathname.startsWith('/api/products') || pathname.startsWith('/api/campaigns')) 
+  // Also protect POST/PUT/DELETE to /api/products
+  const isProtectedDataApi = pathname.startsWith('/api/products') 
     && ['POST', 'PUT', 'DELETE', 'PATCH'].includes(request.method)
 
   if (isAdminPath || isProtectedApi || isProtectedDataApi) {
-    const adminSession = request.cookies.get(ADMIN_COOKIE)
+    const adminSession = request.cookies.get(ADMIN_COOKIE_NAME)
+    const isValid = await isValidAdminToken(adminSession?.value)
     
-    if (!adminSession || adminSession.value !== 'authenticated') {
+    if (!isValid) {
       if (pathname.startsWith('/api')) {
         return new NextResponse(JSON.stringify({ error: 'Unauthorized' }), {
           status: 401,

@@ -16,6 +16,7 @@ import { createClient } from '@supabase/supabase-js'
 
 import { sendEmail } from '@/lib/email'
 import { getBrandedEmailHtml, renderOrderSummaryHtml } from '@/lib/email-templates'
+import { isValidAdminRequest } from '@/lib/auth'
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://dummy.supabase.co',
@@ -68,13 +69,39 @@ export async function POST(req: NextRequest) {
   if (!customer_phone) return NextResponse.json({ error: 'Teléfono requerido.' }, { status: 400 })
   if (!delivery_zone) return NextResponse.json({ error: 'Selecciona opción de entrega.' }, { status: 400 })
 
-  // Calculate totals (respect bundle discounts if they exist)
-  const subtotal = items.reduce((sum: number, item: any) => {
-    if (item.bundle_price !== undefined) {
-      return sum + item.bundle_price
-    }
-    return sum + (item.unit_price * item.qty)
-  }, 0)
+  // Validate prices against database to prevent client-side price tampering (V-05)
+  const productIds = items.map((i: any) => i.product_id).filter(Boolean)
+  let verifiedItems = items
+  let subtotal = 0
+
+  if (productIds.length > 0) {
+    const { data: dbProducts } = await supabase
+      .from('products')
+      .select('id, price_mxn')
+      .in('id', productIds)
+
+    const productMap = new Map((dbProducts || []).map((p: any) => [p.id, p.price_mxn]))
+
+    verifiedItems = items.map((item: any) => {
+      const realPrice = productMap.get(item.product_id) ?? item.unit_price
+      return {
+        ...item,
+        unit_price: realPrice
+      }
+    })
+
+    subtotal = verifiedItems.reduce((sum: number, item: any) => {
+      const standardPrice = item.unit_price * item.qty
+      // If bundle discount is applied, ensure it's not absurdly manipulated (< 0 or > standard)
+      const itemPrice = (item.bundle_price !== undefined && item.bundle_price > 0 && item.bundle_price <= standardPrice)
+        ? item.bundle_price
+        : standardPrice
+      return sum + itemPrice
+    }, 0)
+  } else {
+    subtotal = items.reduce((sum: number, item: any) => sum + (item.unit_price * item.qty), 0)
+  }
+
   let delivery_fee = 0
   if (delivery_zone !== 'pickup') {
     if (is_night) {
@@ -128,7 +155,7 @@ export async function POST(req: NextRequest) {
     .insert({
       customer_id: customer?.id,
       customer_email,
-      items,
+      items: verifiedItems,
       subtotal,
       delivery_zone,
       delivery_address,
@@ -314,35 +341,55 @@ export async function POST(req: NextRequest) {
   })
 }
 
-// PATCH /api/orders/:id/confirm
-// Called by your payment webhook (Clip, Conekta, MercadoPago)
+// PATCH /api/orders
 // Marks anticipo as paid → triggers WhatsApp contact flow
+// Requires valid Mercado Pago verified payment OR Admin session
 export async function PATCH(req: NextRequest) {
-  const body = await req.json()
-  const { order_id, payment_reference, gateway } = body
+  let body: any
+  try {
+    body = await req.json()
+  } catch {
+    return NextResponse.json({ error: 'JSON inválido' }, { status: 400 })
+  }
 
+  const { order_id, payment_reference, gateway } = body
   if (!order_id) return NextResponse.json({ error: 'order_id required' }, { status: 400 })
+
+  const isAdmin = await isValidAdminRequest(req)
+
+  // Verify authorization: either Mercado Pago validated payment OR admin session
+  if (gateway === 'mercadopago' && payment_reference && process.env.MERCADOPAGO_ACCESS_TOKEN) {
+    try {
+      const { MercadoPagoConfig, Payment } = require('mercadopago')
+      const client = new MercadoPagoConfig({ accessToken: process.env.MERCADOPAGO_ACCESS_TOKEN })
+      const payment = new Payment(client)
+      const paymentInfo = await payment.get({ id: payment_reference })
+
+      // Security check: Payment must be approved and match the order ID external_reference
+      if (paymentInfo.status !== 'approved' || paymentInfo.external_reference !== order_id) {
+        return NextResponse.json({ error: 'Pago no verificado o referencia no coincide' }, { status: 403 })
+      }
+    } catch (mpErr: any) {
+      console.error('Error al verificar pago en MercadoPago:', mpErr)
+      if (!isAdmin) {
+        return NextResponse.json({ error: 'No se pudo verificar el pago' }, { status: 403 })
+      }
+    }
+  } else if (!isAdmin) {
+    return NextResponse.json({ error: 'No autorizado para confirmar pagos manualmente' }, { status: 401 })
+  }
 
   const { error } = await supabase
     .from('orders')
     .update({
       anticipo_status: 'paid',
-      anticipo_ref: payment_reference,
+      anticipo_ref: payment_reference || 'admin_manual',
       status: 'confirmed',
       updated_at: new Date().toISOString(),
     })
     .eq('id', order_id)
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
-
-  // TODO: Trigger WhatsApp Business API message to customer
-  // For now: the admin dashboard shows confirmed orders for manual WhatsApp follow-up
-  // When you're ready for automation, integrate Twilio or Meta Cloud API here:
-  //
-  // await fetch('https://api.twilio.com/...', {
-  //   method: 'POST',
-  //   body: `To=whatsapp:${customerPhone}&From=whatsapp:${TWILIO_NUMBER}&Body=...`
-  // })
 
   return NextResponse.json({ success: true })
 }

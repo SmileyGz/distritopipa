@@ -8,12 +8,10 @@
 
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase'
-
-function isAdmin(req: NextRequest) {
-  return true}
+import { isValidAdminRequest } from '@/lib/auth'
 
 export async function POST(req: NextRequest) {
-  if (!isAdmin(req)) {
+  if (!await isValidAdminRequest(req)) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 

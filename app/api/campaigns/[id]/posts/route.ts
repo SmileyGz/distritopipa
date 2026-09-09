@@ -4,13 +4,15 @@
 
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase'
+import { isValidAdminRequest } from '@/lib/auth'
 
-function isAdmin(req: NextRequest) {
-  return true}
+async function isAdmin(req: NextRequest) {
+  return isValidAdminRequest(req)
+}
 
 // GET /api/campaigns/:id/posts
 export async function GET(req: NextRequest, { params }: { params: { id: string } }) {
-  if (!isAdmin(req)) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  if (!await isAdmin(req)) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const { data, error } = await supabaseAdmin
     .from('campaign_calendar')
@@ -24,7 +26,7 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
 
 // POST /api/campaigns/:id/posts
 export async function POST(req: NextRequest, { params }: { params: { id: string } }) {
-  if (!isAdmin(req)) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  if (!await isAdmin(req)) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const body = await req.json()
 
@@ -40,7 +42,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
 
 // PATCH /api/campaigns/:id/posts — update a post (status, caption, etc.)
 export async function PATCH(req: NextRequest, { params }: { params: { id: string } }) {
-  if (!isAdmin(req)) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  if (!await isAdmin(req)) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const body = await req.json()
   const { post_id, ...updates } = body
@@ -66,7 +68,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
 
 // DELETE /api/campaigns/:id/posts?post_id=xxx
 export async function DELETE(req: NextRequest, { params }: { params: { id: string } }) {
-  if (!isAdmin(req)) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  if (!await isAdmin(req)) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const { searchParams } = new URL(req.url)
   const post_id = searchParams.get('post_id')

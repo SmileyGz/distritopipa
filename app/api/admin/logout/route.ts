@@ -1,7 +1,8 @@
 import { NextResponse } from 'next/server'
 import { cookies } from 'next/headers'
+import { ADMIN_COOKIE_NAME } from '@/lib/auth'
 
 export async function POST() {
-  cookies().delete('dp_admin_session')
+  cookies().delete(ADMIN_COOKIE_NAME)
   return NextResponse.json({ success: true })
 }
