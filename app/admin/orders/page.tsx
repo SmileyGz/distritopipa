@@ -18,6 +18,7 @@ import {
 } from '@/lib/whatsapp'
 import { getVIPStatus, getTierIcon, getTierColor } from '@/lib/clients'
 import { getBrandedEmailHtml, renderOrderSummaryHtml } from '@/lib/email-templates'
+import { BANK_CONFIG } from '@/lib/config'
 
 // ─── Types ────────────────────────────────────────────────────
 
@@ -223,9 +224,9 @@ export default function AdminOrdersPage() {
         <p>El resto lo liquidas al momento de la entrega.</p>
         <p>Aquí te dejo los datos para la transferencia:</p>
         <ul>
-          <li><strong>Banco:</strong> BanCoppel</li>
-          <li><strong>CLABE:</strong> 167691000009770036</li>
-          <li><strong>A nombre de:</strong> Distrito Pipa</li>
+          <li><strong>Banco:</strong> ${BANK_CONFIG.bankName}</li>
+          <li><strong>CLABE:</strong> ${BANK_CONFIG.formattedClabe}</li>
+          <li><strong>A nombre de:</strong> ${BANK_CONFIG.recipient}</li>
           <li><strong>Concepto:</strong> ${order.order_number}</li>
         </ul>
         <p>En cuanto quede, mándanos captura por WhatsApp y nos coordinamos. ¡Seguimos activos!</p>

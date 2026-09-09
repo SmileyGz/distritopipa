@@ -17,6 +17,7 @@ import { createClient } from '@supabase/supabase-js'
 import { sendEmail } from '@/lib/email'
 import { getBrandedEmailHtml, renderOrderSummaryHtml } from '@/lib/email-templates'
 import { isValidAdminRequest } from '@/lib/auth'
+import { BANK_CONFIG } from '@/lib/config'
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://dummy.supabase.co',
@@ -272,9 +273,9 @@ export async function POST(req: NextRequest) {
       manualBankInfo = `
       <div style="background-color: #1a1a1a; border: 1px solid #333; border-radius: 8px; padding: 20px; margin: 24px 0; color: #fff;">
         <h3 style="color: #27ae60; margin-top: 0; margin-bottom: 12px; font-size: 16px;">Datos para transferencia SPEI (Anticipo $50 MXN):</h3>
-        <p style="margin: 6px 0; font-size: 14px;"><strong>Banco:</strong> Hey Banco</p>
-        <p style="margin: 6px 0; font-size: 14px;"><strong>CLABE:</strong> <span style="font-family: monospace; font-size: 15px; color: #fff; background: #000; padding: 4px 8px; border-radius: 4px; border: 1px solid #444;">167691000009770036</span></p>
-        <p style="margin: 6px 0; font-size: 14px;"><strong>A nombre de:</strong> José Luis</p>
+        <p style="margin: 6px 0; font-size: 14px;"><strong>Banco:</strong> ${BANK_CONFIG.bankName}</p>
+        <p style="margin: 6px 0; font-size: 14px;"><strong>CLABE:</strong> <span style="font-family: monospace; font-size: 15px; color: #fff; background: #000; padding: 4px 8px; border-radius: 4px; border: 1px solid #444;">${BANK_CONFIG.formattedClabe}</span></p>
+        <p style="margin: 6px 0; font-size: 14px;"><strong>A nombre de:</strong> ${BANK_CONFIG.recipient}</p>
         <p style="margin: 6px 0; font-size: 14px;"><strong>Concepto / Referencia:</strong> <strong style="color: #DC143C;">${order.order_number}</strong></p>
         <p style="margin: 6px 0; font-size: 14px;"><strong>Monto a transferir:</strong> $50 MXN</p>
         <p style="margin: 6px 0; font-size: 14px;"><strong>Resto en efectivo al recibir:</strong> $${(total - 50).toLocaleString('es-MX')} MXN</p>
@@ -330,8 +331,8 @@ export async function POST(req: NextRequest) {
       delivery_zone,
     },
     payment: {
-      clabe: process.env.CLABE_NUMBER || '167691000009770036',
-      recipient: 'Distrito Pipa',
+      clabe: BANK_CONFIG.clabe,
+      recipient: BANK_CONFIG.recipient,
       amount: anticipo,
       reference: order.order_number, // using branded order number
       instructions_es: `Transfiere $${anticipo} MXN a la CLABE indicada. Usa la referencia ${order.order_number} como concepto. Una vez confirmado el anticipo, te contactaremos por WhatsApp al ${customer_phone}.`,

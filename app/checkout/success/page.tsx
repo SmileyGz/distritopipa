@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import { useStore } from '@/lib/store'
 import posthog from 'posthog-js'
+import { BANK_CONFIG } from '@/lib/config'
 
 function SuccessContent() {
   const searchParams = useSearchParams()
@@ -69,7 +70,7 @@ function SuccessContent() {
   }, [clearCart, isSpei, status, external_reference, payment_id])
 
   const handleCopyClabe = () => {
-    navigator.clipboard.writeText('167691000009770036')
+    navigator.clipboard.writeText(BANK_CONFIG.clabe)
     setCopiedClabe(true)
     setTimeout(() => setCopiedClabe(false), 3000)
   }
@@ -137,12 +138,12 @@ function SuccessContent() {
             </div>
             <div className="bdc-row">
               <span className="bdc-label">Banco:</span>
-              <span className="bdc-value">Hey Banco</span>
+              <span className="bdc-value">{BANK_CONFIG.bankName}</span>
             </div>
             <div className="bdc-row">
               <span className="bdc-label">CLABE:</span>
               <div className="clabe-copy-wrap">
-                <span className="bdc-clabe">167691000009770036</span>
+                <span className="bdc-clabe">{BANK_CONFIG.formattedClabe}</span>
                 <button type="button" onClick={handleCopyClabe} className="btn-copy">
                   {copiedClabe ? '✅ Copiada' : 'Copiar'}
                 </button>
@@ -150,7 +151,7 @@ function SuccessContent() {
             </div>
             <div className="bdc-row">
               <span className="bdc-label">A nombre de:</span>
-              <span className="bdc-value">José Luis</span>
+              <span className="bdc-value">{BANK_CONFIG.recipient}</span>
             </div>
             <div className="bdc-row">
               <span className="bdc-label">Concepto / Ref:</span>

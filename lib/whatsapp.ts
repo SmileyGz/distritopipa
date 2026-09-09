@@ -7,7 +7,9 @@ export interface OrderForMessage {
   delivery_address?: string; scheduled_at?: string
 }
 
-const CLABE = '1676 9100 0009 7700 36'
+import { BANK_CONFIG } from '@/lib/config'
+
+const CLABE = BANK_CONFIG.formattedClabe
 
 function formatMXN(n: number) { return `$${(n || 0).toLocaleString('es-MX', {minimumFractionDigits:0})} MXN` }
 
