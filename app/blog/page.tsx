@@ -38,19 +38,6 @@ export default function CulturaPage() {
         <header className="cultura-header">
           <h1>Blog</h1>
           <p>Artículos, guías y contenido local de Cancún.</p>
-          <div style={{ marginTop: '12px' }}>
-            <Link 
-              href="/blog/todos" 
-              style={{ 
-                color: '#aaa', 
-                fontSize: '13px', 
-                textDecoration: 'underline',
-                transition: 'color 0.2s' 
-              }}
-            >
-              📖 Ver todos los artículos en una sola página (compendio)
-            </Link>
-          </div>
         </header>
 
         <div className="articles-grid">
