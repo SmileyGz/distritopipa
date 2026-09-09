@@ -92,6 +92,12 @@ export default function AgeGate({ children, minimumAge = 18 }: AgeGateProps) {
     return <>{children}</>
   }
 
+  // Check if visitor is a crawler/search bot (Google, NotebookLM, Bing, social scrapers)
+  const isBot = typeof navigator !== 'undefined' && /bot|google|crawler|spider|robot|crawling|slurp|facebookexternalhit|whatsapp|preview|notebooklm/i.test(navigator.userAgent)
+  if (isBot) {
+    return <>{children}</>
+  }
+
   // Once verified and mounted, render clean children without overlay
   if (mounted && state === 'verified') {
     return <>{children}</>
@@ -101,11 +107,17 @@ export default function AgeGate({ children, minimumAge = 18 }: AgeGateProps) {
     <>
       {/* 
         CRITICAL FOR SEO & NOTEBOOKLM / CRAWLERS:
-        Children MUST ALWAYS be rendered in the DOM/HTML so search engines,
-        AI crawlers (NotebookLM), and social link previewers can read article content.
+        Children MUST ALWAYS be rendered in the DOM/HTML.
       */}
       {children}
-      <style>{`
+
+      {/* 
+        Only mount visual overlay on client-side for unverified human users.
+        SSR HTML sent to crawlers and bots remains completely clean of modal dialogs.
+      */}
+      {mounted && state !== 'verified' && (
+        <>
+          <style>{`
         @keyframes dp-fade-in {
           from { opacity: 0; transform: translateY(8px); }
           to   { opacity: 1; transform: translateY(0); }
@@ -127,13 +139,11 @@ export default function AgeGate({ children, minimumAge = 18 }: AgeGateProps) {
         }
       `}</style>
 
-      {/* Full-screen overlay */}
-      <div
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="agegate-title"
-        aria-describedby="agegate-desc"
-        style={{
+          {/* Full-screen overlay */}
+          <div
+            role="region"
+            aria-label="Verificación de edad"
+            style={{
           position: 'fixed',
           inset: 0,
           zIndex: 9999,
@@ -361,5 +371,7 @@ export default function AgeGate({ children, minimumAge = 18 }: AgeGateProps) {
         </div>
       </div>
     </>
-  )
+  )}
+</>
+)
 }
