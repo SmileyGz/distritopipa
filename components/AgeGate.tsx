@@ -87,13 +87,22 @@ export default function AgeGate({ children, minimumAge = 18 }: AgeGateProps) {
     setState('denied')
   }, [logConsent])
 
-  // In admin routes, never block with AgeGate
-  if (pathname?.startsWith('/admin')) {
+  // Routes that NEVER require AgeGate (educational blog, privacy policy, admin)
+  if (
+    pathname?.startsWith('/admin') ||
+    pathname?.startsWith('/blog') ||
+    pathname === '/aviso-de-privacidad' ||
+    pathname === '/terminos-y-condiciones'
+  ) {
     return <>{children}</>
   }
 
-  // Check if visitor is a crawler/search bot (Google, NotebookLM, Bing, social scrapers)
-  const isBot = typeof navigator !== 'undefined' && /bot|google|crawler|spider|robot|crawling|slurp|facebookexternalhit|whatsapp|preview|notebooklm/i.test(navigator.userAgent)
+  // Check if visitor is a crawler/search bot (Googlebot, NotebookLM, Bing, social scrapers, headless browsers)
+  const isBot =
+    typeof navigator !== 'undefined' &&
+    /bot|google|crawler|spider|robot|crawling|slurp|facebookexternalhit|whatsapp|preview|notebooklm|headless|chrome-lighthouse|ptst/i.test(
+      navigator.userAgent
+    )
   if (isBot) {
     return <>{children}</>
   }

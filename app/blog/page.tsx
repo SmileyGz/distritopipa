@@ -13,11 +13,44 @@ export default function CulturaPage() {
 
   return (
     <main className="cultura-page">
+      {/* Schema Markup for Blog Collection */}
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{
+          __html: JSON.stringify({
+            "@context": "https://schema.org",
+            "@type": "CollectionPage",
+            "name": "Blog | Distrito Pipa Cancún",
+            "description": "Artículos, guías y contenido local sobre accesorios de cristal y entregas en Cancún.",
+            "url": "https://distritopipa.com/blog",
+            "hasPart": allPostsData.map(post => ({
+              "@type": "BlogPosting",
+              "headline": post.title,
+              "description": post.meta_description,
+              "url": `https://distritopipa.com/blog/${post.slug}`
+            }))
+          })
+        }}
+      />
+
       <div className="cultura-container">
         
         <header className="cultura-header">
           <h1>Blog</h1>
           <p>Artículos, guías y contenido local de Cancún.</p>
+          <div style={{ marginTop: '12px' }}>
+            <Link 
+              href="/blog/todos" 
+              style={{ 
+                color: '#aaa', 
+                fontSize: '13px', 
+                textDecoration: 'underline',
+                transition: 'color 0.2s' 
+              }}
+            >
+              📖 Ver todos los artículos en una sola página (compendio)
+            </Link>
+          </div>
         </header>
 
         <div className="articles-grid">

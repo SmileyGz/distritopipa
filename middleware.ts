@@ -17,6 +17,7 @@ import type { NextRequest } from 'next/server'
 // Routes that are always public — no gate
 const PUBLIC_PATHS = [
   '/aviso-de-privacidad',
+  '/blog',
   '/_next/',          // Next.js internals
   '/favicon.ico',
   '/robots.txt',
