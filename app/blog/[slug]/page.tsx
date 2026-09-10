@@ -3,14 +3,16 @@ import { notFound } from 'next/navigation'
 import Link from 'next/link'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
-import { getPostData, getSortedPostsData } from '../../../lib/markdown'
+import { getPostFromDB, getPostsFromDB } from '../../../lib/blog-db'
+
+export const revalidate = 60 // Cache for 60 seconds (ISR)
 
 type Props = {
   params: { slug: string }
 }
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
-  const postData = getPostData(params.slug)
+  const postData = await getPostFromDB(params.slug)
   
   if (!postData) {
     return { title: 'Post no encontrado' }
@@ -27,14 +29,14 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 }
 
 export async function generateStaticParams() {
-  const posts = getSortedPostsData()
+  const posts = await getPostsFromDB()
   return posts.map((post) => ({
     slug: post.slug,
   }))
 }
 
-export default function PostPage({ params }: Props) {
-  const postData = getPostData(params.slug)
+export default async function PostPage({ params }: Props) {
+  const postData = await getPostFromDB(params.slug)
   
   if (!postData) {
     notFound()

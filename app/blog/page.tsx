@@ -1,6 +1,8 @@
 import { Metadata } from 'next'
 import Link from 'next/link'
-import { getSortedPostsData } from '../../lib/markdown'
+import { getPostsFromDB } from '../../lib/blog-db'
+
+export const revalidate = 60 // Cache for 60 seconds (ISR)
 
 export const metadata: Metadata = {
   title: 'Blog | Distrito Pipa Cancún',
@@ -8,8 +10,8 @@ export const metadata: Metadata = {
   keywords: ['Blog smoke shop Cancún', 'Distrito Pipa blog', 'Pipas de cristal Cancún']
 }
 
-export default function CulturaPage() {
-  const allPostsData = getSortedPostsData()
+export default async function CulturaPage() {
+  const allPostsData = await getPostsFromDB()
 
   return (
     <main className="cultura-page">
