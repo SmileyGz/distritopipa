@@ -1,5 +1,5 @@
 import { ImageResponse } from 'next/og'
-import { getPostData } from '../../../lib/markdown'
+import { getPostFromDB } from '../../../lib/blog-db'
 
 export const alt = 'Blog de Distrito Pipa Cancún'
 export const size = {
@@ -9,7 +9,7 @@ export const size = {
 export const contentType = 'image/png'
 
 export default async function Image({ params }: { params: { slug: string } }) {
-  const postData = getPostData(params.slug)
+  const postData = await getPostFromDB(params.slug)
   const title = postData ? postData.title : 'Cultura Distrito Pipa'
 
   return new ImageResponse(

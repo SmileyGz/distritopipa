@@ -1,6 +1,6 @@
 import { MetadataRoute } from 'next'
 import { supabase } from '@/lib/supabase'
-import { getSortedPostsData } from '@/lib/markdown'
+import { getPostsFromDB } from '@/lib/blog-db'
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const baseUrl = 'https://distritopipa.com'
@@ -14,10 +14,10 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     priority: 0.8,
   }))
 
-  const blogPosts = getSortedPostsData()
+  const blogPosts = await getPostsFromDB()
   const blogUrls = blogPosts.map(post => ({
     url: `${baseUrl}/blog/${post.slug}`,
-    lastModified: new Date(),
+    lastModified: post.published_at ? new Date(post.published_at) : new Date(),
     changeFrequency: 'monthly' as const,
     priority: 0.7,
   }))
