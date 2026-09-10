@@ -37,6 +37,8 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
 
   return (
     <div className="admin-shell">
+      <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.7.0/css/font-awesome.min.css" />
+      
       {/* Mobile overlay */}
       {sideOpen && (
         <div className="side-overlay" onClick={() => setSideOpen(false)} />
