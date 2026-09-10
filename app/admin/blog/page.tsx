@@ -97,8 +97,12 @@ export default function AdminBlog() {
             <input required type="text" value={editingPost.slug} onChange={e => setEditingPost({...editingPost, slug: e.target.value})} style={{ width: '100%', padding: '8px' }} />
           </div>
           <div>
-            <label>Meta Descripción:</label><br/>
+            <label>Meta Descripción (invisible al público, solo para Google/SEO):</label><br/>
             <textarea required value={editingPost.meta_description} onChange={e => setEditingPost({...editingPost, meta_description: e.target.value})} style={{ width: '100%', padding: '8px' }} rows={3} />
+          </div>
+          <div>
+            <label>Palabra Clave (Focus Keyword):</label><br/>
+            <input type="text" value={editingPost.focus_keyword} onChange={e => setEditingPost({...editingPost, focus_keyword: e.target.value})} style={{ width: '100%', padding: '8px' }} />
           </div>
           <div>
             <label>Contenido Markdown (usa los bloques de ```product aquí!):</label><br/>
