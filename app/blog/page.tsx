@@ -43,13 +43,17 @@ export default async function CulturaPage() {
         </header>
 
         <div className="articles-grid">
-          {allPostsData.map(({ slug, title, meta_description }) => (
+          {allPostsData.map(({ slug, title, meta_description, image_url, focus_keyword }) => (
             <article key={slug} className="article-card">
-              <div className="article-img-placeholder">
-                <div className="digital-sticker">
-                  <span>DP</span>
+              {image_url ? (
+                <div className="article-img-real" style={{ backgroundImage: `url(${image_url})`, backgroundSize: 'cover', backgroundPosition: 'center', height: '180px' }} title={focus_keyword || title} />
+              ) : (
+                <div className="article-img-placeholder">
+                  <div className="digital-sticker">
+                    <span>DP</span>
+                  </div>
                 </div>
-              </div>
+              )}
               <div className="article-content">
                 <span className="article-tag">Blog</span>
                 <h2>{title}</h2>

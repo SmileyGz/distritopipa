@@ -78,6 +78,13 @@ export default async function PostPage({ params }: Props) {
         </Link>
         
         <article className="prose-container">
+          {postData.image_url && (
+            <img 
+              src={postData.image_url} 
+              alt={postData.focus_keyword || postData.title} 
+              style={{ width: '100%', maxHeight: '400px', objectFit: 'cover', borderRadius: '12px', marginBottom: '32px' }} 
+            />
+          )}
           <ReactMarkdown 
             remarkPlugins={[remarkGfm]}
             components={{

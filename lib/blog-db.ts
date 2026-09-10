@@ -13,6 +13,7 @@ export type BlogPost = {
   focus_keyword: string
   content: string
   published_at: string
+  image_url?: string
 }
 
 export async function getPostsFromDB() {

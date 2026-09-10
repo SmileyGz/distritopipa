@@ -89,6 +89,39 @@ export default function AdminBlog() {
       ) : (
         <form onSubmit={savePost} style={{ display: 'flex', flexDirection: 'column', gap: '15px', maxWidth: '800px' }}>
           <div>
+            <label>Imagen de Portada (Opcional):</label><br/>
+            {editingPost.image_url && (
+              <img src={editingPost.image_url} alt="Portada" style={{ width: '100%', maxWidth: '300px', marginBottom: '10px', borderRadius: '8px' }} />
+            )}
+            <input 
+              type="file" 
+              accept="image/png, image/jpeg, image/webp"
+              onChange={async (e) => {
+                const file = e.target.files?.[0]
+                if (!file) return
+                
+                setLoading(true)
+                const formData = new FormData()
+                formData.append('file', file)
+                formData.append('category', 'blog')
+                
+                try {
+                  const res = await fetch('/api/upload', { method: 'POST', body: formData })
+                  const data = await res.json()
+                  if (data.url) {
+                    setEditingPost({ ...editingPost, image_url: data.url })
+                  } else {
+                    alert(data.error || 'Error al subir la imagen')
+                  }
+                } catch (err) {
+                  alert('Error al subir la imagen')
+                }
+                setLoading(false)
+              }} 
+              style={{ display: 'block', width: '100%', padding: '8px', color: '#000', backgroundColor: '#fff' }} 
+            />
+          </div>
+          <div>
             <label>Título:</label><br/>
             <input required type="text" value={editingPost.title} onChange={e => setEditingPost({...editingPost, title: e.target.value})} style={{ width: '100%', padding: '8px', color: '#000', backgroundColor: '#fff' }} />
           </div>
