@@ -90,23 +90,23 @@ export default function AdminBlog() {
         <form onSubmit={savePost} style={{ display: 'flex', flexDirection: 'column', gap: '15px', maxWidth: '800px' }}>
           <div>
             <label>Título:</label><br/>
-            <input required type="text" value={editingPost.title} onChange={e => setEditingPost({...editingPost, title: e.target.value})} style={{ width: '100%', padding: '8px' }} />
+            <input required type="text" value={editingPost.title} onChange={e => setEditingPost({...editingPost, title: e.target.value})} style={{ width: '100%', padding: '8px', color: '#000', backgroundColor: '#fff' }} />
           </div>
           <div>
             <label>Slug (URL):</label><br/>
-            <input required type="text" value={editingPost.slug} onChange={e => setEditingPost({...editingPost, slug: e.target.value})} style={{ width: '100%', padding: '8px' }} />
+            <input required type="text" value={editingPost.slug} onChange={e => setEditingPost({...editingPost, slug: e.target.value})} style={{ width: '100%', padding: '8px', color: '#000', backgroundColor: '#fff' }} />
           </div>
           <div>
             <label>Meta Descripción (invisible al público, solo para Google/SEO):</label><br/>
-            <textarea required value={editingPost.meta_description} onChange={e => setEditingPost({...editingPost, meta_description: e.target.value})} style={{ width: '100%', padding: '8px' }} rows={3} />
+            <textarea required value={editingPost.meta_description} onChange={e => setEditingPost({...editingPost, meta_description: e.target.value})} style={{ width: '100%', padding: '8px', color: '#000', backgroundColor: '#fff' }} rows={3} />
           </div>
           <div>
             <label>Palabra Clave (Focus Keyword):</label><br/>
-            <input type="text" value={editingPost.focus_keyword} onChange={e => setEditingPost({...editingPost, focus_keyword: e.target.value})} style={{ width: '100%', padding: '8px' }} />
+            <input type="text" value={editingPost.focus_keyword} onChange={e => setEditingPost({...editingPost, focus_keyword: e.target.value})} style={{ width: '100%', padding: '8px', color: '#000', backgroundColor: '#fff' }} />
           </div>
           <div>
             <label>Contenido Markdown (usa los bloques de ```product aquí!):</label><br/>
-            <textarea required value={editingPost.content} onChange={e => setEditingPost({...editingPost, content: e.target.value})} style={{ width: '100%', padding: '8px', fontFamily: 'monospace' }} rows={20} />
+            <textarea required value={editingPost.content} onChange={e => setEditingPost({...editingPost, content: e.target.value})} style={{ width: '100%', padding: '8px', fontFamily: 'monospace', color: '#000', backgroundColor: '#fff' }} rows={20} />
           </div>
           
           <div style={{ display: 'flex', gap: '10px' }}>
