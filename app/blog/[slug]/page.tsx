@@ -76,7 +76,31 @@ export default function PostPage({ params }: Props) {
         </Link>
         
         <article className="prose-container">
-          <ReactMarkdown remarkPlugins={[remarkGfm]}>
+          <ReactMarkdown 
+            remarkPlugins={[remarkGfm]}
+            components={{
+              code({node, inline, className, children, ...props}: any) {
+                const match = /language-(\w+)/.exec(className || '')
+                if (!inline && match && match[1] === 'product') {
+                  const productId = String(children).replace(/\n$/, '').trim()
+                  
+                  // Product Module Component
+                  return (
+                    <div className="product-module-embed">
+                      <div className="product-embed-info">
+                        <h4>¿Te interesa este modelo?</h4>
+                        <p>Haz clic para ver fotos reales, precios y pedir a domicilio en Cancún.</p>
+                      </div>
+                      <Link href={`/producto/${productId}`} className="product-embed-btn">
+                        Ver Producto
+                      </Link>
+                    </div>
+                  )
+                }
+                return <code className={className} {...props}>{children}</code>
+              }
+            }}
+          >
             {postData.content}
           </ReactMarkdown>
         </article>
@@ -180,6 +204,57 @@ export default function PostPage({ params }: Props) {
         
         .prose-container a:hover {
           text-decoration: underline;
+        }
+        
+        /* Product Module Embed */
+        .product-module-embed {
+          display: flex;
+          flex-direction: column;
+          background: #111;
+          border: 1px solid #DC143C;
+          border-radius: 8px;
+          padding: 24px;
+          margin: 32px 0;
+          align-items: center;
+          text-align: center;
+          gap: 16px;
+        }
+        
+        @media (min-width: 640px) {
+          .product-module-embed {
+            flex-direction: row;
+            text-align: left;
+            justify-content: space-between;
+          }
+        }
+        
+        .product-embed-info h4 {
+          color: #fff;
+          font-family: var(--font-bebas), sans-serif;
+          font-size: 24px;
+          margin-bottom: 4px;
+          letter-spacing: 0.05em;
+        }
+        
+        .product-embed-info p {
+          color: #aaa;
+          font-size: 14px;
+          margin: 0;
+        }
+        
+        .product-embed-btn {
+          background-color: #DC143C;
+          color: #fff !important;
+          padding: 12px 24px;
+          border-radius: 6px;
+          font-weight: bold;
+          text-decoration: none !important;
+          white-space: nowrap;
+          transition: background-color 0.2s;
+        }
+        
+        .product-embed-btn:hover {
+          background-color: #b01030;
         }
       `}</style>
     </main>
