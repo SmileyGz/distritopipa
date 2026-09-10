@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { createClient } from '@supabase/supabase-js'
+import { savePostAction } from './actions'
 
 // Utilizar cliente del lado del cliente
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || ''
@@ -40,14 +41,13 @@ export default function AdminBlog() {
     if (!editingPost) return
 
     setLoading(true)
-    // If it's a new post without ID, we don't send the ID to let Supabase generate it
     const postToSave = { ...editingPost }
     if (!postToSave.id) delete postToSave.id
 
-    const { error } = await supabase.from('blog_posts').upsert(postToSave, { onConflict: 'slug' })
+    const res = await savePostAction(postToSave)
     
-    if (error) {
-      alert('Error guardando: ' + error.message)
+    if (!res.success) {
+      alert('Error guardando: ' + res.error)
     } else {
       alert('Guardado con éxito!')
       setEditingPost(null)
