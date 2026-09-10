@@ -3,6 +3,10 @@
 import { useState, useEffect } from 'react'
 import { createClient } from '@supabase/supabase-js'
 import { savePostAction } from './actions'
+import dynamic from 'next/dynamic'
+import 'easymde/dist/easymde.min.css'
+
+const SimpleMdeReact = dynamic(() => import('react-simplemde-editor'), { ssr: false })
 
 // Utilizar cliente del lado del cliente
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || ''
@@ -139,8 +143,18 @@ export default function AdminBlog() {
             <input type="text" value={editingPost.focus_keyword} onChange={e => setEditingPost({...editingPost, focus_keyword: e.target.value})} style={{ width: '100%', padding: '8px', color: '#000', backgroundColor: '#fff' }} />
           </div>
           <div>
-            <label>Contenido Markdown (usa los bloques de ```product aquí!):</label><br/>
-            <textarea required value={editingPost.content} onChange={e => setEditingPost({...editingPost, content: e.target.value})} style={{ width: '100%', padding: '8px', fontFamily: 'monospace', color: '#000', backgroundColor: '#fff' }} rows={20} />
+            <label>Contenido del Artículo (Usa la barra de herramientas. Para inyectar productos usa el icono de código <code>```product</code>):</label><br/>
+            <div style={{ backgroundColor: '#fff', color: '#000', borderRadius: '4px' }}>
+              <SimpleMdeReact 
+                value={editingPost.content} 
+                onChange={(val) => setEditingPost({...editingPost, content: val})}
+                options={{
+                  spellChecker: false,
+                  maxHeight: '400px',
+                  placeholder: 'Escribe tu artículo aquí...'
+                }}
+              />
+            </div>
           </div>
           
           <div style={{ display: 'flex', gap: '10px' }}>

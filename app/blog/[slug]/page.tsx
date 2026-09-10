@@ -106,6 +106,31 @@ export default async function PostPage({ params }: Props) {
                     </div>
                   )
                 }
+
+                // CTA Module Component
+                if (!inline && match && match[1] === 'cta') {
+                  const ctaType = String(children).replace(/\n$/, '').trim()
+                  if (ctaType === 'whatsapp') {
+                    return (
+                      <div style={{ background: '#25D366', padding: '20px', borderRadius: '8px', textAlign: 'center', margin: '30px 0' }}>
+                        <h4 style={{ color: '#fff', margin: '0 0 10px 0' }}>¿Tienes dudas? ¡Escríbenos!</h4>
+                        <a href="https://wa.me/529983949395" target="_blank" rel="noreferrer" style={{ display: 'inline-block', background: '#fff', color: '#25D366', padding: '10px 20px', borderRadius: '20px', fontWeight: 'bold', textDecoration: 'none' }}>
+                          Chat en WhatsApp
+                        </a>
+                      </div>
+                    )
+                  }
+                  if (ctaType === 'catalogo') {
+                    return (
+                      <div style={{ background: '#DC143C', padding: '20px', borderRadius: '8px', textAlign: 'center', margin: '30px 0' }}>
+                        <h4 style={{ color: '#fff', margin: '0 0 10px 0' }}>Explora nuestra Colección Completa</h4>
+                        <Link href="/catalogo" style={{ display: 'inline-block', background: '#fff', color: '#DC143C', padding: '10px 20px', borderRadius: '20px', fontWeight: 'bold', textDecoration: 'none' }}>
+                          Ver Catálogo
+                        </Link>
+                      </div>
+                    )
+                  }
+                }
                 return <code className={className} {...props}>{children}</code>
               }
             }}
