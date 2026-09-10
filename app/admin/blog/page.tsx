@@ -16,6 +16,7 @@ type BlogPost = {
   meta_description: string
   focus_keyword: string
   content: string
+  image_url?: string
 }
 
 export default function AdminBlog() {
