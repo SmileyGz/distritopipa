@@ -79,6 +79,7 @@ export default async function PostPage({ params }: Props) {
         
         <article className="prose-container">
           {postData.image_url && (
+            /* eslint-disable-next-line @next/next/no-img-element */
             <img 
               src={postData.image_url} 
               alt={postData.focus_keyword || postData.title} 

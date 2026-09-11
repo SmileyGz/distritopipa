@@ -28,6 +28,10 @@ export default function AdminBlog() {
   const [editingPost, setEditingPost] = useState<BlogPost | null>(null)
   const [loading, setLoading] = useState(true)
 
+  const handleContentChange = useCallback((val: string) => {
+    setEditingPost(prev => prev ? { ...prev, content: val } : null)
+  }, [])
+
   useEffect(() => {
     fetchPosts()
   }, [])
@@ -96,6 +100,7 @@ export default function AdminBlog() {
           <div>
             <label>Imagen de Portada (Opcional):</label><br/>
             {editingPost.image_url && (
+              /* eslint-disable-next-line @next/next/no-img-element */
               <img src={editingPost.image_url} alt="Portada" style={{ width: '100%', maxWidth: '300px', marginBottom: '10px', borderRadius: '8px' }} />
             )}
             <input 
@@ -153,9 +158,7 @@ export default function AdminBlog() {
               `}</style>
               <SimpleMdeReact 
                 value={editingPost.content} 
-                onChange={useCallback((val: string) => {
-                  setEditingPost(prev => prev ? { ...prev, content: val } : null)
-                }, [])}
+                onChange={handleContentChange}
                 options={{
                   spellChecker: false,
                   maxHeight: '400px',
