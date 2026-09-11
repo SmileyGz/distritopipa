@@ -4,9 +4,10 @@ import { useState, useEffect, useCallback } from 'react'
 import { createClient } from '@supabase/supabase-js'
 import { savePostAction } from './actions'
 import dynamic from 'next/dynamic'
-import 'easymde/dist/easymde.min.css'
+import '@uiw/react-md-editor/markdown-editor.css'
+import '@uiw/react-markdown-preview/markdown.css'
 
-const SimpleMdeReact = dynamic(() => import('react-simplemde-editor'), { ssr: false })
+const MDEditor = dynamic(() => import('@uiw/react-md-editor'), { ssr: false })
 
 // Utilizar cliente del lado del cliente
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || ''
@@ -28,8 +29,8 @@ export default function AdminBlog() {
   const [editingPost, setEditingPost] = useState<BlogPost | null>(null)
   const [loading, setLoading] = useState(true)
 
-  const handleContentChange = useCallback((val: string) => {
-    setEditingPost(prev => prev ? { ...prev, content: val } : null)
+  const handleContentChange = useCallback((val: string | undefined) => {
+    setEditingPost(prev => prev ? { ...prev, content: val || '' } : null)
   }, [])
 
   useEffect(() => {
@@ -149,21 +150,11 @@ export default function AdminBlog() {
           </div>
           <div>
             <label>Contenido del Artículo (Usa la barra de herramientas. Para inyectar productos usa el icono de código <code>```product</code>):</label><br/>
-            <div style={{ backgroundColor: '#fff', color: '#000', borderRadius: '4px' }} className="mde-wrapper">
-              <style>{`
-                .mde-wrapper .editor-toolbar button, .mde-wrapper .editor-toolbar button i { color: #222 !important; }
-                .mde-wrapper .editor-toolbar button.active, .mde-wrapper .editor-toolbar button:hover { background: #e0e0e0; color: #000 !important; }
-                .mde-wrapper .editor-toolbar button.active i, .mde-wrapper .editor-toolbar button:hover i { color: #000 !important; }
-                .mde-wrapper .editor-toolbar i.separator { border-color: #ccc !important; border-right: none !important; }
-              `}</style>
-              <SimpleMdeReact 
+            <div data-color-mode="dark" style={{ marginTop: '8px' }}>
+              <MDEditor 
                 value={editingPost.content} 
                 onChange={handleContentChange}
-                options={{
-                  spellChecker: false,
-                  maxHeight: '400px',
-                  placeholder: 'Escribe tu artículo aquí...'
-                }}
+                height={500}
               />
             </div>
           </div>
