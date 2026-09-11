@@ -89,6 +89,10 @@ export default async function PostPage({ params }: Props) {
           <ReactMarkdown 
             remarkPlugins={[remarkGfm]}
             components={{
+              // Convert <pre> to <div> to avoid invalid HTML nesting (div inside pre) which crashes React
+              pre({ children, ...props }) {
+                return <div className="markdown-module-wrapper" {...props}>{children}</div>
+              },
               code({node, inline, className, children, ...props}: any) {
                 const match = /language-(\w+)/.exec(className || '')
                 if (!inline && match && match[1] === 'product') {
