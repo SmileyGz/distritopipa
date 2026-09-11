@@ -144,7 +144,12 @@ export default function AdminBlog() {
           </div>
           <div>
             <label>Contenido del Artículo (Usa la barra de herramientas. Para inyectar productos usa el icono de código <code>```product</code>):</label><br/>
-            <div style={{ backgroundColor: '#fff', color: '#000', borderRadius: '4px' }}>
+            <div style={{ backgroundColor: '#fff', color: '#000', borderRadius: '4px' }} className="mde-wrapper">
+              <style>{`
+                .mde-wrapper .editor-toolbar button { color: #222 !important; }
+                .mde-wrapper .editor-toolbar button.active, .mde-wrapper .editor-toolbar button:hover { background: #f0f0f0; color: #000 !important; }
+                .mde-wrapper .editor-toolbar i.separator { border-color: #ccc !important; border-right: none !important; }
+              `}</style>
               <SimpleMdeReact 
                 value={editingPost.content} 
                 onChange={(val) => setEditingPost({...editingPost, content: val})}
