@@ -90,7 +90,7 @@ export default async function PostPage({ params }: Props) {
             remarkPlugins={[remarkGfm]}
             components={{
               // Convert <pre> to <div> to avoid invalid HTML nesting (div inside pre) which crashes React
-              pre({ children, ...props }) {
+              pre({ node, ref, children, ...props }: any) {
                 return <div className="markdown-module-wrapper" {...props}>{children}</div>
               },
               code({node, inline, className, children, ...props}: any) {
