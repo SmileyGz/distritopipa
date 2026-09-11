@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { createClient } from '@supabase/supabase-js'
 import { savePostAction } from './actions'
 import dynamic from 'next/dynamic'
@@ -146,13 +146,16 @@ export default function AdminBlog() {
             <label>Contenido del Artículo (Usa la barra de herramientas. Para inyectar productos usa el icono de código <code>```product</code>):</label><br/>
             <div style={{ backgroundColor: '#fff', color: '#000', borderRadius: '4px' }} className="mde-wrapper">
               <style>{`
-                .mde-wrapper .editor-toolbar button { color: #222 !important; }
-                .mde-wrapper .editor-toolbar button.active, .mde-wrapper .editor-toolbar button:hover { background: #f0f0f0; color: #000 !important; }
+                .mde-wrapper .editor-toolbar button, .mde-wrapper .editor-toolbar button i { color: #222 !important; }
+                .mde-wrapper .editor-toolbar button.active, .mde-wrapper .editor-toolbar button:hover { background: #e0e0e0; color: #000 !important; }
+                .mde-wrapper .editor-toolbar button.active i, .mde-wrapper .editor-toolbar button:hover i { color: #000 !important; }
                 .mde-wrapper .editor-toolbar i.separator { border-color: #ccc !important; border-right: none !important; }
               `}</style>
               <SimpleMdeReact 
                 value={editingPost.content} 
-                onChange={(val) => setEditingPost({...editingPost, content: val})}
+                onChange={useCallback((val: string) => {
+                  setEditingPost(prev => prev ? { ...prev, content: val } : null)
+                }, [])}
                 options={{
                   spellChecker: false,
                   maxHeight: '400px',
