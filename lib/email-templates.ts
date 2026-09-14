@@ -119,3 +119,77 @@ export function renderOrderSummaryHtml({ items, subtotal, deliveryFee, total, an
     </div>
   `;
 }
+
+export interface CancellationEmailParams {
+  orderNumber: string
+  customerName: string
+  items: OrderItem[]
+  subtotal: number
+  deliveryFee: number
+  total: number
+  reason?: string
+}
+
+export function renderCancellationEmailHtml({
+  orderNumber,
+  customerName,
+  items,
+  subtotal,
+  deliveryFee,
+  total,
+  reason
+}: CancellationEmailParams): string {
+  const shortName = customerName ? customerName.split(' ')[0] : 'amigo'
+
+  const reasonNotice = reason ? `
+    <div style="margin: 18px 0; background-color: #222222; border-left: 3px solid #f87171; padding: 12px 16px; border-radius: 0 6px 6px 0;">
+      <p style="margin: 0; color: #fca5a5; font-size: 13px;">
+        <strong>Motivo:</strong> ${reason}
+      </p>
+    </div>
+  ` : ''
+
+  const orderSummaryHtml = renderOrderSummaryHtml({
+    items,
+    subtotal,
+    deliveryFee,
+    total,
+    anticipoPaid: 0
+  })
+
+  const content = `
+    <p>¡Qué onda <strong>${shortName}</strong>! Todo bien por acá.</p>
+    
+    <p>Te escribimos para avisarte que, como no registramos el anticipo de tu pedido <strong>${orderNumber}</strong>, tuvimos que cancelar el apartado en el sistema.</p>
+    
+    ${reasonNotice}
+
+    <p>Entendemos al 100% que a veces la semana se complica, salen imprevistos o simplemente cambian los planes. <strong>¡Cero broncas con nosotros!</strong></p>
+    
+    <p>Para no dejar el material congelado y darle oportunidad a <strong>otros vecinos de Cancún que andan buscando estas piezas hoy mismo</strong>, regresamos los artículos a nuestro catálogo disponible.</p>
+    
+    ${orderSummaryHtml}
+
+    <div style="margin: 28px 0; background-color: #222222; border-left: 4px solid #DC143C; padding: 16px 20px; border-radius: 0 8px 8px 0;">
+      <p style="margin: 0; color: #FFFFFF; font-size: 14px; font-weight: 600;">La puerta sigue abierta cuando tú quieras 🤝</p>
+      <p style="margin: 6px 0 0 0; color: #AAAAAA; font-size: 13px; line-height: 1.5;">
+        Cuando andes listo para estrenar o caiga la quincena, date una vuelta por el catálogo. Aquí te atendemos con el mismo gusto de siempre.
+      </p>
+    </div>
+
+    <div style="margin: 30px 0; text-align: center;">
+      <a href="https://www.distritopipa.com/catalogo" 
+         style="background-color: #DC143C; color: #FFFFFF; padding: 14px 28px; text-decoration: none; border-radius: 6px; font-weight: bold; display: inline-block; font-size: 15px; letter-spacing: 0.5px;">
+        Ver Catálogo Disponible
+      </a>
+    </div>
+
+    <p style="font-size: 13px; color: #888888; margin-top: 30px; border-top: 1px solid #333333; padding-top: 16px; line-height: 1.5;">
+      <em>¿Hiciste tu transferencia hace un momento y se cruzaron los mensajes? Cero estrés: tiranos un WhatsApp con tu captura de pago y con gusto reactivamos tu paquete de inmediato.</em>
+    </p>
+
+    <p style="margin-top: 20px;">¡Un abrazo y seguimos activos en Cancún!</p>
+  `
+
+  return getBrandedEmailHtml('Liberamos tus piezas', content)
+}

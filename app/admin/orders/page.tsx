@@ -11,13 +11,15 @@ import { adminFetch } from '@/hooks/useAdmin'
 import {
   buildConfirmationUrl,
   buildConfirmationText,
+  buildCancellationUrl,
+  buildCancellationText,
   STATUS_LABELS,
   PAYMENT_LABELS,
   DELIVERY_LABELS,
   type OrderForMessage,
 } from '@/lib/whatsapp'
 import { getVIPStatus, getTierIcon, getTierColor } from '@/lib/clients'
-import { getBrandedEmailHtml, renderOrderSummaryHtml } from '@/lib/email-templates'
+import { getBrandedEmailHtml, renderOrderSummaryHtml, renderCancellationEmailHtml } from '@/lib/email-templates'
 import { BANK_CONFIG } from '@/lib/config'
 
 // ─── Types ────────────────────────────────────────────────────
@@ -82,6 +84,9 @@ export default function AdminOrdersPage() {
   const [preview, setPreview]         = useState<Order | null>(null)
   const [toast, setToast]             = useState<string | null>(null)
   const [updating, setUpdating]       = useState<string | null>(null)
+  const [cancelModalOrder, setCancelModalOrder] = useState<Order | null>(null)
+  const [cancelReason, setCancelReason] = useState<string>('Falta de anticipo (tiempo límite expirado)')
+  const [cancelNotifyEmail, setCancelNotifyEmail] = useState<boolean>(true)
 
   // ── Load orders ───────────────────────────────────────────
 
@@ -184,14 +189,26 @@ export default function AdminOrdersPage() {
     setUpdating(null)
   }
 
-  async function cancelOrder(order: Order) {
-    if (!confirm(`¿Cancelar el pedido ${order.order_number}?`)) return
+  function openCancelModal(order: Order) {
+    setCancelModalOrder(order)
+    setCancelReason('Falta de anticipo (tiempo límite expirado)')
+    setCancelNotifyEmail(Boolean(order.customer_email))
+  }
 
+  async function confirmCancellation() {
+    if (!cancelModalOrder) return
+    const order = cancelModalOrder
     setUpdating(order.id)
     await performUpdate(order.id, { status: 'cancelled' })
     setOrders(os => os.map(o => o.id === order.id ? { ...o, status: 'cancelled' } : o))
-    setUpdating(null)
     showToast(`🚫 ${order.order_number} cancelado`)
+
+    if (cancelNotifyEmail && order.customer_email) {
+      await sendEmailAction(order, 'cancel', cancelReason)
+    }
+
+    setUpdating(null)
+    setCancelModalOrder(null)
   }
 
   async function toggleAnticipo(order: Order) {
@@ -206,7 +223,7 @@ export default function AdminOrdersPage() {
     setOrders(os => os.map(o => o.id === order.id ? { ...o, admin_notes: notes } : o))
   }
 
-  async function sendEmailAction(order: Order, type: 'pre_confirm' | 'reminder' | 'confirm' | 'location') {
+  async function sendEmailAction(order: Order, type: 'pre_confirm' | 'reminder' | 'confirm' | 'location' | 'cancel', customReason?: string) {
     if (!order.customer_email) return;
     
     setUpdating(order.id)
@@ -323,6 +340,30 @@ export default function AdminOrdersPage() {
         <p>Si tienes algún contratiempo o vas a llegar tarde, tiranos un mensaje por WhatsApp con anticipación para no cruzarnos. ¡Ahí nos vemos!</p>
       `
       html = getBrandedEmailHtml('Ubicación de Pick Up', content)
+    } else if (type === 'cancel') {
+      subject = `Liberamos tus piezas 📦 - Pedido ${order.order_number}`
+      
+      let items = []
+      try {
+        items = typeof order.items === 'string' ? JSON.parse(order.items) : (order.items || [])
+      } catch (e) {
+        items = []
+      }
+
+      html = renderCancellationEmailHtml({
+        orderNumber: order.order_number,
+        customerName: order.customer_name,
+        items: items.map((item: any) => ({
+          name: item.name,
+          title: item.title,
+          quantity: item.qty || item.quantity || 1,
+          price: item.unit_price || item.price || 0
+        })),
+        subtotal: order.subtotal_mxn || 0,
+        deliveryFee: order.delivery_fee || 0,
+        total: order.total_mxn || 0,
+        reason: customReason
+      })
     }
 
     try {
@@ -434,6 +475,109 @@ export default function AdminOrdersPage() {
               >
                 💬 Abrir en WhatsApp →
               </a>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Cancellation modal */}
+      {cancelModalOrder && (
+        <div className="modal-overlay" onClick={() => setCancelModalOrder(null)}>
+          <div className="preview-modal" onClick={e => e.stopPropagation()} style={{ maxWidth: '520px' }}>
+            <div className="preview-header" style={{ borderBottom: '1px solid #dc2626' }}>
+              <div>
+                <div className="preview-title" style={{ color: '#f87171' }}>🚫 Cancelar Pedido & Liberar Stock</div>
+                <div className="preview-sub">
+                  Pedido {cancelModalOrder.order_number} · {cancelModalOrder.customer_name}
+                </div>
+              </div>
+              <button className="close-btn" onClick={() => setCancelModalOrder(null)}>✕</button>
+            </div>
+
+            <div className="preview-body" style={{ display: 'flex', flexDirection: 'column', gap: '16px', maxHeight: 'none' }}>
+              <div>
+                <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: '#aaa', marginBottom: '6px' }}>
+                  Motivo de cancelación:
+                </label>
+                <select
+                  value={cancelReason}
+                  onChange={e => setCancelReason(e.target.value)}
+                  style={{
+                    width: '100%',
+                    background: '#1a1a1a',
+                    border: '1px solid #333',
+                    borderRadius: '6px',
+                    padding: '8px 12px',
+                    color: '#fff',
+                    fontSize: '13px'
+                  }}
+                >
+                  <option value="Falta de anticipo (tiempo límite expirado)">Falta de anticipo (tiempo límite expirado)</option>
+                  <option value="Sin respuesta / Cliente no confirmó ubicación">Sin respuesta / Cliente no confirmó ubicación</option>
+                  <option value="Sin existencias de inventario">Sin existencias de inventario</option>
+                  <option value="A petición del cliente">A petición del cliente</option>
+                  <option value="Pedido de prueba / duplicado">Pedido de prueba / duplicado</option>
+                </select>
+              </div>
+
+              {cancelModalOrder.customer_email ? (
+                <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px', color: '#e5e7eb', cursor: 'pointer' }}>
+                  <input
+                    type="checkbox"
+                    checked={cancelNotifyEmail}
+                    onChange={e => setCancelNotifyEmail(e.target.checked)}
+                    style={{ accentColor: '#dc2626', width: '16px', height: '16px' }}
+                  />
+                  <span>Enviar correo oficial (<em>&ldquo;Liberamos tus piezas&rdquo;</em>) a <strong>{cancelModalOrder.customer_email}</strong></span>
+                </label>
+              ) : (
+                <div style={{ fontSize: '12px', color: '#888' }}>
+                  ℹ️ Este cliente no tiene correo registrado; infórmale por WhatsApp.
+                </div>
+              )}
+
+              <div style={{ background: '#18181b', border: '1px solid #27272a', borderRadius: '8px', padding: '12px' }}>
+                <div style={{ fontSize: '12px', color: '#a1a1aa', marginBottom: '8px' }}>
+                  Mensaje opcional para WhatsApp:
+                </div>
+                <div style={{ fontSize: '11px', color: '#71717a', whiteSpace: 'pre-wrap', maxHeight: '90px', overflowY: 'auto', background: '#09090b', padding: '8px', borderRadius: '4px' }}>
+                  {buildCancellationText(toMessageOrder(cancelModalOrder))}
+                </div>
+                <a
+                  className="btn-whatsapp"
+                  href={buildCancellationUrl(toMessageOrder(cancelModalOrder))}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  style={{ marginTop: '10px', display: 'inline-flex', padding: '6px 12px', fontSize: '12px' }}
+                >
+                  💬 Abrir aviso en WhatsApp →
+                </a>
+              </div>
+            </div>
+
+            <div className="preview-footer" style={{ justifyContent: 'space-between' }}>
+              <button
+                className="btn-ghost"
+                onClick={() => setCancelModalOrder(null)}
+              >
+                Volver
+              </button>
+              <button
+                style={{
+                  background: '#dc2626',
+                  color: '#fff',
+                  border: 'none',
+                  borderRadius: '6px',
+                  padding: '8px 16px',
+                  fontSize: '13px',
+                  fontWeight: 600,
+                  cursor: 'pointer'
+                }}
+                disabled={Boolean(updating)}
+                onClick={confirmCancellation}
+              >
+                {updating === cancelModalOrder.id ? 'Cancelando...' : 'Confirmar Cancelación'}
+              </button>
             </div>
           </div>
         </div>
@@ -776,7 +920,7 @@ export default function AdminOrdersPage() {
                     {!['delivered','cancelled'].includes(order.status) && (
                       <button
                         className="btn-cancel"
-                        onClick={() => cancelOrder(order)}
+                        onClick={() => openCancelModal(order)}
                       >
                         Cancelar
                       </button>
@@ -792,8 +936,9 @@ export default function AdminOrdersPage() {
                         {(!order.anticipo_paid && order.payment_mode !== 'pickup_cash') && <button className="btn-email" onClick={() => sendEmailAction(order, 'reminder')}>Recordatorio de Pago</button>}
                         {order.status === 'confirmed' && <button className="btn-email" onClick={() => sendEmailAction(order, 'confirm')}>Confirmación de Pago</button>}
                         {(order.status === 'ready' && order.delivery_mode === 'pickup') && <button className="btn-email" onClick={() => sendEmailAction(order, 'location')}>Enviar Ubicación Pick Up</button>}
+                        {order.status === 'cancelled' && <button className="btn-email" style={{ background: '#dc2626' }} onClick={() => sendEmailAction(order, 'cancel')}>Enviar Aviso de Cancelación</button>}
                         {/* Fallback button if no logical button applies right now */}
-                        {!(order.status === 'pending' || (!order.anticipo_paid && order.payment_mode !== 'pickup_cash') || order.status === 'confirmed' || (order.status === 'ready' && order.delivery_mode === 'pickup')) && (
+                        {!(order.status === 'pending' || (!order.anticipo_paid && order.payment_mode !== 'pickup_cash') || order.status === 'confirmed' || (order.status === 'ready' && order.delivery_mode === 'pickup') || order.status === 'cancelled') && (
                            <span style={{fontSize: '11px', color: '#666'}}>No hay correos operativos sugeridos para el estado actual.</span>
                         )}
                       </div>

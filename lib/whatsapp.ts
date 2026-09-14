@@ -63,6 +63,17 @@ export function buildConfirmationText(o: OrderForMessage): string {
   }
 }
 
+export function buildCancellationText(o: OrderForMessage): string {
+  return `¡Hola ${o.customer_name}! 👋\n\nTe avisamos de Distrito Pipa que, como no registramos el anticipo de tu pedido *${o.order_number}*, tuvimos que liberar las piezas de tu apartado para que vuelvan a estar disponibles en catálogo.\n\nEntendemos que a veces se complican los tiempos o cambian los planes, ¡cero broncas! 🤝\n\nSi realizaste tu transferencia hace un momento o deseas rearmar tu pedido más adelante, solo respóndenos por aquí y con gusto te atendemos.\n\n━━━━━━━━━━━━━━━━━━━\n_Distrito Pipa — Cancún 🌴_`
+}
+
+export function buildCancellationUrl(o: OrderForMessage): string {
+  const phone = (o.customer_phone || '').replace(/\D/g, '')
+  const full = phone.startsWith('52') ? phone : `52${phone}`
+  const msg = buildCancellationText(o)
+  return `https://wa.me/${full}?text=${encodeURIComponent(msg)}`
+}
+
 export const STATUS_LABELS: Record<string,{label:string;color:string}> = {
   pending:   {label:'Pendiente',  color:'#fbbf24'},
   confirmed: {label:'Confirmado', color:'#60a5fa'},
