@@ -43,7 +43,16 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: 'PostHog configuration missing' }, { status: 500 });
     }
 
-    const baseWhere = `event = '$pageview' AND timestamp > now() - interval ${days} day`;
+    // Base filter: real customer pageviews only
+    // Excludes: admin pages, Vercel preview URLs, localhost
+    const baseWhere = `
+      event = '$pageview'
+      AND timestamp > now() - interval ${days} day
+      AND NOT match(properties.$current_url, 'vercel\\.app')
+      AND NOT match(properties.$current_url, 'localhost')
+      AND NOT match(properties.$current_url, '/admin/')
+      AND NOT match(properties.$current_url, '/admin/login')
+    `.trim().replace(/\n\s+/g, ' ');
 
     const [
       pageviewsResult,
@@ -52,34 +61,72 @@ export async function GET(request: Request) {
       referrersResult,
       devicesResult
     ] = await Promise.all([
-      executeHogQL(`SELECT count() FROM events WHERE ${baseWhere}`, projectId, apiKey),
-      executeHogQL(`SELECT count(DISTINCT distinct_id) FROM events WHERE ${baseWhere}`, projectId, apiKey),
-      executeHogQL(`SELECT properties.$current_url, count() as views FROM events WHERE ${baseWhere} GROUP BY properties.$current_url ORDER BY views DESC LIMIT 10`, projectId, apiKey),
-      executeHogQL(`SELECT properties.$referrer, count() as views FROM events WHERE ${baseWhere} AND properties.$referrer IS NOT NULL AND properties.$referrer != '' AND properties.$referrer != '$direct' GROUP BY properties.$referrer ORDER BY views DESC LIMIT 10`, projectId, apiKey),
-      executeHogQL(`SELECT properties.$device_type, count() as views FROM events WHERE ${baseWhere} GROUP BY properties.$device_type ORDER BY views DESC`, projectId, apiKey)
+      executeHogQL(
+        `SELECT count() FROM events WHERE ${baseWhere}`,
+        projectId, apiKey
+      ),
+      executeHogQL(
+        `SELECT count(DISTINCT distinct_id) FROM events WHERE ${baseWhere}`,
+        projectId, apiKey
+      ),
+      executeHogQL(
+        `SELECT properties.$current_url, count() as views
+         FROM events
+         WHERE ${baseWhere}
+         GROUP BY properties.$current_url
+         ORDER BY views DESC
+         LIMIT 10`,
+        projectId, apiKey
+      ),
+      executeHogQL(
+        `SELECT properties.$referrer, count() as views
+         FROM events
+         WHERE ${baseWhere}
+           AND properties.$referrer IS NOT NULL
+           AND properties.$referrer != ''
+           AND properties.$referrer != '$direct'
+           AND NOT match(properties.$referrer, 'vercel\\.app')
+           AND NOT match(properties.$referrer, 'distritopipa\\.com')
+         GROUP BY properties.$referrer
+         ORDER BY views DESC
+         LIMIT 10`,
+        projectId, apiKey
+      ),
+      executeHogQL(
+        `SELECT properties.$device_type, count() as views
+         FROM events
+         WHERE ${baseWhere}
+         GROUP BY properties.$device_type
+         ORDER BY views DESC`,
+        projectId, apiKey
+      )
     ]);
 
     // Format results
     const totalPageviews = pageviewsResult?.[0]?.[0] || 0;
     const uniqueVisitors = visitorsResult?.[0]?.[0] || 0;
-    
-    const topPages = (topPagesResult || []).map((row: any[]) => ({
-      path: row[0] || '/',
-      views: row[1] || 0
-    }));
+
+    const topPages = (topPagesResult || []).map((row: any[]) => {
+      const fullUrl = (row[0] || '/') as string;
+      // Strip the domain, keep just the path
+      let path = fullUrl;
+      try {
+        path = new URL(fullUrl).pathname;
+      } catch { /* already a path */ }
+      return { path, views: row[1] || 0 };
+    });
 
     const topReferrers = (referrersResult || []).map((row: any[]) => {
-      const ref = (row[0] || '') as string
-      // Extract domain from full URL referrer
-      let source = 'Directo'
+      const ref = (row[0] || '') as string;
+      let source = 'Directo';
       try {
         if (ref && ref.startsWith('http')) {
-          source = new URL(ref).hostname.replace('www.', '')
+          source = new URL(ref).hostname.replace('www.', '');
         } else if (ref) {
-          source = ref
+          source = ref;
         }
-      } catch { source = ref }
-      return { source, count: row[1] || 0 }
+      } catch { source = ref; }
+      return { source, count: row[1] || 0 };
     });
 
     const devices = (devicesResult || []).map((row: any[]) => ({
