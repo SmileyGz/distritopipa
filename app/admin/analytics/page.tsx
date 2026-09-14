@@ -220,74 +220,18 @@ export default function AdminAnalyticsPage() {
     setSearchesLoading(false)
   }
 
-  // ── SEO Keywords (GSC data) ───────────────────────────────
+  // ── SEO Keywords (via server-side API — needs service role) ──
   async function loadKeywordData() {
     try {
-      const since = new Date()
-      since.setDate(since.getDate() - range)
-      const sinceStr = since.toISOString().split('T')[0]
-
-      // Top keywords by clicks
-      const { data: topK } = await supabaseAdmin
-        .from('gsc_keyword_metrics')
-        .select('query, page, clicks, impressions, ctr, position')
-        .gte('date', sinceStr)
-        .order('clicks', { ascending: false })
-        .limit(50)
-
-      if (topK && topK.length > 0) {
-        // Aggregate by query (sum clicks/impressions across pages & days)
-        const agg: Record<string, KeywordStat> = {}
-        topK.forEach((r: any) => {
-          if (!agg[r.query]) {
-            agg[r.query] = { query: r.query, page: r.page, clicks: 0, impressions: 0, ctr: 0, position: 0 }
-          }
-          agg[r.query].clicks += r.clicks
-          agg[r.query].impressions += r.impressions
-        })
-        // Recalculate CTR
-        Object.values(agg).forEach(k => {
-          k.ctr = k.impressions > 0 ? k.clicks / k.impressions : 0
-        })
-        setTopKeywords(
-          Object.values(agg).sort((a, b) => b.clicks - a.clicks).slice(0, 10)
-        )
-      }
-
-      // Striking distance (position 6-20, high impressions)
-      const { data: strikeK } = await supabaseAdmin
-        .from('gsc_keyword_metrics')
-        .select('query, page, clicks, impressions, ctr, position')
-        .gte('date', sinceStr)
-        .gte('position', 6)
-        .lte('position', 20)
-        .gte('impressions', 10)
-        .order('impressions', { ascending: false })
-        .limit(10)
-
-      if (strikeK) {
-        setStrikingDistance(strikeK as KeywordStat[])
-      }
-
-      // Long-tail keywords (3+ words)
-      const { data: allK } = await supabaseAdmin
-        .from('gsc_keyword_metrics')
-        .select('query, page, clicks, impressions, ctr, position')
-        .gte('date', sinceStr)
-        .order('impressions', { ascending: false })
-        .limit(200)
-
-      if (allK) {
-        const longTails = (allK as KeywordStat[])
-          .filter(k => k.query.trim().split(/\s+/).length >= 3)
-          .slice(0, 10)
-        setLongTail(longTails)
-
-        // Blog keywords — keywords where the page contains /blog/
-        const blogK = (allK as KeywordStat[])
-          .filter(k => k.page.includes('/blog/'))
-          .slice(0, 10)
-        setBlogKeywords(blogK)
+      const res = await fetch(`/api/admin/analytics/keywords?days=${range}`)
+      const data = await res.json()
+      if (res.ok) {
+        setTopKeywords(data.topKeywords || [])
+        setStrikingDistance(data.strikingDistance || [])
+        setLongTail(data.longTailKeywords || [])
+        setBlogKeywords(data.blogKeywords || [])
+      } else {
+        console.error('Keywords API error:', res.status, data)
       }
     } catch (e) {
       console.error('Failed to load keyword data:', e)
