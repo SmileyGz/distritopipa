@@ -7,11 +7,12 @@
 
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { motion } from 'framer-motion'
 import { Product, getImageUrl } from '@/lib/supabase'
 import { useStore } from '@/lib/store'
 import toast from 'react-hot-toast'
+import posthog from 'posthog-js'
 
 import { useRouter } from 'next/navigation'
 
@@ -32,6 +33,17 @@ export default function ProductDetail({ product, onClose }: ProductDetailProps) 
   const [selectedColor, setSelectedColor] = useState<string | null>(product.colors?.[0] || null)
   const [selectedSize, setSelectedSize] = useState<string | null>(product.sizes?.[0] || null)
   const [quantity, setQuantity] = useState(1)
+
+  useEffect(() => {
+    posthog.capture('view_item', {
+      product_id: product.id,
+      product_name: product.name_es,
+      product_slug: product.slug,
+      product_category: product.category,
+      price: product.price_mxn,
+      currency: 'MXN',
+    })
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
   // Calculate effective price with bundle discounts
   const basePrice = product.price_mxn
   let effectivePrice = basePrice * quantity
@@ -274,6 +286,18 @@ export default function ProductDetail({ product, onClose }: ProductDetailProps) 
                     return;
                   }
                   useStore.getState().addToCart(product, quantity, selectedSize, selectedColor);
+                  posthog.capture('add_to_cart', {
+                    product_id: product.id,
+                    product_name: product.name_es,
+                    product_slug: product.slug,
+                    product_category: product.category,
+                    price: product.price_mxn,
+                    quantity: quantity,
+                    total_value: effectivePrice,
+                    currency: 'MXN',
+                    size: selectedSize,
+                    color: selectedColor,
+                  })
                   toast.success(`Agregado: ${quantity}x ${name}`);
                   handleClose();
                 }}

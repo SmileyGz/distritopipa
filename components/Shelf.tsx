@@ -1,5 +1,5 @@
 'use client'
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { supabase, getImageUrl, type Product } from '@/lib/supabase'
 import { mockProducts } from '@/lib/mockProducts'
@@ -76,6 +76,41 @@ export default function Shelf({ initialProducts = [] }: { initialProducts?: Prod
   const displayedProducts = activeCategory === 'all' 
     ? products 
     : products.filter(p => p.category === activeCategory)
+
+  // ── Search/category tracking ──────────────────────────────
+  const logSearchDebounce = useRef<NodeJS.Timeout>()
+
+  const logSearch = useCallback((query: string, resultsCount: number, category: string) => {
+    if (!query || query.length < 2) return
+    const payload = JSON.stringify({
+      query,
+      resultsCount,
+      categoryFilter: category,
+      sessionId: typeof window !== 'undefined' ? (sessionStorage.getItem('dp_sid') || null) : null,
+    })
+    if (navigator.sendBeacon) {
+      navigator.sendBeacon('/api/analytics/search', payload)
+    } else {
+      fetch('/api/analytics/search', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: payload,
+        keepalive: true,
+      }).catch(() => {})
+    }
+  }, [])
+
+  // Log when user selects a non-default category (signals search intent)
+  useEffect(() => {
+    if (activeCategory !== 'all' && products.length > 0) {
+      clearTimeout(logSearchDebounce.current)
+      logSearchDebounce.current = setTimeout(() => {
+        const catLabel = CATEGORIES.find(c => c.id === activeCategory)?.title || activeCategory
+        logSearch(catLabel, displayedProducts.length, activeCategory)
+      }, 1500)
+    }
+    return () => clearTimeout(logSearchDebounce.current)
+  }, [activeCategory, products.length]) // eslint-disable-line react-hooks/exhaustive-deps
 
   if (loading) {
     return (

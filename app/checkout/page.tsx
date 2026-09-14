@@ -50,7 +50,18 @@ function CheckoutContent() {
   const [paymentFailedNotice, setPaymentFailedNotice] = useState(false)
   const [isProcessingPayment, setIsProcessingPayment] = useState(false)
   const [processingMode, setProcessingMode] = useState<'mercadopago' | 'spei' | 'pickup'>('mercadopago')
-  useEffect(() => setMounted(true), [])
+  useEffect(() => {
+    setMounted(true)
+    const currentItems = useStore.getState().items
+    if (currentItems.length > 0) {
+      posthog.capture('begin_checkout', {
+        item_count: currentItems.length,
+        total_items: currentItems.reduce((sum, i) => sum + i.quantity, 0),
+        value: useStore.getState().getCartTotal(),
+        currency: 'MXN',
+      })
+    }
+  }, [])
 
   const [step, setStep] = useState(1)
   
