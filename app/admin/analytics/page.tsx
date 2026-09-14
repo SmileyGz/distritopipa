@@ -162,9 +162,12 @@ export default function AdminAnalyticsPage() {
   async function loadVisitorData() {
     try {
       const res = await fetch(`/api/admin/analytics/visitors?days=${range}`)
+      const data = await res.json()
       if (res.ok) {
-        const data = await res.json()
         setVisitors(data)
+      } else {
+        console.error('Visitor API error:', res.status, data)
+        setVisitors(null)
       }
     } catch (e) {
       console.error('Failed to load visitor data:', e)
