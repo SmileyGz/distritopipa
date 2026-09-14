@@ -3,15 +3,17 @@
 import { useState, useEffect, useCallback } from 'react'
 import { createClient } from '@supabase/supabase-js'
 import { savePostAction } from './actions'
-import dynamic from 'next/dynamic'
+import nextDynamic from 'next/dynamic'
 import '@uiw/react-md-editor/markdown-editor.css'
 import '@uiw/react-markdown-preview/markdown.css'
 
-const MDEditor = dynamic(() => import('@uiw/react-md-editor'), { ssr: false })
+const MDEditor = nextDynamic(() => import('@uiw/react-md-editor'), { ssr: false })
+
+export const dynamic = 'force-dynamic'
 
 // Utilizar cliente del lado del cliente
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || ''
-const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ''
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://zlhyelvzmwwtrjvhhhov.supabase.co'
+const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'dummy'
 const supabase = createClient(supabaseUrl, supabaseKey)
 
 type BlogPost = {

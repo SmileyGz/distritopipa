@@ -4,6 +4,7 @@ import Link from 'next/link'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { getPostFromDB, getPostsFromDB } from '../../../lib/blog-db'
+import { getProducts, getImageUrl, type Product } from '@/lib/supabase'
 
 export const revalidate = 60 // Cache for 60 seconds (ISR)
 
@@ -37,6 +38,7 @@ export async function generateStaticParams() {
 
 export default async function PostPage({ params }: Props) {
   const postData = await getPostFromDB(params.slug)
+  const allProducts: Product[] = await getProducts().catch(() => [])
   
   if (!postData) {
     notFound()
@@ -97,8 +99,35 @@ export default async function PostPage({ params }: Props) {
                 const match = /language-(\w+)/.exec(className || '')
                 if (!inline && match && match[1] === 'product') {
                   const productId = String(children).replace(/\n$/, '').trim()
+                  const product = allProducts.find(p => p.slug === productId || p.id === productId)
                   
-                  // Product Module Component
+                  if (product) {
+                    const imageUrl = product.image_paths?.[0] ? getImageUrl(product.image_paths[0]) : null
+                    return (
+                      <div className="product-module-embed">
+                        {imageUrl && (
+                          /* eslint-disable-next-line @next/next/no-img-element */
+                          <img 
+                            src={imageUrl} 
+                            alt={product.name_es} 
+                            style={{ width: '80px', height: '80px', objectFit: 'contain', background: '#000', borderRadius: '8px', padding: '4px', flexShrink: 0 }} 
+                          />
+                        )}
+                        <div className="product-embed-info" style={{ textAlign: 'left', flex: 1 }}>
+                          <h4 style={{ margin: 0 }}>{product.name_es}</h4>
+                          <p style={{ color: '#DC143C', fontWeight: 'bold', fontSize: '18px', margin: '4px 0' }}>
+                            ${product.price_mxn} MXN
+                          </p>
+                          <p style={{ margin: 0, fontSize: '13px' }}>{product.description_es || 'Disponible con entrega hoy mismo en Cancún.'}</p>
+                        </div>
+                        <Link href={`/producto/${product.slug}`} className="product-embed-btn">
+                          Comprar Ahora
+                        </Link>
+                      </div>
+                    )
+                  }
+
+                  // Fallback Product Module Component if product slug not matched
                   return (
                     <div className="product-module-embed">
                       <div className="product-embed-info">

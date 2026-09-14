@@ -68,10 +68,17 @@ export async function GET(req: Request) {
 
     const accessToken = await getAccessToken()
 
-    // GSC data is finalized with a 3-day lag
-    const date = new Date()
-    date.setDate(date.getDate() - 3)
-    const dateString = date.toISOString().split('T')[0]
+    // GSC data has a 3-day lag. Support ?days=N for backfill (default: 1 day)
+    const url = new URL(req.url)
+    const daysBack = Math.min(parseInt(url.searchParams.get('days') || '1', 10), 90)
+
+    const endDate = new Date()
+    endDate.setDate(endDate.getDate() - 3) // most recent finalized day
+    const startDate = new Date(endDate)
+    startDate.setDate(startDate.getDate() - (daysBack - 1))
+
+    const startString = startDate.toISOString().split('T')[0]
+    const endString = endDate.toISOString().split('T')[0]
 
     // ── Query Search Console API ──
     const gscRes = await fetch(
@@ -83,8 +90,8 @@ export async function GET(req: Request) {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          startDate: dateString,
-          endDate: dateString,
+          startDate: startString,
+          endDate: endString,
           dimensions: ['date', 'query', 'page', 'device'],
           rowLimit: 5000,
         }),
@@ -104,7 +111,7 @@ export async function GET(req: Request) {
     }
 
     const records = rows.map((row: any) => ({
-      date: row.keys?.[0] || dateString,
+      date: row.keys?.[0] || endString,
       query: row.keys?.[1] || '',
       page: row.keys?.[2] || '',
       device: row.keys?.[3] || '',
