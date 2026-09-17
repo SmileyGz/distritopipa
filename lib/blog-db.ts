@@ -55,3 +55,15 @@ export async function savePostToDB(post: Partial<BlogPost>) {
   }
   return data
 }
+
+export async function deletePostFromDB(slug: string) {
+  const { error } = await supabase
+    .from('blog_posts')
+    .delete()
+    .eq('slug', slug)
+    
+  if (error) {
+    throw new Error(error.message)
+  }
+  return true
+}
