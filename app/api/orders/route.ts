@@ -30,6 +30,8 @@ type CartItem = {
   qty: number
   unit_price: number
   color?: string
+  size?: string
+  bundle_price?: number
   bundle_qty?: number  // if customer selected 2x or 3x bundle
 }
 
@@ -80,29 +82,72 @@ export async function POST(req: NextRequest) {
   if (productIds.length > 0) {
     const { data: dbProducts } = await supabase
       .from('products')
-      .select('id, price_mxn')
+      .select('id, price_mxn, bundle_pricing')
       .in('id', productIds)
 
-    const productMap = new Map((dbProducts || []).map((p: any) => [p.id, p.price_mxn]))
+    const productMap = new Map((dbProducts || []).map((p: any) => [p.id, p]))
+
+    // Count total quantities per product across the order
+    const productCounts = new Map<string, number>()
+    for (const item of items) {
+      if (item.product_id) {
+        productCounts.set(item.product_id, (productCounts.get(item.product_id) || 0) + (item.qty || 1))
+      }
+    }
 
     verifiedItems = items.map((item: any) => {
-      const realPrice = productMap.get(item.product_id) ?? item.unit_price
+      const dbProduct = productMap.get(item.product_id)
+      const realPrice = dbProduct ? Number(dbProduct.price_mxn) || item.unit_price : item.unit_price
+      const qty = item.qty || item.quantity || 1
+      let calculatedBundlePrice = item.bundle_price
+
+      // Calculate or verify bundle discount directly on the server from dbProduct
+      if (dbProduct && dbProduct.bundle_pricing) {
+        let bp = dbProduct.bundle_pricing
+        if (typeof bp === 'string') {
+          try { bp = JSON.parse(bp) } catch (e) { bp = [] }
+        }
+        if (Array.isArray(bp) && bp.length > 0) {
+          const totalQty = productCounts.get(item.product_id) || qty
+          if (totalQty > 1) {
+            let remainingQty = totalQty
+            let bestPriceTotal = 0
+            const tiers = [...bp].sort((a: any, b: any) => (Number(b.qty) || 0) - (Number(a.qty) || 0))
+            for (const tier of tiers) {
+              const tierQty = Number(tier.qty) || 0
+              const tierPrice = Number(tier.price) || 0
+              if (tierQty > 0 && remainingQty >= tierQty) {
+                const bundles = Math.floor(remainingQty / tierQty)
+                bestPriceTotal += bundles * tierPrice
+                remainingQty %= tierQty
+              }
+            }
+            bestPriceTotal += remainingQty * realPrice
+            const baseTotal = totalQty * realPrice
+            if (bestPriceTotal < baseTotal) {
+              const proportion = qty / totalQty
+              calculatedBundlePrice = Math.round(bestPriceTotal * proportion * 100) / 100
+            }
+          }
+        }
+      }
+
       return {
         ...item,
-        unit_price: realPrice
+        unit_price: realPrice,
+        bundle_price: calculatedBundlePrice
       }
     })
 
     subtotal = verifiedItems.reduce((sum: number, item: any) => {
-      const standardPrice = item.unit_price * item.qty
-      // If bundle discount is applied, ensure it's not absurdly manipulated (< 0 or > standard)
+      const standardPrice = item.unit_price * (item.qty || item.quantity || 1)
       const itemPrice = (item.bundle_price !== undefined && item.bundle_price > 0 && item.bundle_price <= standardPrice)
         ? item.bundle_price
         : standardPrice
       return sum + itemPrice
     }, 0)
   } else {
-    subtotal = items.reduce((sum: number, item: any) => sum + (item.unit_price * item.qty), 0)
+    subtotal = items.reduce((sum: number, item: any) => sum + (item.unit_price * (item.qty || item.quantity || 1)), 0)
   }
 
   let delivery_fee = 0
@@ -294,11 +339,13 @@ export async function POST(req: NextRequest) {
     }
 
     const orderSummaryHtml = renderOrderSummaryHtml({
-      items: items.map((item: any) => ({
+      items: verifiedItems.map((item: any) => ({
         name: item.name,
         title: item.title,
         quantity: item.qty || item.quantity || 1,
-        price: item.unit_price || item.price || 0
+        price: item.unit_price || item.price || 0,
+        bundle_price: item.bundle_price,
+        total_price: item.bundle_price ?? ((item.unit_price || item.price || 0) * (item.qty || item.quantity || 1))
       })),
       subtotal,
       deliveryFee: delivery_fee,

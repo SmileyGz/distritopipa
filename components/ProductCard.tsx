@@ -13,8 +13,13 @@ export default function ProductCard({ product, imageUrl }: ProductCardProps) {
   const priceStr = product.price_mxn.toLocaleString('es-MX')
 
   // Check if there's bundle pricing
-  const hasBundle = product.bundle_pricing && product.bundle_pricing.length > 0
-  const bundleHint = hasBundle && product.bundle_pricing[0] ? `${product.bundle_pricing[0].qty} x $${product.bundle_pricing[0].price}` : null
+  let bundlePricing = product.bundle_pricing
+  if (typeof bundlePricing === 'string') {
+    try { bundlePricing = JSON.parse(bundlePricing) } catch (e) { bundlePricing = [] }
+  }
+  const hasBundle = Array.isArray(bundlePricing) && bundlePricing.length > 0
+  const firstBundle = hasBundle ? bundlePricing[0] : null
+  const bundleHint = firstBundle && firstBundle.qty && firstBundle.price ? `${firstBundle.qty} x $${firstBundle.price}` : null
 
   return (
     <Link

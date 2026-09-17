@@ -64,6 +64,8 @@ export interface OrderItem {
   name?: string;
   quantity: number;
   price: number;
+  bundle_price?: number;
+  total_price?: number;
 }
 
 export interface OrderSummaryParams {
@@ -76,23 +78,45 @@ export interface OrderSummaryParams {
 
 export function renderOrderSummaryHtml({ items, subtotal, deliveryFee, total, anticipoPaid = 0 }: OrderSummaryParams): string {
   const pendingBalance = total - anticipoPaid;
+  const isFullyPaid = anticipoPaid >= total && total > 0;
+
+  // Calculate sum of base unit prices to see if any promo discount was applied
+  const regularItemsSum = items.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+  const promoDiscount = Math.max(0, regularItemsSum - subtotal);
   
-  const itemsHtml = items.map(item => `
+  const itemsHtml = items.map(item => {
+    const lineTotal = item.total_price ?? item.bundle_price ?? (item.price * item.quantity);
+    const standardTotal = item.price * item.quantity;
+    const hasDiscount = (item.bundle_price !== undefined && item.bundle_price < standardTotal) || (lineTotal < standardTotal);
+
+    return `
     <tr>
       <td style="padding: 10px 0; border-bottom: 1px solid #333333; color: #E0E0E0;">
         ${item.title || item.name || 'Producto'} <span style="color: #888888;">x${item.quantity}</span>
+        ${hasDiscount ? `<div style="font-size: 11px; color: #4CAF50; margin-top: 2px;">⚡ Promo aplicada</div>` : ''}
       </td>
       <td align="right" style="padding: 10px 0; border-bottom: 1px solid #333333; color: #E0E0E0;">
-        $${(item.price * item.quantity).toFixed(2)}
+        ${hasDiscount ? `<span style="text-decoration: line-through; color: #777777; font-size: 12px; margin-right: 6px;">$${standardTotal.toFixed(2)}</span>` : ''}
+        <span style="color: ${hasDiscount ? '#4CAF50' : '#E0E0E0'}; font-weight: ${hasDiscount ? '600' : 'normal'};">$${lineTotal.toFixed(2)}</span>
       </td>
     </tr>
-  `).join('');
+  `}).join('');
 
   return `
     <div style="margin: 30px 0; background-color: #222222; border-radius: 8px; padding: 20px;">
       <h3 style="margin: 0 0 15px 0; color: #FFFFFF; font-size: 16px; border-bottom: 1px solid #444444; padding-bottom: 10px;">Resumen de tu pedido</h3>
       <table width="100%" border="0" cellspacing="0" cellpadding="0" style="font-size: 14px;">
         ${itemsHtml}
+        ${promoDiscount > 0 ? `
+        <tr>
+          <td style="padding: 8px 0 2px 0; color: #777777; text-decoration: line-through; font-size: 13px;">Subtotal base</td>
+          <td align="right" style="padding: 8px 0 2px 0; color: #777777; text-decoration: line-through; font-size: 13px;">$${regularItemsSum.toFixed(2)}</td>
+        </tr>
+        <tr>
+          <td style="padding: 2px 0 6px 0; color: #4CAF50; font-size: 13px;">Descuento Promoción</td>
+          <td align="right" style="padding: 2px 0 6px 0; color: #4CAF50; font-weight: 600; font-size: 13px;">-$${promoDiscount.toFixed(2)}</td>
+        </tr>
+        ` : ''}
         <tr>
           <td style="padding: 10px 0 5px 0; color: #AAAAAA;">Subtotal</td>
           <td align="right" style="padding: 10px 0 5px 0; color: #AAAAAA;">$${subtotal.toFixed(2)}</td>
@@ -111,8 +135,12 @@ export function renderOrderSummaryHtml({ items, subtotal, deliveryFee, total, an
           <td align="right" style="padding: 5px 0; color: #4CAF50;">-$${anticipoPaid.toFixed(2)}</td>
         </tr>
         <tr>
-          <td style="padding: 15px 0 0 0; color: #DC143C; font-weight: bold; font-size: 16px;">SALDO PENDIENTE</td>
-          <td align="right" style="padding: 15px 0 0 0; color: #DC143C; font-weight: bold; font-size: 16px;">$${pendingBalance.toFixed(2)}</td>
+          <td style="padding: 15px 0 0 0; color: ${isFullyPaid ? '#4CAF50' : '#DC143C'}; font-weight: bold; font-size: 16px;">
+            ${isFullyPaid ? 'PAGO 100% CUBIERTO' : 'SALDO PENDIENTE'}
+          </td>
+          <td align="right" style="padding: 15px 0 0 0; color: ${isFullyPaid ? '#4CAF50' : '#DC143C'}; font-weight: bold; font-size: 16px;">
+            $${Math.max(0, pendingBalance).toFixed(2)}
+          </td>
         </tr>
         ` : ''}
       </table>

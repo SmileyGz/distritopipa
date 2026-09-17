@@ -75,19 +75,29 @@ export const useStore = create<StoreState>()(
         });
         
         grouped.forEach(group => {
-          if (!group.product.bundle_pricing || group.product.bundle_pricing.length === 0) return;
+          let bundlePricing = group.product.bundle_pricing;
+          if (typeof bundlePricing === 'string') {
+            try {
+              bundlePricing = JSON.parse(bundlePricing);
+            } catch (e) {
+              bundlePricing = [];
+            }
+          }
+          if (!Array.isArray(bundlePricing) || bundlePricing.length === 0) return;
           
           let remainingQty = group.quantity;
           let bestPriceTotal = 0;
           
           // Sort tiers descending by qty
-          const tiers = [...group.product.bundle_pricing].sort((a, b) => b.qty - a.qty);
+          const tiers = [...bundlePricing].sort((a: any, b: any) => (Number(b.qty) || 0) - (Number(a.qty) || 0));
           
           for (const tier of tiers) {
-            if (remainingQty >= tier.qty) {
-              const bundles = Math.floor(remainingQty / tier.qty);
-              bestPriceTotal += bundles * tier.price;
-              remainingQty %= tier.qty;
+            const tierQty = Number(tier.qty) || 0;
+            const tierPrice = Number(tier.price) || 0;
+            if (tierQty > 0 && remainingQty >= tierQty) {
+              const bundles = Math.floor(remainingQty / tierQty);
+              bestPriceTotal += bundles * tierPrice;
+              remainingQty %= tierQty;
             }
           }
           // Add remaining single items at base price

@@ -100,25 +100,24 @@ export async function PATCH(req: NextRequest) {
           ? `¡Pago 100% Confirmado! - Pedido ${orderNumber}`
           : `¡Anticipo Recibido! - Pedido ${orderNumber}`
         let copyBody = ''
-        if (order.fulfillment_type === 'pickup') {
-          if (order.payment_mode === 'full_prepay') {
+        const isPickup = order.fulfillment_type === 'pickup' || order.delivery_mode === 'pickup'
+        if (isPickup) {
+          if (isFullPrepay) {
             copyBody = `<p>Tus piezas ya están separadas y tu pedido <strong>${orderNumber}</strong> está 100% confirmado y pagado. Cero sorpresas.</p>
-                        <p>Tu paquete ya te está esperando. Si ya nos contactaste por WhatsApp, en breve te pasaremos las coordenadas exactas de nuestro spot y nos pondremos de acuerdo para tu recolección.</p>`
+                        <p>Tu paquete ya te está esperando. En breve te pasaremos las coordenadas exactas de nuestro spot y nos pondremos de acuerdo para tu recolección.</p>`
           } else {
             copyBody = `<p>Tus piezas ya están separadas y tu pedido <strong>${orderNumber}</strong> está confirmado gracias a tu anticipo. Cero sorpresas.</p>
                         <p>Tu paquete ya te está esperando; recuerda que <strong>el saldo pendiente se liquida en efectivo al momento de recolectarlo</strong>.</p>
-                        <p>Si ya nos contactaste por WhatsApp, en breve te pasaremos las coordenadas exactas de nuestro spot y nos pondremos de acuerdo para tu recolección.</p>
-                        <p><em>¿Ocupas cambio? (avísanos con tiempo porfa si necesitas cambio de algún billete)</em></p>`
+                        <p>En breve te pasaremos las coordenadas exactas de nuestro spot y nos pondremos de acuerdo para tu recolección.</p>`
           }
         } else {
-          if (order.payment_mode === 'full_prepay') {
+          if (isFullPrepay) {
             copyBody = `<p>Tus piezas ya están separadas y tu pedido <strong>${orderNumber}</strong> está 100% confirmado y pagado. Cero sorpresas.</p>
-                        <p>Seguimos moviéndonos por Cancún para entregarte rápido. Si ya nos mandaste tu ubicación por WhatsApp, en breve armamos la ruta y afinamos detalles.</p>`
+                        <p>Seguimos moviéndonos por Cancún para entregarte rápido. En breve armamos la ruta y afinamos detalles.</p>`
           } else {
             copyBody = `<p>Tus piezas ya están separadas y tu pedido <strong>${orderNumber}</strong> está confirmado gracias a tu anticipo. Cero sorpresas.</p>
                         <p>Seguimos moviéndonos por Cancún para entregarte rápido; recuerda que <strong>el saldo pendiente se liquida en efectivo al momento de recibir tus artículos</strong>.</p>
-                        <p>Si ya nos mandaste tu ubicación por WhatsApp, en breve armamos la ruta y afinamos detalles.</p>
-                        <p><em>¿Ocupas cambio? (avísanos con tiempo porfa si necesitas cambio de algún billete)</em></p>`
+                        <p>En breve armamos la ruta y afinamos detalles.</p>`
           }
         }
 
@@ -129,18 +128,23 @@ export async function PATCH(req: NextRequest) {
           items = []
         }
 
-        const anticipoPaid = isFullPrepay ? (order.total_mxn || 0) : (order.anticipo_mxn || 50)
+        const subtotal = order.subtotal ?? order.subtotal_mxn ?? 0
+        const total = order.total ?? order.total_mxn ?? 0
+        const deliveryFee = order.delivery_fee ?? 0
+        const anticipoPaid = isFullPrepay ? total : (order.anticipo_amount ?? order.anticipo_mxn ?? 50)
         
         const orderSummaryHtml = renderOrderSummaryHtml({
           items: items.map((item: any) => ({
             name: item.name,
             title: item.title,
             quantity: item.qty || item.quantity || 1,
-            price: item.unit_price || item.price || 0
+            price: item.unit_price || item.price || 0,
+            bundle_price: item.bundle_price,
+            total_price: item.bundle_price ?? ((item.unit_price || item.price || 0) * (item.qty || item.quantity || 1))
           })),
-          subtotal: order.subtotal_mxn || 0,
-          deliveryFee: order.delivery_fee || 0,
-          total: order.total_mxn || 0,
+          subtotal,
+          deliveryFee,
+          total,
           anticipoPaid
         })
 

@@ -7,23 +7,33 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import posthog from 'posthog-js'
 
 const getDiscountedPriceForItem = (item: any, allItems: any[]) => {
-  if (!item.product.bundle_pricing?.length) return undefined;
+  let bundlePricing = item.product?.bundle_pricing;
+  if (typeof bundlePricing === 'string') {
+    try {
+      bundlePricing = JSON.parse(bundlePricing);
+    } catch (e) {
+      bundlePricing = [];
+    }
+  }
+  if (!Array.isArray(bundlePricing) || bundlePricing.length === 0) return undefined;
   
   // Group all items of the same product to check total quantity
-  const groupItems = allItems.filter((x: any) => x.product.id === item.product.id);
+  const groupItems = allItems.filter((x: any) => x.product?.id === item.product?.id);
   const groupQty = groupItems.reduce((sum, x) => sum + x.quantity, 0);
   
   if (groupQty <= 1) return undefined;
   
   let remainingQty = groupQty;
   let bestPriceTotal = 0;
-  const tiers = [...item.product.bundle_pricing].sort((a: any, b: any) => b.qty - a.qty);
+  const tiers = [...bundlePricing].sort((a: any, b: any) => (Number(b.qty) || 0) - (Number(a.qty) || 0));
   
   for (const tier of tiers) {
-    if (remainingQty >= tier.qty) {
-      const bundles = Math.floor(remainingQty / tier.qty);
-      bestPriceTotal += bundles * tier.price;
-      remainingQty %= tier.qty;
+    const tierQty = Number(tier.qty) || 0;
+    const tierPrice = Number(tier.price) || 0;
+    if (tierQty > 0 && remainingQty >= tierQty) {
+      const bundles = Math.floor(remainingQty / tierQty);
+      bestPriceTotal += bundles * tierPrice;
+      remainingQty %= tierQty;
     }
   }
   bestPriceTotal += remainingQty * item.product.price_mxn;
@@ -33,7 +43,7 @@ const getDiscountedPriceForItem = (item: any, allItems: any[]) => {
   
   // Prorate this specific item's share of the discounted total
   const proportion = item.quantity / groupQty;
-  return bestPriceTotal * proportion;
+  return Math.round(bestPriceTotal * proportion * 100) / 100;
 }
 
 function CheckoutContent() {

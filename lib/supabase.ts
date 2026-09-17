@@ -43,5 +43,14 @@ export function getImageUrl(path: string): string {
 export async function getProducts(): Promise<Product[]> {
   const { data, error } = await supabase.from('products').select('*').order('category').order('sort_order')
   if (error) throw error
-  return data as Product[]
+  return (data || []).map((p: any) => {
+    let bp = p.bundle_pricing
+    if (typeof bp === 'string') {
+      try { bp = JSON.parse(bp) } catch (e) { bp = [] }
+    }
+    return {
+      ...p,
+      bundle_pricing: Array.isArray(bp) ? bp : []
+    }
+  }) as Product[]
 }

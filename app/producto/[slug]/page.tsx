@@ -42,7 +42,13 @@ export default async function ProductPage({ params }: Props) {
     product = mockProducts.find(p => p.slug === params.slug)
   } else {
     const { data } = await supabase.from('products').select('*').eq('slug', params.slug).single()
-    if (data) product = data as Product
+    if (data) {
+      let bp = (data as any).bundle_pricing
+      if (typeof bp === 'string') {
+        try { bp = JSON.parse(bp) } catch (e) { bp = [] }
+      }
+      product = { ...data, bundle_pricing: Array.isArray(bp) ? bp : [] } as Product
+    }
   }
 
   if (!product) {
