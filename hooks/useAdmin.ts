@@ -156,7 +156,23 @@ export function useProducts() {
     []
   )
 
-  return { fetchProducts, createProduct, updateProduct, deleteProduct, toggleStock, loading, error }
+  // Toggle featured quickly (called from the product list star toggle)
+  const toggleFeatured = useCallback(
+    async (id: string, featured: boolean): Promise<boolean> => {
+      try {
+        const res = await adminFetch(`/api/products/${id}`, {
+          method: 'PATCH',
+          body: JSON.stringify({ featured }),
+        })
+        return res.ok
+      } catch {
+        return false
+      }
+    },
+    []
+  )
+
+  return { fetchProducts, createProduct, updateProduct, deleteProduct, toggleStock, toggleFeatured, loading, error }
 }
 
 import imageCompression from 'browser-image-compression'

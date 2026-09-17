@@ -4,6 +4,7 @@
 
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin, getProducts } from '@/lib/supabase'
+import { isValidAdminRequest } from '@/lib/auth'
 
 // GET /api/products — used by the shelf
 export async function GET() {
@@ -17,9 +18,9 @@ export async function GET() {
 
 // POST /api/products — admin creates new product
 export async function POST(req: NextRequest) {
-  // Simple admin guard — check for secret header
-  // Upgrade to proper NextAuth session when ready
-  
+  if (!await isValidAdminRequest(req)) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  }
 
   const body = await req.json()
   
