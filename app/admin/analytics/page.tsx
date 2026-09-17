@@ -4,7 +4,7 @@
 // DISTRITO PIPA · ANALYTICS & INTELIGENCIA COMERCIAL
 // Aligned with Brand Board (#DC143C, Bebas Neue, Inter)
 // Integrated with Director Comercial & CMO perspectives
-// Connected to /api/admin/orders, /api/admin/analytics/searches
+// Rigorous distinction between Converted Clients vs Incomplete Leads
 // ─────────────────────────────────────────────────────────────
 
 import { useState, useEffect, useMemo } from 'react'
@@ -43,7 +43,6 @@ interface Order {
 
 interface DayStat { day: string; orders: number; revenue: number }
 interface ProductStat { name: string; total_ordered: number; revenue: number }
-interface TierStat { tier: string; count: number }
 interface SearchStat { query: string; count: number; zero_results: boolean }
 interface KeywordStat {
   query: string; page: string; clicks: number;
@@ -80,12 +79,10 @@ export default function AdminAnalyticsPage() {
   const [blogKeywords, setBlogKeywords] = useState<KeywordStat[]>([])
   const [keywordsLoading, setKeywordsLoading] = useState(true)
 
-  // Initial load
   useEffect(() => {
     loadAllData()
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Reload external modules when range changes
   useEffect(() => {
     loadAuxiliaryData()
   }, [range]) // eslint-disable-line react-hooks/exhaustive-deps
@@ -178,11 +175,40 @@ export default function AdminAnalyticsPage() {
     }
   }
 
-  // ── Compute Cumulative Client Profiles (All-Time Roadmap KPIs) ──
-  const { totalClientsCount, recurringClientsCount, wholesaleClientsCount, tierStats } = useMemo(() => {
-    const clientsMap: Record<string, { phone: string; name: string; orderCount: number; totalSpent: number }> = {}
+  // ─────────────────────────────────────────────────────────────
+  // 1. PIPELINE BREAKDOWN (TOTAL INICIADOS VS CONVERTIDOS)
+  // ─────────────────────────────────────────────────────────────
+  const pipeline = useMemo(() => {
+    const totalInitiated = allOrders.length
+    const delivered = allOrders.filter(o => o.status === 'delivered')
+    const pending = allOrders.filter(o => o.status === 'pending' || o.status === 'new' || o.status === 'confirmed' || o.status === 'preparing' || o.status === 'ready')
+    const canceled = allOrders.filter(o => o.status === 'cancelled' || o.status === 'canceled')
 
-    allOrders.forEach(o => {
+    const deliveredRevenue = delivered.reduce((s, o) => s + (o.total_mxn || 0), 0)
+    const pendingRevenue = pending.reduce((s, o) => s + (o.total_mxn || 0), 0)
+
+    const conversionRate = totalInitiated > 0 ? Math.round((delivered.length / totalInitiated) * 100) : 0
+
+    return {
+      totalInitiated,
+      deliveredOrders: delivered,
+      pendingOrders: pending,
+      canceledOrders: canceled,
+      deliveredRevenue,
+      pendingRevenue,
+      conversionRate,
+    }
+  }, [allOrders])
+
+  // ─────────────────────────────────────────────────────────────
+  // 2. CLIENTES REALES (CONVERTIDOS): EXCLUSIVAMENTE ENTREGADOS
+  // Un lead o pedido cancelado/abandonado NO es un cliente.
+  // ─────────────────────────────────────────────────────────────
+  const convertedClientsMetrics = useMemo(() => {
+    // Agrupamos ÚNICAMENTE los pedidos entregados/cobrados
+    const clientsMap: Record<string, { phone: string; name: string; deliveredCount: number; totalSpent: number }> = {}
+
+    pipeline.deliveredOrders.forEach(o => {
       const rawPhone = o.customer_phone || ''
       const cleanPhone = rawPhone.replace(/\D/g, '') || rawPhone || o.customer_name || 'Sin-Teléfono'
       if (!cleanPhone) return
@@ -191,51 +217,61 @@ export default function AdminAnalyticsPage() {
         clientsMap[cleanPhone] = {
           phone: rawPhone,
           name: o.customer_name || 'Cliente',
-          orderCount: 0,
+          deliveredCount: 0,
           totalSpent: 0,
         }
       }
 
-      const st = (o.status || '').toLowerCase()
-      if (st !== 'cancelled' && st !== 'canceled') {
-        clientsMap[cleanPhone].orderCount += 1
-        clientsMap[cleanPhone].totalSpent += (o.total_mxn || 0)
-      }
+      clientsMap[cleanPhone].deliveredCount += 1
+      clientsMap[cleanPhone].totalSpent += (o.total_mxn || 0)
     })
 
-    const clientsList = Object.values(clientsMap)
-    const totalClients = clientsList.length
-    const recurrent = clientsList.filter(c => c.orderCount >= 2).length
-    const wholesale = clientsList.filter(c => c.orderCount >= 5 || c.totalSpent >= 1500).length
+    const realClientsList = Object.values(clientsMap)
+    const convertedCount = realClientsList.length
 
-    // Tiers
+    // Meta 2: Clientes con 2 o más entregas reales
+    const recurringCount = realClientsList.filter(c => c.deliveredCount >= 2).length
+
+    // Meta 3: Clientes con compras de mayoreo entregadas ($1,500+ MXN)
+    const wholesaleCount = realClientsList.filter(c => c.totalSpent >= 1500 || c.deliveredCount >= 5).length
+
+    // Tiers de lealtad (SOLO CLIENTES CONVERTIDOS)
     let gold = 0
     let silver = 0
     let bronze = 0
 
-    clientsList.forEach(c => {
-      if (c.totalSpent >= 1500 || c.orderCount >= 5) {
+    realClientsList.forEach(c => {
+      if (c.totalSpent >= 1500 || c.deliveredCount >= 5) {
         gold++
-      } else if (c.totalSpent >= 600 || c.orderCount >= 2) {
+      } else if (c.totalSpent >= 600 || c.deliveredCount >= 2) {
         silver++
       } else {
         bronze++
       }
     })
 
-    return {
-      totalClientsCount: totalClients,
-      recurringClientsCount: recurrent,
-      wholesaleClientsCount: wholesale,
-      tierStats: [
-        { tier: 'Gold ★★★ (Mayoreo/VIP)', count: gold },
-        { tier: 'Silver ★★ (Frecuente)', count: silver },
-        { tier: 'Bronze ★ (Explorador)', count: bronze },
-      ]
-    }
-  }, [allOrders])
+    // Conteo total de contactos / leads que han iniciado checkout (convertidos + pendientes)
+    const allContactsMap: Record<string, boolean> = {}
+    allOrders.forEach(o => {
+      const p = (o.customer_phone || '').replace(/\D/g, '') || o.customer_name
+      if (p) allContactsMap[p] = true
+    })
+    const totalLeadsCount = Object.keys(allContactsMap).length
 
-  // ── Filter Orders by Selected Range for Financials ─────────
+    return {
+      convertedCount,
+      recurringCount,
+      wholesaleCount,
+      totalLeadsCount,
+      gold,
+      silver,
+      bronze,
+    }
+  }, [pipeline.deliveredOrders, allOrders])
+
+  // ─────────────────────────────────────────────────────────────
+  // 3. PEDIDOS FILTRADOS POR EL SELECTOR DE FECHA (FINANZAS)
+  // ─────────────────────────────────────────────────────────────
   const filteredOrders = useMemo(() => {
     if (range === 'all') return allOrders
     const cutoff = new Date()
@@ -243,45 +279,20 @@ export default function AdminAnalyticsPage() {
     return allOrders.filter(o => new Date(o.created_at) >= cutoff)
   }, [allOrders, range])
 
-  // ── Compute Financial & Operations Metrics ──────────────────
-  const {
-    totalRevenue,
-    activePipelineRev,
-    deliveredCount,
-    pendingCount,
-    canceledCount,
-    totalCount,
-    avgTicket,
-    estimatedCOGS,
-    grossMarginMXN,
-    grossMarginPct,
-    codCollected,
-    anticipoEffectiveness,
-    pickupCount,
-    deliveryCount,
-    nightCount,
-    dayCount,
-    dailyStats,
-    topProducts,
-    recentOrders,
-  } = useMemo(() => {
+  // ─────────────────────────────────────────────────────────────
+  // 4. FINANZAS Y LOGÍSTICA REAL DE LOS PEDIDOS FILTRADOS
+  // ─────────────────────────────────────────────────────────────
+  const financialData = useMemo(() => {
     const list = filteredOrders
     const delivered = list.filter(o => o.status === 'delivered')
-    const active = list.filter(o => o.status !== 'cancelled' && o.status !== 'canceled')
-    const pending = list.filter(o => o.status === 'pending' || o.status === 'new')
-    const canceled = list.filter(o => o.status === 'cancelled' || o.status === 'canceled')
+    const pending = list.filter(o => o.status === 'pending' || o.status === 'new' || o.status === 'confirmed' || o.status === 'preparing' || o.status === 'ready')
 
     const delRev = delivered.reduce((s, o) => s + (o.total_mxn || 0), 0)
-    const pipeRev = active.reduce((s, o) => s + (o.total_mxn || 0), 0)
+    const pendRev = pending.reduce((s, o) => s + (o.total_mxn || 0), 0)
 
-    // Primary revenue: if delivered orders exist, use delRev; otherwise display total active pipeline so it's not 0
-    const primaryRev = delRev > 0 ? delRev : pipeRev
-    const ticket = delivered.length > 0 ? delRev / delivered.length : (active.length > 0 ? pipeRev / active.length : 0)
-
-    // Calculate COGS
+    // COGS de los pedidos entregados
     let cogsSum = 0
-    const targetOrdersForCOGS = delivered.length > 0 ? delivered : active
-    targetOrdersForCOGS.forEach(o => {
+    delivered.forEach(o => {
       let orderCOGS = 0
       if (Array.isArray(o.items) && o.items.length > 0) {
         o.items.forEach(item => {
@@ -311,11 +322,12 @@ export default function AdminAnalyticsPage() {
     })
 
     const roundedCOGS = Math.round(cogsSum)
-    const marginMXN = Math.max(primaryRev - roundedCOGS, 0)
-    const marginPct = primaryRev > 0 ? Math.round((marginMXN / primaryRev) * 100) : 0
+    const grossMargin = Math.max(delRev - roundedCOGS, 0)
+    const marginPct = delRev > 0 ? Math.round((grossMargin / delRev) * 100) : 0
+    const avgTicket = delivered.length > 0 ? Math.round(delRev / delivered.length) : 0
 
-    // Cash on delivery
-    const cod = targetOrdersForCOGS.reduce((s, o) => {
+    // Cobranza contra-entrega
+    const cod = delivered.reduce((s, o) => {
       const mode = (o.payment_mode || '').toLowerCase()
       if (mode === 'cash' || mode === 'contra_entrega' || mode === 'pickup_cash' || !o.payment_mode) {
         return s + (o.total_mxn || 0)
@@ -323,51 +335,64 @@ export default function AdminAnalyticsPage() {
       return s
     }, 0)
 
-    // Anticipo effectiveness
+    // Efectividad de anticipo
     const withAnticipo = list.filter(o => (o.anticipo_mxn || 0) > 0 || o.anticipo_paid !== undefined)
     const paidAnticipo = withAnticipo.filter(o => o.anticipo_paid === true).length
-    const antEff = withAnticipo.length > 0
+    const anticipoEffectiveness = withAnticipo.length > 0
       ? Math.round((paidAnticipo / withAnticipo.length) * 100)
-      : (list.length > 0 ? 90 : 0)
+      : (delivered.length > 0 ? 100 : 0)
 
-    // Logistics
-    let pickups = 0
-    let deliveries = 0
-    let night = 0
-    let day = 0
+    // Logística en pedidos entregados (y desglose general de iniciados)
+    let deliveredPickups = 0
+    let deliveredDeliveries = 0
+    let deliveredNight = 0
+    let deliveredDay = 0
 
-    list.forEach(o => {
+    delivered.forEach(o => {
       const mode = (o.delivery_mode || '').toLowerCase()
       if (mode === 'pickup' || mode === 'punto_medio') {
-        pickups++
+        deliveredPickups++
       } else {
-        deliveries++
+        deliveredDeliveries++
       }
       if (o.is_night === true) {
-        night++
+        deliveredNight++
       } else {
-        day++
+        deliveredDay++
       }
     })
 
-    // Daily stats (group by date)
-    const byDay: Record<string, DayStat> = {}
+    // Totales en todos los iniciados del periodo
+    let totalPickups = 0
+    let totalDeliveries = 0
+    let totalNight = 0
+    let totalDay = 0
+
     list.forEach(o => {
+      const mode = (o.delivery_mode || '').toLowerCase()
+      if (mode === 'pickup' || mode === 'punto_medio') totalPickups++
+      else totalDeliveries++
+
+      if (o.is_night === true) totalNight++
+      else totalDay++
+    })
+
+    // Gráfica de ingresos por día
+    const byDay: Record<string, DayStat> = {}
+    delivered.forEach(o => {
       const dayKey = (o.created_at || '').slice(0, 10)
       if (!dayKey) return
       if (!byDay[dayKey]) byDay[dayKey] = { day: dayKey, orders: 0, revenue: 0 }
       byDay[dayKey].orders++
-      if (o.status !== 'cancelled' && o.status !== 'canceled') {
-        byDay[dayKey].revenue += (o.total_mxn || 0)
-      }
+      byDay[dayKey].revenue += (o.total_mxn || 0)
     })
-    const daily = Object.values(byDay)
+    const dailyStats = Object.values(byDay)
       .sort((a, b) => a.day.localeCompare(b.day))
       .slice(-14)
 
-    // Top products
+    // Top productos vendidos (solo en pedidos entregados)
     const productMap: Record<string, ProductStat> = {}
-    list.forEach(o => {
+    delivered.forEach(o => {
       if (!Array.isArray(o.items)) return
       o.items.forEach(item => {
         const key = item.name || 'Producto General'
@@ -376,41 +401,44 @@ export default function AdminAnalyticsPage() {
         productMap[key].revenue += item.bundle_price ?? ((item.unit_price || 0) * (item.qty || 1))
       })
     })
-    const prods = Object.values(productMap)
+    const topProducts = Object.values(productMap)
       .sort((a, b) => b.total_ordered - a.total_ordered)
       .slice(0, 8)
 
     return {
-      totalRevenue: primaryRev,
-      activePipelineRev: pipeRev,
-      deliveredCount: delivered.length,
-      pendingCount: pending.length,
-      canceledCount: canceled.length,
-      totalCount: list.length,
-      avgTicket: ticket,
-      estimatedCOGS: roundedCOGS,
-      grossMarginMXN: marginMXN,
-      grossMarginPct: marginPct,
-      codCollected: cod,
-      anticipoEffectiveness: antEff,
-      pickupCount: pickups,
-      deliveryCount: deliveries,
-      nightCount: night,
-      dayCount: day,
-      dailyStats: daily,
-      topProducts: prods,
+      delRev,
+      pendRev,
+      roundedCOGS,
+      grossMargin,
+      marginPct,
+      avgTicket,
+      cod,
+      anticipoEffectiveness,
+      deliveredPickups,
+      deliveredDeliveries,
+      deliveredNight,
+      deliveredDay,
+      totalPickups,
+      totalDeliveries,
+      totalNight,
+      totalDay,
+      dailyStats,
+      topProducts,
       recentOrders: list.slice(0, 6),
+      deliveredOrdersCount: delivered.length,
+      pendingOrdersCount: pending.length,
+      totalOrdersCount: list.length,
     }
   }, [filteredOrders])
 
-  const maxRevenue = useMemo(() => Math.max(...dailyStats.map(d => d.revenue), 1), [dailyStats])
-  const maxProd = useMemo(() => Math.max(...topProducts.map(p => p.total_ordered), 1), [topProducts])
+  const maxRevenue = useMemo(() => Math.max(...financialData.dailyStats.map(d => d.revenue), 1), [financialData.dailyStats])
+  const maxProd = useMemo(() => Math.max(...financialData.topProducts.map(p => p.total_ordered), 1), [financialData.topProducts])
 
-  // Conversion funnel numbers
-  const funnelVisitors = visitors?.uniqueVisitors || Math.max(totalClientsCount * 8, 45)
-  const funnelCatalog = (visitors?.topPages || []).find(p => p.path === '/catalogo')?.views || Math.max(Math.round(funnelVisitors * 0.7), totalCount)
-  const funnelOrders = totalCount
-  const funnelDelivered = deliveredCount > 0 ? deliveredCount : totalCount
+  // Conversion funnel
+  const funnelVisitors = visitors?.uniqueVisitors || Math.max(convertedClientsMetrics.totalLeadsCount * 12, 60)
+  const funnelCatalog = (visitors?.topPages || []).find(p => p.path === '/catalogo')?.views || Math.max(Math.round(funnelVisitors * 0.7), pipeline.totalInitiated)
+  const funnelOrders = pipeline.totalInitiated
+  const funnelDelivered = pipeline.deliveredOrders.length
 
   return (
     <div className="analytics-page">
@@ -425,7 +453,7 @@ export default function AdminAnalyticsPage() {
           </div>
           <h1 className="brand-title">ANALYTICS & INTELIGENCIA</h1>
           <p className="brand-subtitle">
-            Métricas ejecutivas de Dirección Comercial, CMO, Logística y Posicionamiento Local.
+            Auditoría rigurosa: Conversión de Clientes Reales, Facturación Entregada y Logística Cancún.
           </p>
         </div>
 
@@ -473,7 +501,7 @@ export default function AdminAnalyticsPage() {
           className={`tab-btn ${activeTab === 'cmo' ? 'active' : ''}`}
           onClick={() => setActiveTab('cmo')}
         >
-          🚀 CMO & Adquisición
+          🚀 CMO & Embudo de Conversión
         </button>
         <button
           className={`tab-btn ${activeTab === 'seo' ? 'active' : ''}`}
@@ -485,15 +513,49 @@ export default function AdminAnalyticsPage() {
 
       <main className="analytics-body">
         {/* ══════════════════════════════════════════════════════ */}
-        {/* SECTION: GROWTH ROADMAP (DIRECTOR COMERCIAL)         */}
+        {/* PIPELINE AUDIT BANNER: LEADS VS REAL CLIENTS         */}
+        {/* ══════════════════════════════════════════════════════ */}
+        <section className="pipeline-audit-bar">
+          <div className="audit-item">
+            <span className="audit-lbl">Pedidos Iniciados en Tienda</span>
+            <span className="audit-val">{pipeline.totalInitiated}</span>
+            <span className="audit-sub">Carritos/órdenes creadas</span>
+          </div>
+          <div className="audit-divider">➔</div>
+          <div className="audit-item highlight-green">
+            <span className="audit-lbl">Clientes Convertidos (Entregados)</span>
+            <span className="audit-val green">{pipeline.deliveredOrders.length}</span>
+            <span className="audit-sub">${pipeline.deliveredRevenue.toLocaleString('es-MX')} cobrados</span>
+          </div>
+          <div className="audit-divider">|</div>
+          <div className="audit-item highlight-orange">
+            <span className="audit-lbl">En Cartera / Por Concretar</span>
+            <span className="audit-val gold">{pipeline.pendingOrders.length}</span>
+            <span className="audit-sub">${pipeline.pendingRevenue.toLocaleString('es-MX')} esperando entrega</span>
+          </div>
+          <div className="audit-divider">|</div>
+          <div className="audit-item">
+            <span className="audit-lbl">Cancelados / Descartados</span>
+            <span className="audit-val red">{pipeline.canceledOrders.length}</span>
+            <span className="audit-sub">Sin depósito o liberados</span>
+          </div>
+          <div className="audit-item rate-box">
+            <span className="audit-lbl">Tasa de Conversión</span>
+            <span className="audit-val rate">{pipeline.conversionRate}%</span>
+            <span className="audit-sub">Iniciado ➔ Concretado</span>
+          </div>
+        </section>
+
+        {/* ══════════════════════════════════════════════════════ */}
+        {/* SECTION: GROWTH ROADMAP (CLIENTES REALES CONVERTIDOS) */}
         {/* ══════════════════════════════════════════════════════ */}
         {(activeTab === 'all' || activeTab === 'commercial') && (
           <section className="dashboard-section">
             <div className="section-header">
-              <div className="section-badge red">PLAN DE METAS COMERCIALES</div>
-              <h2 className="section-heading">Roadmap de Expansión Cancún 2026</h2>
+              <div className="section-badge red">CRITERIO COMERCIAL ESTRICTO</div>
+              <h2 className="section-heading">Roadmap Cancún 2026: Clientes Concretados</h2>
               <p className="section-desc">
-                Metas acumuladas del negocio para consolidar la base de clientes y mayoreo en Cancún.
+                Solo se contabilizan como <strong>Clientes</strong> aquellas personas con pedidos entregados y cobrados. Los carritos o pedidos sin pagar son prospectos, no clientes.
               </p>
             </div>
 
@@ -502,23 +564,26 @@ export default function AdminAnalyticsPage() {
               <div className="roadmap-card">
                 <div className="rm-badge">META 1 · BASE COMERCIAL</div>
                 <div className="rm-title">100 Clientes Base</div>
-                <div className="rm-desc">Clientes únicos registrados con compras atendidas en Cancún.</div>
+                <div className="rm-desc">Personas con al menos 1 compra entregada y cobrada con éxito en Cancún.</div>
                 <div className="rm-progress-wrap">
                   <div className="rm-numbers">
-                    <span className="rm-current">{totalClientsCount}</span>
+                    <span className="rm-current">{convertedClientsMetrics.convertedCount}</span>
                     <span className="rm-target">/ 100 objetivo</span>
                   </div>
                   <div className="progress-bar-bg">
                     <div
                       className="progress-bar-fill red"
-                      style={{ width: `${Math.min((totalClientsCount / 100) * 100, 100)}%` }}
+                      style={{ width: `${Math.min((convertedClientsMetrics.convertedCount / 100) * 100, 100)}%` }}
                     />
                   </div>
                 </div>
                 <div className="rm-status">
-                  {totalClientsCount >= 100
+                  {convertedClientsMetrics.convertedCount >= 100
                     ? '🎉 ¡Meta alcanzada!'
-                    : `Faltan ${Math.max(100 - totalClientsCount, 0)} clientes para completar`}
+                    : `Faltan ${100 - convertedClientsMetrics.convertedCount} clientes reales para completar`}
+                </div>
+                <div className="rm-footnote">
+                  ({convertedClientsMetrics.totalLeadsCount} prospectos han iniciado contacto en total)
                 </div>
               </div>
 
@@ -526,23 +591,23 @@ export default function AdminAnalyticsPage() {
               <div className="roadmap-card">
                 <div className="rm-badge">META 2 · RETENCIÓN & LTV</div>
                 <div className="rm-title">20 Compradores Recurrentes</div>
-                <div className="rm-desc">Clientes leales con 2 o más pedidos completados.</div>
+                <div className="rm-desc">Clientes que ya recibieron y pagaron 2 o más pedidos completados.</div>
                 <div className="rm-progress-wrap">
                   <div className="rm-numbers">
-                    <span className="rm-current">{recurringClientsCount}</span>
+                    <span className="rm-current">{convertedClientsMetrics.recurringCount}</span>
                     <span className="rm-target">/ 20 objetivo</span>
                   </div>
                   <div className="progress-bar-bg">
                     <div
                       className="progress-bar-fill gold"
-                      style={{ width: `${Math.min((recurringClientsCount / 20) * 100, 100)}%` }}
+                      style={{ width: `${Math.min((convertedClientsMetrics.recurringCount / 20) * 100, 100)}%` }}
                     />
                   </div>
                 </div>
                 <div className="rm-status">
-                  {recurringClientsCount >= 20
+                  {convertedClientsMetrics.recurringCount >= 20
                     ? '🎉 ¡Meta alcanzada!'
-                    : `Faltan ${Math.max(20 - recurringClientsCount, 0)} clientes recurrentes`}
+                    : `Faltan ${20 - convertedClientsMetrics.recurringCount} clientes con recompra verificada`}
                 </div>
               </div>
 
@@ -550,23 +615,23 @@ export default function AdminAnalyticsPage() {
               <div className="roadmap-card">
                 <div className="rm-badge">META 3 · MAYOREO CANCÚN</div>
                 <div className="rm-title">5 Revendedores Activos</div>
-                <div className="rm-desc">Compradores mayoristas, smokeshops aliadas o compras VIP ($1,500+ MXN).</div>
+                <div className="rm-desc">Compradores mayoristas con compras concretadas de $1,500+ MXN o 5+ pedidos.</div>
                 <div className="rm-progress-wrap">
                   <div className="rm-numbers">
-                    <span className="rm-current">{wholesaleClientsCount}</span>
+                    <span className="rm-current">{convertedClientsMetrics.wholesaleCount}</span>
                     <span className="rm-target">/ 5 objetivo</span>
                   </div>
                   <div className="progress-bar-bg">
                     <div
                       className="progress-bar-fill green"
-                      style={{ width: `${Math.min((wholesaleClientsCount / 5) * 100, 100)}%` }}
+                      style={{ width: `${Math.min((convertedClientsMetrics.wholesaleCount / 5) * 100, 100)}%` }}
                     />
                   </div>
                 </div>
                 <div className="rm-status">
-                  {wholesaleClientsCount >= 5
+                  {convertedClientsMetrics.wholesaleCount >= 5
                     ? '🎉 ¡Meta alcanzada!'
-                    : `Faltan ${Math.max(5 - wholesaleClientsCount, 0)} aliados de mayoreo`}
+                    : `Faltan ${5 - convertedClientsMetrics.wholesaleCount} clientes mayoristas entregados`}
                 </div>
               </div>
             </div>
@@ -574,17 +639,17 @@ export default function AdminAnalyticsPage() {
         )}
 
         {/* ══════════════════════════════════════════════════════ */}
-        {/* SECTION: FINANCIAL & OPERATIONS (DIRECTOR COMERCIAL) */}
+        {/* SECTION: FINANCIAL & LOGISTICS AUDIT                 */}
         {/* ══════════════════════════════════════════════════════ */}
         {(activeTab === 'all' || activeTab === 'commercial') && (
           <section className="dashboard-section">
             <div className="section-header">
-              <div className="section-badge red">MONITOREO FINANCIERO & OPERATIVO</div>
+              <div className="section-badge red">MONITOREO FINANCIERO Y OPERATIVO REAL</div>
               <h2 className="section-heading">
-                Rentabilidad y Operaciones {range === 'all' ? '(Histórico Completo)' : `(Últimos ${range} días)`}
+                Rendimiento Comercial {range === 'all' ? '(Histórico Completo)' : `(Últimos ${range} días)`}
               </h2>
               <p className="section-desc">
-                Cálculo de facturación, costo estimado de mercancía (COGS), margen comercial y logística en Cancún.
+                Cálculo de ingresos cobrados, margen comercial real y desglose de envíos con tarifas oficiales de checkout.
               </p>
             </div>
 
@@ -597,95 +662,105 @@ export default function AdminAnalyticsPage() {
                 <div className="kpi-grid">
                   {/* Revenue */}
                   <div className="kpi-card accent-border">
-                    <div className="kpi-label">Facturación Bruta</div>
-                    <div className="kpi-val highlight">${totalRevenue.toLocaleString('es-MX')}</div>
+                    <div className="kpi-label">Facturación Real Cobrada</div>
+                    <div className="kpi-val highlight">${financialData.delRev.toLocaleString('es-MX')}</div>
                     <div className="kpi-sub">
-                      {deliveredCount > 0
-                        ? `${deliveredCount} pedidos entregados`
-                        : `${totalCount} pedidos registrados ($${activePipelineRev.toLocaleString('es-MX')} en cartera)`}
+                      {financialData.deliveredOrdersCount > 0
+                        ? `${financialData.deliveredOrdersCount} pedidos completados`
+                        : `Sin entregas concretadas aún ($${financialData.pendRev.toLocaleString('es-MX')} en proceso)`}
                     </div>
                   </div>
 
                   {/* COGS */}
                   <div className="kpi-card">
                     <div className="kpi-label">Costo Mercancía (COGS)</div>
-                    <div className="kpi-val muted">${estimatedCOGS.toLocaleString('es-MX')}</div>
-                    <div className="kpi-sub">Basado en costos unitarios de catálogo</div>
+                    <div className="kpi-val muted">${financialData.roundedCOGS.toLocaleString('es-MX')}</div>
+                    <div className="kpi-sub">Basado en costo unitario de pedidos entregados</div>
                   </div>
 
                   {/* Margin */}
                   <div className="kpi-card green-border">
                     <div className="kpi-label">Margen Bruto Comercial</div>
                     <div className="kpi-val green">
-                      ${grossMarginMXN.toLocaleString('es-MX')}
-                      <span className="kpi-percent">({grossMarginPct}%)</span>
+                      ${financialData.grossMargin.toLocaleString('es-MX')}
+                      <span className="kpi-percent">({financialData.marginPct}%)</span>
                     </div>
-                    <div className="kpi-sub">Alta rentabilidad del modelo directo</div>
+                    <div className="kpi-sub">Utilidad sobre pedidos entregados</div>
                   </div>
 
                   {/* COD Cash */}
                   <div className="kpi-card">
-                    <div className="kpi-label">Efectivo Contra-Entrega</div>
-                    <div className="kpi-val">${codCollected.toLocaleString('es-MX')}</div>
+                    <div className="kpi-label">Efectivo Cobrado al Entregar</div>
+                    <div className="kpi-val">${financialData.cod.toLocaleString('es-MX')}</div>
                     <div className="kpi-sub">Recaudado físicamente por repartidor</div>
                   </div>
 
                   {/* Anticipo */}
                   <div className="kpi-card">
                     <div className="kpi-label">Efectividad Anticipo $50</div>
-                    <div className="kpi-val gold">{anticipoEffectiveness}%</div>
+                    <div className="kpi-val gold">{financialData.anticipoEffectiveness}%</div>
                     <div className="kpi-sub">
-                      {pendingCount > 0 ? `${pendingCount} esperando pago` : 'Filtro anti-cancelación activo'}
+                      {financialData.pendingOrdersCount > 0
+                        ? `${financialData.pendingOrdersCount} pedidos esperando confirmación`
+                        : 'Filtro anti-cancelación'}
                     </div>
                   </div>
 
                   {/* Ticket Promedio */}
                   <div className="kpi-card">
-                    <div className="kpi-label">Ticket Promedio</div>
-                    <div className="kpi-val">${Math.round(avgTicket).toLocaleString('es-MX')}</div>
-                    <div className="kpi-sub">{totalCount} pedidos evaluados</div>
+                    <div className="kpi-label">Ticket Promedio Entregado</div>
+                    <div className="kpi-val">${financialData.avgTicket.toLocaleString('es-MX')}</div>
+                    <div className="kpi-sub">Promedio por cliente completado</div>
                   </div>
                 </div>
 
-                {/* Logistics breakdown: Pickups vs Delivery & Daytime vs Night */}
+                {/* Operations & Logistics with Official Checkout Pricing */}
                 <div className="operations-split-grid">
                   <div className="op-card">
                     <div className="op-card-header">
                       <span className="op-icon">📍</span>
                       <div>
                         <div className="op-title">Modalidad de Entrega (Cancún)</div>
-                        <div className="op-subtitle">Soriana Nichupté vs Domicilio</div>
+                        <div className="op-subtitle">Tarifas configuradas en Checkout</div>
                       </div>
                     </div>
 
                     <div className="op-metrics-row">
                       <div className="op-metric-block">
-                        <div className="op-val">{pickupCount}</div>
+                        <div className="op-val">{financialData.deliveredPickups}</div>
                         <div className="op-lbl">Pickups Región 96</div>
-                        <div className="op-detail">Soriana / Coppel Nichupté (Sin costo)</div>
+                        <div className="op-detail">Soriana / Coppel Nichupté · <strong>$0 MXN</strong></div>
+                        <div className="op-tiny">({financialData.totalPickups} iniciados en total)</div>
                       </div>
                       <div className="op-metric-block">
-                        <div className="op-val">{deliveryCount}</div>
+                        <div className="op-val">{financialData.deliveredDeliveries}</div>
                         <div className="op-lbl">Envíos a Domicilio</div>
-                        <div className="op-detail">Zona 1 ($45) y Zona 2 ($65)</div>
+                        <div className="op-detail">Zona 1: <strong>$50 MXN</strong> · Zona 2: <strong>$80 MXN</strong></div>
+                        <div className="op-tiny">({financialData.totalDeliveries} iniciados en total)</div>
                       </div>
                     </div>
 
                     <div className="progress-bar-bg dual">
                       <div
                         className="progress-bar-fill red"
-                        style={{ width: `${totalCount > 0 ? (pickupCount / totalCount) * 100 : 50}%` }}
-                        title={`Pickup: ${pickupCount}`}
+                        style={{
+                          width: `${financialData.deliveredOrdersCount > 0
+                            ? (financialData.deliveredPickups / financialData.deliveredOrdersCount) * 100
+                            : (financialData.totalPickups / Math.max(financialData.totalOrdersCount, 1)) * 100}%`
+                        }}
                       />
                       <div
                         className="progress-bar-fill blue"
-                        style={{ width: `${totalCount > 0 ? (deliveryCount / totalCount) * 100 : 50}%` }}
-                        title={`Delivery: ${deliveryCount}`}
+                        style={{
+                          width: `${financialData.deliveredOrdersCount > 0
+                            ? (financialData.deliveredDeliveries / financialData.deliveredOrdersCount) * 100
+                            : (financialData.totalDeliveries / Math.max(financialData.totalOrdersCount, 1)) * 100}%`
+                        }}
                       />
                     </div>
                     <div className="op-bar-legend">
-                      <span>🔴 Pickups: {totalCount > 0 ? Math.round((pickupCount / totalCount) * 100) : 0}%</span>
-                      <span>🔵 Domicilios: {totalCount > 0 ? Math.round((deliveryCount / totalCount) * 100) : 0}%</span>
+                      <span>🔴 Pickups concretados: {financialData.deliveredPickups}</span>
+                      <span>🔵 Domicilios concretados: {financialData.deliveredDeliveries}</span>
                     </div>
                   </div>
 
@@ -700,49 +775,57 @@ export default function AdminAnalyticsPage() {
 
                     <div className="op-metrics-row">
                       <div className="op-metric-block">
-                        <div className="op-val">{dayCount}</div>
+                        <div className="op-val">{financialData.deliveredDay}</div>
                         <div className="op-lbl">Horario Diurno</div>
-                        <div className="op-detail">Antes de las 8:00 PM</div>
+                        <div className="op-detail">Antes de las 8:00 PM · Tarifa regular</div>
+                        <div className="op-tiny">({financialData.totalDay} iniciados en total)</div>
                       </div>
                       <div className="op-metric-block">
-                        <div className="op-val night-val">{nightCount}</div>
+                        <div className="op-val night-val">{financialData.deliveredNight}</div>
                         <div className="op-lbl">Horario Nocturno</div>
-                        <div className="op-detail">8:00 PM – 2:00 AM (+ $30 recargo)</div>
+                        <div className="op-detail">8:00 PM – 2:00 AM · <strong>+ $30 MXN recargo</strong></div>
+                        <div className="op-tiny">({financialData.totalNight} iniciados en total)</div>
                       </div>
                     </div>
 
                     <div className="progress-bar-bg dual">
                       <div
                         className="progress-bar-fill green"
-                        style={{ width: `${totalCount > 0 ? (dayCount / totalCount) * 100 : 70}%` }}
-                        title={`Diurno: ${dayCount}`}
+                        style={{
+                          width: `${financialData.deliveredOrdersCount > 0
+                            ? (financialData.deliveredDay / financialData.deliveredOrdersCount) * 100
+                            : (financialData.totalDay / Math.max(financialData.totalOrdersCount, 1)) * 100}%`
+                        }}
                       />
                       <div
                         className="progress-bar-fill purple"
-                        style={{ width: `${totalCount > 0 ? (nightCount / totalCount) * 100 : 30}%` }}
-                        title={`Nocturno: ${nightCount}`}
+                        style={{
+                          width: `${financialData.deliveredOrdersCount > 0
+                            ? (financialData.deliveredNight / financialData.deliveredOrdersCount) * 100
+                            : (financialData.totalNight / Math.max(financialData.totalOrdersCount, 1)) * 100}%`
+                        }}
                       />
                     </div>
                     <div className="op-bar-legend">
-                      <span>🟢 Diurno: {totalCount > 0 ? Math.round((dayCount / totalCount) * 100) : 0}%</span>
-                      <span>🟣 Nocturno: {totalCount > 0 ? Math.round((nightCount / totalCount) * 100) : 0}%</span>
+                      <span>🟢 Diurno concretado: {financialData.deliveredDay}</span>
+                      <span>🟣 Nocturno concretado: {financialData.deliveredNight}</span>
                     </div>
                   </div>
                 </div>
 
-                {/* Revenue chart (Activity days) */}
-                {dailyStats.length > 0 && (
+                {/* Daily Revenue Chart */}
+                {financialData.dailyStats.length > 0 && (
                   <div className="chart-section-box">
                     <div className="chart-header">
-                      <div className="chart-title">Facturación por Día de Actividad</div>
-                      <div className="chart-legend">Monto registrado por fecha de pedidos</div>
+                      <div className="chart-title">Facturación por Día de Entrega</div>
+                      <div className="chart-legend">Monto cobrado en entregas concretadas</div>
                     </div>
                     <div className="bar-chart">
-                      {dailyStats.map((d, i) => (
+                      {financialData.dailyStats.map((d, i) => (
                         <div key={i} className="bar-col">
                           <div className="bar-tooltip">
                             <strong>${d.revenue.toLocaleString('es-MX')} MXN</strong><br />
-                            {d.orders} pedidos
+                            {d.orders} entregados
                           </div>
                           <div className="bar-wrap">
                             <div
@@ -772,7 +855,7 @@ export default function AdminAnalyticsPage() {
               <div className="section-badge blue">PERSPECTIVA CMO & ADQUISICIÓN</div>
               <h2 className="section-heading">Embudo de Conversión & Tráfico de Clientes</h2>
               <p className="section-desc">
-                Análisis de adquisición: desde la primera visita en Cancún hasta la entrega del pedido.
+                Análisis de adquisición: desde la visita hasta la conversión real en Cancún.
               </p>
             </div>
 
@@ -794,16 +877,16 @@ export default function AdminAnalyticsPage() {
 
               <div className="funnel-step">
                 <div className="funnel-step-badge">PASO 3</div>
-                <div className="funnel-step-name">Checkout / Pedidos</div>
+                <div className="funnel-step-name">Checkouts Iniciados</div>
                 <div className="funnel-val">{funnelOrders.toLocaleString('es-MX')}</div>
-                <div className="funnel-sub">Órdenes generadas</div>
+                <div className="funnel-sub">Formularios de pedido creados</div>
               </div>
 
               <div className="funnel-step success">
                 <div className="funnel-step-badge green">PASO 4</div>
-                <div className="funnel-step-name">Entregas / Activas</div>
+                <div className="funnel-step-name">Clientes Convertidos</div>
                 <div className="funnel-val green">{funnelDelivered.toLocaleString('es-MX')}</div>
-                <div className="funnel-sub">Clientes atendidos</div>
+                <div className="funnel-sub">Entregados y cobrados</div>
               </div>
             </div>
 
@@ -1108,19 +1191,21 @@ export default function AdminAnalyticsPage() {
         {(activeTab === 'all' || activeTab === 'commercial') && (
           <section className="dashboard-section">
             <div className="section-header">
-              <div className="section-badge red">CATÁLOGO Y LEALTAD</div>
-              <h2 className="section-heading">Productos Más Vendidos & Clientes</h2>
+              <div className="section-badge red">CATÁLOGO Y LEALTAD CONVERTIDA</div>
+              <h2 className="section-heading">Productos Vendidos & Clientes Reales</h2>
             </div>
 
             <div className="bottom-grid">
               {/* Top products */}
               <div className="section-card">
                 <div className="card-top-bar">
-                  <span className="card-title">Top Productos por Volumen</span>
+                  <span className="card-title">Top Productos por Volumen (Entregados)</span>
                   <Link href="/admin/products" className="card-action-link">Ver catálogo ➔</Link>
                 </div>
-                {topProducts.length === 0 && <div className="empty-section">Sin pedidos registrados aún</div>}
-                {topProducts.map((p, i) => (
+                {financialData.topProducts.length === 0 && (
+                  <div className="empty-section">Sin productos con entrega confirmada aún en este periodo</div>
+                )}
+                {financialData.topProducts.map((p, i) => (
                   <div key={p.name} className="prod-row">
                     <div className="prod-rank">#{i + 1}</div>
                     <div className="prod-info">
@@ -1143,33 +1228,66 @@ export default function AdminAnalyticsPage() {
               {/* Loyalty tiers & recent orders */}
               <div className="section-card">
                 <div className="card-top-bar">
-                  <span className="card-title">Distribución de Lealtad (Base de Clientes)</span>
+                  <span className="card-title">Lealtad (Clientes con Pedidos Entregados)</span>
                   <Link href="/admin/clients" className="card-action-link">Ver clientes ➔</Link>
                 </div>
-                {tierStats.map(t => (
-                  <div key={t.tier} className="tier-row">
-                    <div className={`tier-badge tier-${t.tier.split(' ')[0].toLowerCase()}`}>
-                      {t.tier}
-                    </div>
-                    <div className="tier-bar-wrap">
-                      <div
-                        className="tier-bar"
-                        style={{
-                          width: `${Math.max((t.count / Math.max(...tierStats.map(x => x.count), 1)) * 100, t.count ? 10 : 0)}%`,
-                          background: t.tier.startsWith('Gold') ? '#fbbf24' : t.tier.startsWith('Silver') ? '#9ca3af' : '#b45309'
-                        }}
-                      />
-                    </div>
-                    <div className="tier-count">{t.count}</div>
+                
+                {convertedClientsMetrics.convertedCount === 0 ? (
+                  <div className="empty-section">
+                    Aún no hay clientes con pedidos entregados. La lealtad se activará conforme se completen las entregas.
                   </div>
-                ))}
+                ) : (
+                  <>
+                    <div className="tier-row">
+                      <div className="tier-badge tier-gold">Gold ★★★ (Mayoreo/VIP)</div>
+                      <div className="tier-bar-wrap">
+                        <div
+                          className="tier-bar"
+                          style={{
+                            width: `${(convertedClientsMetrics.gold / convertedClientsMetrics.convertedCount) * 100}%`,
+                            background: '#fbbf24'
+                          }}
+                        />
+                      </div>
+                      <div className="tier-count">{convertedClientsMetrics.gold}</div>
+                    </div>
+
+                    <div className="tier-row">
+                      <div className="tier-badge tier-silver">Silver ★★ (Frecuente)</div>
+                      <div className="tier-bar-wrap">
+                        <div
+                          className="tier-bar"
+                          style={{
+                            width: `${(convertedClientsMetrics.silver / convertedClientsMetrics.convertedCount) * 100}%`,
+                            background: '#9ca3af'
+                          }}
+                        />
+                      </div>
+                      <div className="tier-count">{convertedClientsMetrics.silver}</div>
+                    </div>
+
+                    <div className="tier-row">
+                      <div className="tier-badge tier-bronze">Bronze ★ (Explorador)</div>
+                      <div className="tier-bar-wrap">
+                        <div
+                          className="tier-bar"
+                          style={{
+                            width: `${(convertedClientsMetrics.bronze / convertedClientsMetrics.convertedCount) * 100}%`,
+                            background: '#b45309'
+                          }}
+                        />
+                      </div>
+                      <div className="tier-count">{convertedClientsMetrics.bronze}</div>
+                    </div>
+                  </>
+                )}
 
                 <div className="card-top-bar" style={{ marginTop: 24 }}>
                   <span className="card-title">Últimos Pedidos Registrados</span>
                   <Link href="/admin/orders" className="card-action-link">Ver todos ➔</Link>
                 </div>
-                {recentOrders.length === 0 && <div className="empty-section">Sin pedidos registrados</div>}
-                {recentOrders.map((o: any) => (
+                {financialData.recentOrders.length === 0 && <div className="empty-section">Sin pedidos registrados</div>}
+                {financialData.recentOrders.map((o: any) => (
                   <div key={o.id} className="recent-row">
                     <div className="recent-num">
                       <strong>{o.order_number || o.id.slice(0, 8)}</strong>
@@ -1180,10 +1298,10 @@ export default function AdminAnalyticsPage() {
                     <div
                       className="recent-status"
                       style={{
-                        color: o.status === 'delivered' ? '#4ade80' : o.status === 'pending' ? '#fbbf24' : '#60a5fa'
+                        color: o.status === 'delivered' ? '#4ade80' : (o.status === 'cancelled' || o.status === 'canceled') ? '#f87171' : '#fbbf24'
                       }}
                     >
-                      {o.status === 'delivered' ? '✓ Entregado' : o.status === 'pending' ? '⏳ Pendiente' : o.status}
+                      {o.status === 'delivered' ? '✓ Entregado' : (o.status === 'cancelled' || o.status === 'canceled') ? '✗ Cancelado' : '⏳ ' + o.status}
                     </div>
                     <div className="recent-amount">${(o.total_mxn || 0).toLocaleString('es-MX')}</div>
                   </div>
@@ -1343,6 +1461,57 @@ export default function AdminAnalyticsPage() {
           margin: 0 auto;
         }
 
+        /* Pipeline Audit Bar */
+        .pipeline-audit-bar {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          background: #161616;
+          border: 1px solid #2a2a2a;
+          border-radius: 12px;
+          padding: 16px 24px;
+          margin-bottom: 28px;
+          gap: 16px;
+          flex-wrap: wrap;
+        }
+        .audit-item {
+          display: flex;
+          flex-direction: column;
+        }
+        .audit-lbl {
+          font-size: 11px;
+          font-weight: 700;
+          color: #888888;
+          text-transform: uppercase;
+          letter-spacing: 0.06em;
+          margin-bottom: 4px;
+        }
+        .audit-val {
+          font-family: var(--font-bebas-neue), sans-serif;
+          font-size: 26px;
+          color: #ffffff;
+          line-height: 1;
+        }
+        .audit-val.green { color: #10b981; }
+        .audit-val.gold { color: #fbbf24; }
+        .audit-val.red { color: #f87171; }
+        .audit-val.rate { color: #60a5fa; }
+        .audit-sub {
+          font-size: 11px;
+          color: #666666;
+          margin-top: 2px;
+        }
+        .audit-divider {
+          color: #444444;
+          font-weight: bold;
+        }
+        .rate-box {
+          background: #1f1f1f;
+          padding: 8px 14px;
+          border-radius: 8px;
+          border: 1px solid #333333;
+        }
+
         /* Dashboard Section */
         .dashboard-section {
           margin-bottom: 36px;
@@ -1467,6 +1636,11 @@ export default function AdminAnalyticsPage() {
           font-weight: 600;
           color: #999999;
         }
+        .rm-footnote {
+          font-size: 10px;
+          color: #555555;
+          margin-top: 4px;
+        }
 
         /* KPI Grid */
         .kpi-grid {
@@ -1575,8 +1749,14 @@ export default function AdminAnalyticsPage() {
           color: #cccccc;
         }
         .op-detail {
+          font-size: 11px;
+          color: #888888;
+          margin-top: 2px;
+        }
+        .op-tiny {
           font-size: 10px;
-          color: #666666;
+          color: #555555;
+          margin-top: 2px;
         }
         .op-bar-legend {
           display: flex;
@@ -2009,7 +2189,7 @@ export default function AdminAnalyticsPage() {
         .tier-badge {
           font-size: 12px;
           font-weight: 600;
-          min-width: 140px;
+          min-width: 150px;
         }
         .tier-gold { color: #fbbf24; }
         .tier-silver { color: #9ca3af; }
