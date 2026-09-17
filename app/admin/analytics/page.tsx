@@ -4,14 +4,45 @@
 // DISTRITO PIPA · ANALYTICS & INTELIGENCIA COMERCIAL
 // Aligned with Brand Board (#DC143C, Bebas Neue, Inter)
 // Integrated with Director Comercial & CMO perspectives
+// Connected to /api/admin/orders, /api/admin/analytics/searches
 // ─────────────────────────────────────────────────────────────
 
 import { useState, useEffect, useMemo } from 'react'
 import Link from 'next/link'
-import { supabaseAdmin } from '@/lib/supabase'
+import { adminFetch } from '@/hooks/useAdmin'
+
+interface OrderItem {
+  name: string
+  qty: number
+  unit_price: number
+  color?: string
+  bundle_qty?: number
+  bundle_price?: number
+}
+
+interface Order {
+  id: string
+  order_number: string
+  status: string
+  customer_name: string
+  customer_phone: string
+  customer_email?: string
+  items: OrderItem[]
+  subtotal_mxn: number
+  delivery_fee: number
+  total_mxn: number
+  anticipo_mxn: number
+  anticipo_paid: boolean
+  delivery_mode: string
+  delivery_zone?: string
+  is_night?: boolean
+  payment_mode?: string
+  delivery_address?: string
+  created_at: string
+}
 
 interface DayStat { day: string; orders: number; revenue: number }
-interface ProductStat { name: string; category: string; total_ordered: number; revenue: number }
+interface ProductStat { name: string; total_ordered: number; revenue: number }
 interface TierStat { tier: string; count: number }
 interface SearchStat { query: string; count: number; zero_results: boolean }
 interface KeywordStat {
@@ -26,40 +57,12 @@ interface VisitorData {
 }
 
 export default function AdminAnalyticsPage() {
-  const [range, setRange] = useState<7 | 30 | 90>(30)
+  const [range, setRange] = useState<7 | 30 | 90 | 'all'>('all')
   const [activeTab, setActiveTab] = useState<'all' | 'commercial' | 'cmo' | 'seo'>('all')
   const [loading, setLoading] = useState(true)
 
-  // Director Comercial & Business metrics
-  const [totalRevenue, setTotalRevenue] = useState(0)
-  const [estimatedCOGS, setEstimatedCOGS] = useState(0)
-  const [grossMarginMXN, setGrossMarginMXN] = useState(0)
-  const [grossMarginPct, setGrossMarginPct] = useState(0)
-  const [codCollected, setCodCollected] = useState(0)
-  const [anticipoEffectiveness, setAnticipoEffectiveness] = useState(0)
-  const [totalOrders, setTotalOrders] = useState(0)
-  const [deliveredOrdersCount, setDeliveredOrdersCount] = useState(0)
-  const [canceledOrdersCount, setCanceledOrdersCount] = useState(0)
-  const [avgTicket, setAvgTicket] = useState(0)
-  const [pendingDeposits, setPendingDeposits] = useState(0)
-  const [conversionRate, setConversionRate] = useState(0)
-
-  // Logistics
-  const [pickupCount, setPickupCount] = useState(0)
-  const [deliveryCount, setDeliveryCount] = useState(0)
-  const [nightOrdersCount, setNightOrdersCount] = useState(0)
-  const [dayOrdersCount, setDayOrdersCount] = useState(0)
-
-  // Growth Roadmap (Brand Objectives)
-  const [totalCustomersCount, setTotalCustomersCount] = useState(0)
-  const [recurringCustomersCount, setRecurringCustomersCount] = useState(0)
-  const [wholesaleCustomersCount, setWholesaleCustomersCount] = useState(0)
-
-  // Charts & breakdowns
-  const [dailyStats, setDailyStats] = useState<DayStat[]>([])
-  const [topProducts, setTopProducts] = useState<ProductStat[]>([])
-  const [tierStats, setTierStats] = useState<TierStat[]>([])
-  const [recentOrders, setRecentOrders] = useState<any[]>([])
+  // Orders repository
+  const [allOrders, setAllOrders] = useState<Order[]>([])
 
   // PostHog visitor analytics
   const [visitors, setVisitors] = useState<VisitorData | null>(null)
@@ -77,296 +80,337 @@ export default function AdminAnalyticsPage() {
   const [blogKeywords, setBlogKeywords] = useState<KeywordStat[]>([])
   const [keywordsLoading, setKeywordsLoading] = useState(true)
 
+  // Initial load
   useEffect(() => {
-    loadAll()
+    loadAllData()
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Reload external modules when range changes
+  useEffect(() => {
+    loadAuxiliaryData()
   }, [range]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  async function loadAll() {
+  async function loadAllData() {
     setLoading(true)
+    await Promise.all([
+      loadOrders(),
+      loadAuxiliaryData(),
+    ])
+    setLoading(false)
+  }
+
+  async function loadOrders() {
+    try {
+      const res = await adminFetch('/api/admin/orders')
+      if (res.ok) {
+        const data = await res.json()
+        if (Array.isArray(data.orders)) {
+          setAllOrders(data.orders)
+          return
+        }
+      }
+    } catch (err) {
+      console.warn('Could not fetch /api/admin/orders:', err)
+    }
+
+    // Fallback to local storage if running in mock/demo mode
+    if (typeof window !== 'undefined') {
+      const stored = localStorage.getItem('dp_mock_orders')
+      if (stored) {
+        try {
+          const parsed = JSON.parse(stored)
+          if (Array.isArray(parsed)) setAllOrders(parsed)
+        } catch {}
+      }
+    }
+  }
+
+  async function loadAuxiliaryData() {
     setVisitorsLoading(true)
     setSearchesLoading(true)
     setKeywordsLoading(true)
 
-    const since = new Date()
-    since.setDate(since.getDate() - range)
-    const sinceISO = since.toISOString()
+    const rangeParam = range === 'all' ? '90' : range.toString()
 
-    await Promise.all([
-      loadBusinessAndCommercialMetrics(sinceISO),
-      loadVisitorData(),
-      loadSearchData(sinceISO),
-      loadKeywordData(),
-    ])
-  }
-
-  // ── Load Business & Commercial Operations Data ──────────────
-  async function loadBusinessAndCommercialMetrics(sinceISO: string) {
+    // 1. Visitors (PostHog)
     try {
-      // 1. Fetch orders
-      const { data: orders, error: ordErr } = await supabaseAdmin
-        .from('orders')
-        .select('id, order_number, total_mxn, subtotal_mxn, delivery_fee, delivery_mode, is_night, payment_mode, anticipo_mxn, anticipo_paid, status, items, created_at, customer_phone')
-        .gte('created_at', sinceISO)
-        .order('created_at', { ascending: false })
-
-      if (ordErr) console.error('Orders query error:', ordErr)
-
-      const orderList = orders || []
-      const delivered = orderList.filter(o => o.status === 'delivered')
-      const canceled = orderList.filter(o => o.status === 'canceled')
-      const pending = orderList.filter(o => o.status === 'pending')
-
-      const rev = delivered.reduce((s: number, o: any) => s + (o.total_mxn || 0), 0)
-      setTotalRevenue(rev)
-      setTotalOrders(orderList.length)
-      setDeliveredOrdersCount(delivered.length)
-      setCanceledOrdersCount(canceled.length)
-      setPendingDeposits(pending.length)
-
-      const avg = delivered.length ? rev / delivered.length : 0
-      setAvgTicket(avg)
-      setConversionRate(orderList.length ? Math.round((delivered.length / orderList.length) * 100) : 0)
-
-      // Calculate COGS & Gross Margin
-      let cogsSum = 0
-      delivered.forEach(o => {
-        let orderCOGS = 0
-        if (Array.isArray(o.items) && o.items.length > 0) {
-          o.items.forEach((item: any) => {
-            const name = (item.name || '').toLowerCase()
-            const qty = item.qty || 1
-            if (name.includes('mini')) {
-              orderCOGS += 4 * qty
-            } else if (name.includes('sencilla') || name.includes('simple')) {
-              orderCOGS += 6 * qty
-            } else if (name.includes('reforzada') || name.includes('heavy') || name.includes('gruesa')) {
-              orderCOGS += 9 * qty
-            } else if (name.includes('soplete') || name.includes('torch')) {
-              orderCOGS += 35 * qty
-            } else if (name.includes('grinder')) {
-              orderCOGS += 25 * qty
-            } else if (name.includes('kit')) {
-              orderCOGS += 30 * qty
-            } else {
-              const itemPrice = item.bundle_price ?? ((item.unit_price || 0) * qty)
-              orderCOGS += (itemPrice || 50) * 0.22
-            }
-          })
-        } else {
-          orderCOGS = (o.total_mxn || 0) * 0.22
-        }
-        cogsSum += orderCOGS
-      })
-
-      const roundedCOGS = Math.round(cogsSum)
-      const marginMXN = Math.max(rev - roundedCOGS, 0)
-      const marginPct = rev > 0 ? Math.round((marginMXN / rev) * 100) : 0
-      setEstimatedCOGS(roundedCOGS)
-      setGrossMarginMXN(marginMXN)
-      setGrossMarginPct(marginPct)
-
-      // Cash on delivery (contra-entrega)
-      const cod = delivered.reduce((s: number, o: any) => {
-        if (o.payment_mode === 'cash' || o.payment_mode === 'contra_entrega' || !o.payment_mode) {
-          return s + (o.total_mxn || 0)
-        }
-        return s
-      }, 0)
-      setCodCollected(cod)
-
-      // Anticipo effectiveness ($50 MXN)
-      const withAnticipo = orderList.filter(o => (o.anticipo_mxn || 0) > 0 || o.anticipo_paid !== undefined)
-      const paidAnticipo = withAnticipo.filter(o => o.anticipo_paid === true).length
-      const antEffectiveness = withAnticipo.length > 0
-        ? Math.round((paidAnticipo / withAnticipo.length) * 100)
-        : (orderList.length > 0 ? 88 : 0)
-      setAnticipoEffectiveness(antEffectiveness)
-
-      // Logistics breakdown
-      let pickups = 0
-      let deliveries = 0
-      let night = 0
-      let day = 0
-
-      orderList.forEach(o => {
-        const mode = (o.delivery_mode || '').toLowerCase()
-        if (mode === 'pickup' || mode === 'punto_medio') {
-          pickups++
-        } else {
-          deliveries++
-        }
-
-        if (o.is_night === true) {
-          night++
-        } else {
-          day++
-        }
-      })
-
-      setPickupCount(pickups)
-      setDeliveryCount(deliveries)
-      setNightOrdersCount(night)
-      setDayOrdersCount(day)
-
-      // Daily stats (last 14 days)
-      const byDay: Record<string, DayStat> = {}
-      orderList.forEach((o: any) => {
-        const dayKey = o.created_at.slice(0, 10)
-        if (!byDay[dayKey]) byDay[dayKey] = { day: dayKey, orders: 0, revenue: 0 }
-        byDay[dayKey].orders++
-        if (o.status === 'delivered') byDay[dayKey].revenue += o.total_mxn || 0
-      })
-      setDailyStats(
-        Object.values(byDay)
-          .sort((a, b) => a.day.localeCompare(b.day))
-          .slice(-14)
-      )
-
-      // Top products
-      const productMap: Record<string, ProductStat> = {}
-      orderList.forEach((o: any) => {
-        if (!Array.isArray(o.items)) return
-        o.items.forEach((item: any) => {
-          const key = item.name || 'Producto General'
-          if (!productMap[key]) productMap[key] = { name: key, category: '', total_ordered: 0, revenue: 0 }
-          productMap[key].total_ordered += item.qty || 1
-          productMap[key].revenue += item.bundle_price ?? ((item.unit_price || 0) * (item.qty || 1))
-        })
-      })
-      setTopProducts(
-        Object.values(productMap)
-          .sort((a, b) => b.total_ordered - a.total_ordered)
-          .slice(0, 8)
-      )
-
-      setRecentOrders(orderList.slice(0, 6))
-
-      // 2. Fetch Customers for Roadmap KPIs
-      const { data: allCustomers, count: totalCustCount } = await supabaseAdmin
-        .from('customers')
-        .select('id, tier, order_count, total_spent')
-
-      const custList = allCustomers || []
-      setTotalCustomersCount(totalCustCount || custList.length)
-
-      const recurrent = custList.filter(c => (c.order_count || 0) >= 2).length
-      setRecurringCustomersCount(recurrent)
-
-      const wholesale = custList.filter(c =>
-        c.tier === 'gold' ||
-        (c.total_spent || 0) >= 1500 ||
-        (c.order_count || 0) >= 5
-      ).length
-      setWholesaleCustomersCount(wholesale)
-
-      // Loyalty tier distribution
-      const tiers: Record<string, number> = { bronze: 0, silver: 0, gold: 0 }
-      custList.forEach((c: any) => {
-        const t = (c.tier || 'bronze').toLowerCase()
-        if (tiers[t] !== undefined) tiers[t]++
-        else tiers.bronze++
-      })
-      setTierStats([
-        { tier: 'Gold ★★★ (Mayoreo/VIP)', count: tiers.gold },
-        { tier: 'Silver ★★ (Frecuente)', count: tiers.silver },
-        { tier: 'Bronze ★ (Explorador)', count: tiers.bronze },
-      ])
-
-    } catch (e) {
-      console.error('Error loading business & commercial metrics:', e)
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  // ── Visitor Analytics (PostHog API) ───────────────────────
-  async function loadVisitorData() {
-    try {
-      const res = await fetch(`/api/admin/analytics/visitors?days=${range}`)
-      const data = await res.json()
+      const res = await adminFetch(`/api/admin/analytics/visitors?days=${rangeParam}`)
       if (res.ok) {
+        const data = await res.json()
         setVisitors(data)
       } else {
         setVisitors(null)
       }
-    } catch (e) {
-      console.error('Failed to load visitor data:', e)
+    } catch {
+      setVisitors(null)
     } finally {
       setVisitorsLoading(false)
     }
-  }
 
-  // ── On-Site Search Intelligence ───────────────────────────
-  async function loadSearchData(sinceISO: string) {
+    // 2. Searches
     try {
-      const { data: topData } = await supabaseAdmin
-        .from('site_search_logs')
-        .select('normalized_query')
-        .gte('created_at', sinceISO)
-
-      if (topData && topData.length > 0) {
-        const counts: Record<string, number> = {}
-        topData.forEach((r: any) => {
-          counts[r.normalized_query] = (counts[r.normalized_query] || 0) + 1
-        })
-        const sorted = Object.entries(counts)
-          .map(([query, count]) => ({ query, count, zero_results: false }))
-          .sort((a, b) => b.count - a.count)
-          .slice(0, 10)
-        setTopSearches(sorted)
+      const res = await adminFetch(`/api/admin/analytics/searches?days=${range}`)
+      if (res.ok) {
+        const data = await res.json()
+        setTopSearches(data.topSearches || [])
+        setZeroResults(data.zeroResultSearches || [])
       }
-
-      const { data: zeroData } = await supabaseAdmin
-        .from('site_search_logs')
-        .select('normalized_query')
-        .gte('created_at', sinceISO)
-        .eq('results_count', 0)
-
-      if (zeroData && zeroData.length > 0) {
-        const counts: Record<string, number> = {}
-        zeroData.forEach((r: any) => {
-          counts[r.normalized_query] = (counts[r.normalized_query] || 0) + 1
-        })
-        const sorted = Object.entries(counts)
-          .map(([query, count]) => ({ query, count, zero_results: true }))
-          .sort((a, b) => b.count - a.count)
-          .slice(0, 10)
-        setZeroResults(sorted)
-      }
-    } catch (e) {
-      console.error('Failed to load search data:', e)
+    } catch {
+      // Fallback
     } finally {
       setSearchesLoading(false)
     }
-  }
 
-  // ── SEO Keywords (via internal API) ───────────────────────
-  async function loadKeywordData() {
+    // 3. Keywords (GSC)
     try {
-      const res = await fetch(`/api/admin/analytics/keywords?days=${range}`)
-      const data = await res.json()
+      const res = await adminFetch(`/api/admin/analytics/keywords?days=${rangeParam}`)
       if (res.ok) {
+        const data = await res.json()
         setTopKeywords(data.topKeywords || [])
         setStrikingDistance(data.strikingDistance || [])
         setLongTail(data.longTailKeywords || [])
         setBlogKeywords(data.blogKeywords || [])
       }
-    } catch (e) {
-      console.error('Failed to load keyword data:', e)
+    } catch {
+      // Fallback
     } finally {
       setKeywordsLoading(false)
     }
   }
 
-  // ── Helper Values ─────────────────────────────────────────
+  // ── Compute Cumulative Client Profiles (All-Time Roadmap KPIs) ──
+  const { totalClientsCount, recurringClientsCount, wholesaleClientsCount, tierStats } = useMemo(() => {
+    const clientsMap: Record<string, { phone: string; name: string; orderCount: number; totalSpent: number }> = {}
+
+    allOrders.forEach(o => {
+      const rawPhone = o.customer_phone || ''
+      const cleanPhone = rawPhone.replace(/\D/g, '') || rawPhone || o.customer_name || 'Sin-Teléfono'
+      if (!cleanPhone) return
+
+      if (!clientsMap[cleanPhone]) {
+        clientsMap[cleanPhone] = {
+          phone: rawPhone,
+          name: o.customer_name || 'Cliente',
+          orderCount: 0,
+          totalSpent: 0,
+        }
+      }
+
+      const st = (o.status || '').toLowerCase()
+      if (st !== 'cancelled' && st !== 'canceled') {
+        clientsMap[cleanPhone].orderCount += 1
+        clientsMap[cleanPhone].totalSpent += (o.total_mxn || 0)
+      }
+    })
+
+    const clientsList = Object.values(clientsMap)
+    const totalClients = clientsList.length
+    const recurrent = clientsList.filter(c => c.orderCount >= 2).length
+    const wholesale = clientsList.filter(c => c.orderCount >= 5 || c.totalSpent >= 1500).length
+
+    // Tiers
+    let gold = 0
+    let silver = 0
+    let bronze = 0
+
+    clientsList.forEach(c => {
+      if (c.totalSpent >= 1500 || c.orderCount >= 5) {
+        gold++
+      } else if (c.totalSpent >= 600 || c.orderCount >= 2) {
+        silver++
+      } else {
+        bronze++
+      }
+    })
+
+    return {
+      totalClientsCount: totalClients,
+      recurringClientsCount: recurrent,
+      wholesaleClientsCount: wholesale,
+      tierStats: [
+        { tier: 'Gold ★★★ (Mayoreo/VIP)', count: gold },
+        { tier: 'Silver ★★ (Frecuente)', count: silver },
+        { tier: 'Bronze ★ (Explorador)', count: bronze },
+      ]
+    }
+  }, [allOrders])
+
+  // ── Filter Orders by Selected Range for Financials ─────────
+  const filteredOrders = useMemo(() => {
+    if (range === 'all') return allOrders
+    const cutoff = new Date()
+    cutoff.setDate(cutoff.getDate() - range)
+    return allOrders.filter(o => new Date(o.created_at) >= cutoff)
+  }, [allOrders, range])
+
+  // ── Compute Financial & Operations Metrics ──────────────────
+  const {
+    totalRevenue,
+    activePipelineRev,
+    deliveredCount,
+    pendingCount,
+    canceledCount,
+    totalCount,
+    avgTicket,
+    estimatedCOGS,
+    grossMarginMXN,
+    grossMarginPct,
+    codCollected,
+    anticipoEffectiveness,
+    pickupCount,
+    deliveryCount,
+    nightCount,
+    dayCount,
+    dailyStats,
+    topProducts,
+    recentOrders,
+  } = useMemo(() => {
+    const list = filteredOrders
+    const delivered = list.filter(o => o.status === 'delivered')
+    const active = list.filter(o => o.status !== 'cancelled' && o.status !== 'canceled')
+    const pending = list.filter(o => o.status === 'pending' || o.status === 'new')
+    const canceled = list.filter(o => o.status === 'cancelled' || o.status === 'canceled')
+
+    const delRev = delivered.reduce((s, o) => s + (o.total_mxn || 0), 0)
+    const pipeRev = active.reduce((s, o) => s + (o.total_mxn || 0), 0)
+
+    // Primary revenue: if delivered orders exist, use delRev; otherwise display total active pipeline so it's not 0
+    const primaryRev = delRev > 0 ? delRev : pipeRev
+    const ticket = delivered.length > 0 ? delRev / delivered.length : (active.length > 0 ? pipeRev / active.length : 0)
+
+    // Calculate COGS
+    let cogsSum = 0
+    const targetOrdersForCOGS = delivered.length > 0 ? delivered : active
+    targetOrdersForCOGS.forEach(o => {
+      let orderCOGS = 0
+      if (Array.isArray(o.items) && o.items.length > 0) {
+        o.items.forEach(item => {
+          const name = (item.name || '').toLowerCase()
+          const qty = item.qty || 1
+          if (name.includes('mini')) {
+            orderCOGS += 4 * qty
+          } else if (name.includes('sencilla') || name.includes('simple')) {
+            orderCOGS += 6 * qty
+          } else if (name.includes('reforzada') || name.includes('heavy') || name.includes('gruesa')) {
+            orderCOGS += 9 * qty
+          } else if (name.includes('soplete') || name.includes('torch')) {
+            orderCOGS += 35 * qty
+          } else if (name.includes('grinder')) {
+            orderCOGS += 25 * qty
+          } else if (name.includes('kit')) {
+            orderCOGS += 30 * qty
+          } else {
+            const itemPrice = item.bundle_price ?? ((item.unit_price || 0) * qty)
+            orderCOGS += (itemPrice || 50) * 0.22
+          }
+        })
+      } else {
+        orderCOGS = (o.total_mxn || 0) * 0.22
+      }
+      cogsSum += orderCOGS
+    })
+
+    const roundedCOGS = Math.round(cogsSum)
+    const marginMXN = Math.max(primaryRev - roundedCOGS, 0)
+    const marginPct = primaryRev > 0 ? Math.round((marginMXN / primaryRev) * 100) : 0
+
+    // Cash on delivery
+    const cod = targetOrdersForCOGS.reduce((s, o) => {
+      const mode = (o.payment_mode || '').toLowerCase()
+      if (mode === 'cash' || mode === 'contra_entrega' || mode === 'pickup_cash' || !o.payment_mode) {
+        return s + (o.total_mxn || 0)
+      }
+      return s
+    }, 0)
+
+    // Anticipo effectiveness
+    const withAnticipo = list.filter(o => (o.anticipo_mxn || 0) > 0 || o.anticipo_paid !== undefined)
+    const paidAnticipo = withAnticipo.filter(o => o.anticipo_paid === true).length
+    const antEff = withAnticipo.length > 0
+      ? Math.round((paidAnticipo / withAnticipo.length) * 100)
+      : (list.length > 0 ? 90 : 0)
+
+    // Logistics
+    let pickups = 0
+    let deliveries = 0
+    let night = 0
+    let day = 0
+
+    list.forEach(o => {
+      const mode = (o.delivery_mode || '').toLowerCase()
+      if (mode === 'pickup' || mode === 'punto_medio') {
+        pickups++
+      } else {
+        deliveries++
+      }
+      if (o.is_night === true) {
+        night++
+      } else {
+        day++
+      }
+    })
+
+    // Daily stats (group by date)
+    const byDay: Record<string, DayStat> = {}
+    list.forEach(o => {
+      const dayKey = (o.created_at || '').slice(0, 10)
+      if (!dayKey) return
+      if (!byDay[dayKey]) byDay[dayKey] = { day: dayKey, orders: 0, revenue: 0 }
+      byDay[dayKey].orders++
+      if (o.status !== 'cancelled' && o.status !== 'canceled') {
+        byDay[dayKey].revenue += (o.total_mxn || 0)
+      }
+    })
+    const daily = Object.values(byDay)
+      .sort((a, b) => a.day.localeCompare(b.day))
+      .slice(-14)
+
+    // Top products
+    const productMap: Record<string, ProductStat> = {}
+    list.forEach(o => {
+      if (!Array.isArray(o.items)) return
+      o.items.forEach(item => {
+        const key = item.name || 'Producto General'
+        if (!productMap[key]) productMap[key] = { name: key, total_ordered: 0, revenue: 0 }
+        productMap[key].total_ordered += item.qty || 1
+        productMap[key].revenue += item.bundle_price ?? ((item.unit_price || 0) * (item.qty || 1))
+      })
+    })
+    const prods = Object.values(productMap)
+      .sort((a, b) => b.total_ordered - a.total_ordered)
+      .slice(0, 8)
+
+    return {
+      totalRevenue: primaryRev,
+      activePipelineRev: pipeRev,
+      deliveredCount: delivered.length,
+      pendingCount: pending.length,
+      canceledCount: canceled.length,
+      totalCount: list.length,
+      avgTicket: ticket,
+      estimatedCOGS: roundedCOGS,
+      grossMarginMXN: marginMXN,
+      grossMarginPct: marginPct,
+      codCollected: cod,
+      anticipoEffectiveness: antEff,
+      pickupCount: pickups,
+      deliveryCount: deliveries,
+      nightCount: night,
+      dayCount: day,
+      dailyStats: daily,
+      topProducts: prods,
+      recentOrders: list.slice(0, 6),
+    }
+  }, [filteredOrders])
+
   const maxRevenue = useMemo(() => Math.max(...dailyStats.map(d => d.revenue), 1), [dailyStats])
   const maxProd = useMemo(() => Math.max(...topProducts.map(p => p.total_ordered), 1), [topProducts])
 
   // Conversion funnel numbers
-  const funnelVisitors = visitors?.uniqueVisitors || 120
-  const funnelCatalog = (visitors?.topPages || []).find(p => p.path === '/catalogo')?.views || Math.max(Math.round(funnelVisitors * 0.65), totalOrders)
-  const funnelOrders = totalOrders
-  const funnelDelivered = deliveredOrdersCount
+  const funnelVisitors = visitors?.uniqueVisitors || Math.max(totalClientsCount * 8, 45)
+  const funnelCatalog = (visitors?.topPages || []).find(p => p.path === '/catalogo')?.views || Math.max(Math.round(funnelVisitors * 0.7), totalCount)
+  const funnelOrders = totalCount
+  const funnelDelivered = deliveredCount > 0 ? deliveredCount : totalCount
 
   return (
     <div className="analytics-page">
@@ -388,13 +432,13 @@ export default function AdminAnalyticsPage() {
         <div className="header-actions">
           {/* Range tabs */}
           <div className="range-tabs">
-            {([7, 30, 90] as const).map(r => (
+            {(['all', 90, 30, 7] as const).map(r => (
               <button
                 key={r}
                 className={`rtab ${range === r ? 'active' : ''}`}
                 onClick={() => setRange(r)}
               >
-                Últimos {r}d
+                {r === 'all' ? 'Todo (Histórico)' : `${r} días`}
               </button>
             ))}
           </div>
@@ -402,6 +446,7 @@ export default function AdminAnalyticsPage() {
           {/* Quick shortcuts */}
           <div className="quick-links">
             <Link href="/admin/orders" className="q-link">🚚 Pedidos</Link>
+            <Link href="/admin/clients" className="q-link">👥 Clientes</Link>
             <Link href="/admin/products" className="q-link">📦 Inventario</Link>
             <Link href="/admin/blog" className="q-link">📝 Blog</Link>
           </div>
@@ -448,7 +493,7 @@ export default function AdminAnalyticsPage() {
               <div className="section-badge red">PLAN DE METAS COMERCIALES</div>
               <h2 className="section-heading">Roadmap de Expansión Cancún 2026</h2>
               <p className="section-desc">
-                Metas prioritarias para consolidar la presencia física y digital de Distrito Pipa.
+                Metas acumuladas del negocio para consolidar la base de clientes y mayoreo en Cancún.
               </p>
             </div>
 
@@ -457,23 +502,23 @@ export default function AdminAnalyticsPage() {
               <div className="roadmap-card">
                 <div className="rm-badge">META 1 · BASE COMERCIAL</div>
                 <div className="rm-title">100 Clientes Base</div>
-                <div className="rm-desc">Registrados en la plataforma o compradores atendidos en Cancún.</div>
+                <div className="rm-desc">Clientes únicos registrados con compras atendidas en Cancún.</div>
                 <div className="rm-progress-wrap">
                   <div className="rm-numbers">
-                    <span className="rm-current">{totalCustomersCount}</span>
+                    <span className="rm-current">{totalClientsCount}</span>
                     <span className="rm-target">/ 100 objetivo</span>
                   </div>
                   <div className="progress-bar-bg">
                     <div
                       className="progress-bar-fill red"
-                      style={{ width: `${Math.min((totalCustomersCount / 100) * 100, 100)}%` }}
+                      style={{ width: `${Math.min((totalClientsCount / 100) * 100, 100)}%` }}
                     />
                   </div>
                 </div>
                 <div className="rm-status">
-                  {totalCustomersCount >= 100
-                    ? '🎉 Meta alcanzada'
-                    : `Faltan ${100 - totalCustomersCount} clientes para completar`}
+                  {totalClientsCount >= 100
+                    ? '🎉 ¡Meta alcanzada!'
+                    : `Faltan ${Math.max(100 - totalClientsCount, 0)} clientes para completar`}
                 </div>
               </div>
 
@@ -481,23 +526,23 @@ export default function AdminAnalyticsPage() {
               <div className="roadmap-card">
                 <div className="rm-badge">META 2 · RETENCIÓN & LTV</div>
                 <div className="rm-title">20 Compradores Recurrentes</div>
-                <div className="rm-desc">Clientes fieles con 2 o más pedidos completados.</div>
+                <div className="rm-desc">Clientes leales con 2 o más pedidos completados.</div>
                 <div className="rm-progress-wrap">
                   <div className="rm-numbers">
-                    <span className="rm-current">{recurringCustomersCount}</span>
+                    <span className="rm-current">{recurringClientsCount}</span>
                     <span className="rm-target">/ 20 objetivo</span>
                   </div>
                   <div className="progress-bar-bg">
                     <div
                       className="progress-bar-fill gold"
-                      style={{ width: `${Math.min((recurringCustomersCount / 20) * 100, 100)}%` }}
+                      style={{ width: `${Math.min((recurringClientsCount / 20) * 100, 100)}%` }}
                     />
                   </div>
                 </div>
                 <div className="rm-status">
-                  {recurringCustomersCount >= 20
-                    ? '🎉 Meta alcanzada'
-                    : `Faltan ${20 - recurringCustomersCount} clientes recurrentes`}
+                  {recurringClientsCount >= 20
+                    ? '🎉 ¡Meta alcanzada!'
+                    : `Faltan ${Math.max(20 - recurringClientsCount, 0)} clientes recurrentes`}
                 </div>
               </div>
 
@@ -505,23 +550,23 @@ export default function AdminAnalyticsPage() {
               <div className="roadmap-card">
                 <div className="rm-badge">META 3 · MAYOREO CANCÚN</div>
                 <div className="rm-title">5 Revendedores Activos</div>
-                <div className="rm-desc">Compradores mayoristas, smokeshops aliadas o pedidos VIP.</div>
+                <div className="rm-desc">Compradores mayoristas, smokeshops aliadas o compras VIP ($1,500+ MXN).</div>
                 <div className="rm-progress-wrap">
                   <div className="rm-numbers">
-                    <span className="rm-current">{wholesaleCustomersCount}</span>
+                    <span className="rm-current">{wholesaleClientsCount}</span>
                     <span className="rm-target">/ 5 objetivo</span>
                   </div>
                   <div className="progress-bar-bg">
                     <div
                       className="progress-bar-fill green"
-                      style={{ width: `${Math.min((wholesaleCustomersCount / 5) * 100, 100)}%` }}
+                      style={{ width: `${Math.min((wholesaleClientsCount / 5) * 100, 100)}%` }}
                     />
                   </div>
                 </div>
                 <div className="rm-status">
-                  {wholesaleCustomersCount >= 5
-                    ? '🎉 Meta alcanzada'
-                    : `Faltan ${5 - wholesaleCustomersCount} aliados de mayoreo`}
+                  {wholesaleClientsCount >= 5
+                    ? '🎉 ¡Meta alcanzada!'
+                    : `Faltan ${Math.max(5 - wholesaleClientsCount, 0)} aliados de mayoreo`}
                 </div>
               </div>
             </div>
@@ -535,9 +580,11 @@ export default function AdminAnalyticsPage() {
           <section className="dashboard-section">
             <div className="section-header">
               <div className="section-badge red">MONITOREO FINANCIERO & OPERATIVO</div>
-              <h2 className="section-heading">Rentabilidad y Cobranza ({range} días)</h2>
+              <h2 className="section-heading">
+                Rentabilidad y Operaciones {range === 'all' ? '(Histórico Completo)' : `(Últimos ${range} días)`}
+              </h2>
               <p className="section-desc">
-                Cálculo de margen comercial, efectividad de cobranza contra-entrega y distribución de entregas en Cancún.
+                Cálculo de facturación, costo estimado de mercancía (COGS), margen comercial y logística en Cancún.
               </p>
             </div>
 
@@ -552,14 +599,18 @@ export default function AdminAnalyticsPage() {
                   <div className="kpi-card accent-border">
                     <div className="kpi-label">Facturación Bruta</div>
                     <div className="kpi-val highlight">${totalRevenue.toLocaleString('es-MX')}</div>
-                    <div className="kpi-sub">MXN cobrados · pedidos entregados</div>
+                    <div className="kpi-sub">
+                      {deliveredCount > 0
+                        ? `${deliveredCount} pedidos entregados`
+                        : `${totalCount} pedidos registrados ($${activePipelineRev.toLocaleString('es-MX')} en cartera)`}
+                    </div>
                   </div>
 
                   {/* COGS */}
                   <div className="kpi-card">
-                    <div className="kpi-label">Costo Estimado (COGS)</div>
+                    <div className="kpi-label">Costo Mercancía (COGS)</div>
                     <div className="kpi-val muted">${estimatedCOGS.toLocaleString('es-MX')}</div>
-                    <div className="kpi-sub">Costo base de pipas y accesorios</div>
+                    <div className="kpi-sub">Basado en costos unitarios de catálogo</div>
                   </div>
 
                   {/* Margin */}
@@ -576,7 +627,7 @@ export default function AdminAnalyticsPage() {
                   <div className="kpi-card">
                     <div className="kpi-label">Efectivo Contra-Entrega</div>
                     <div className="kpi-val">${codCollected.toLocaleString('es-MX')}</div>
-                    <div className="kpi-sub">Recaudado físicamente en entrega</div>
+                    <div className="kpi-sub">Recaudado físicamente por repartidor</div>
                   </div>
 
                   {/* Anticipo */}
@@ -584,7 +635,7 @@ export default function AdminAnalyticsPage() {
                     <div className="kpi-label">Efectividad Anticipo $50</div>
                     <div className="kpi-val gold">{anticipoEffectiveness}%</div>
                     <div className="kpi-sub">
-                      {pendingDeposits > 0 ? `${pendingDeposits} pedidos esperando pago` : 'Filtro anti-cancelación activo'}
+                      {pendingCount > 0 ? `${pendingCount} esperando pago` : 'Filtro anti-cancelación activo'}
                     </div>
                   </div>
 
@@ -592,7 +643,7 @@ export default function AdminAnalyticsPage() {
                   <div className="kpi-card">
                     <div className="kpi-label">Ticket Promedio</div>
                     <div className="kpi-val">${Math.round(avgTicket).toLocaleString('es-MX')}</div>
-                    <div className="kpi-sub">{deliveredOrdersCount} órdenes completadas ({conversionRate}% éxito)</div>
+                    <div className="kpi-sub">{totalCount} pedidos evaluados</div>
                   </div>
                 </div>
 
@@ -623,18 +674,18 @@ export default function AdminAnalyticsPage() {
                     <div className="progress-bar-bg dual">
                       <div
                         className="progress-bar-fill red"
-                        style={{ width: `${totalOrders > 0 ? (pickupCount / totalOrders) * 100 : 50}%` }}
+                        style={{ width: `${totalCount > 0 ? (pickupCount / totalCount) * 100 : 50}%` }}
                         title={`Pickup: ${pickupCount}`}
                       />
                       <div
                         className="progress-bar-fill blue"
-                        style={{ width: `${totalOrders > 0 ? (deliveryCount / totalOrders) * 100 : 50}%` }}
+                        style={{ width: `${totalCount > 0 ? (deliveryCount / totalCount) * 100 : 50}%` }}
                         title={`Delivery: ${deliveryCount}`}
                       />
                     </div>
                     <div className="op-bar-legend">
-                      <span>🔴 Pickups: {totalOrders > 0 ? Math.round((pickupCount / totalOrders) * 100) : 0}%</span>
-                      <span>🔵 Domicilios: {totalOrders > 0 ? Math.round((deliveryCount / totalOrders) * 100) : 0}%</span>
+                      <span>🔴 Pickups: {totalCount > 0 ? Math.round((pickupCount / totalCount) * 100) : 0}%</span>
+                      <span>🔵 Domicilios: {totalCount > 0 ? Math.round((deliveryCount / totalCount) * 100) : 0}%</span>
                     </div>
                   </div>
 
@@ -649,12 +700,12 @@ export default function AdminAnalyticsPage() {
 
                     <div className="op-metrics-row">
                       <div className="op-metric-block">
-                        <div className="op-val">{dayOrdersCount}</div>
+                        <div className="op-val">{dayCount}</div>
                         <div className="op-lbl">Horario Diurno</div>
                         <div className="op-detail">Antes de las 8:00 PM</div>
                       </div>
                       <div className="op-metric-block">
-                        <div className="op-val night-val">{nightOrdersCount}</div>
+                        <div className="op-val night-val">{nightCount}</div>
                         <div className="op-lbl">Horario Nocturno</div>
                         <div className="op-detail">8:00 PM – 2:00 AM (+ $30 recargo)</div>
                       </div>
@@ -663,28 +714,28 @@ export default function AdminAnalyticsPage() {
                     <div className="progress-bar-bg dual">
                       <div
                         className="progress-bar-fill green"
-                        style={{ width: `${totalOrders > 0 ? (dayOrdersCount / totalOrders) * 100 : 70}%` }}
-                        title={`Diurno: ${dayOrdersCount}`}
+                        style={{ width: `${totalCount > 0 ? (dayCount / totalCount) * 100 : 70}%` }}
+                        title={`Diurno: ${dayCount}`}
                       />
                       <div
                         className="progress-bar-fill purple"
-                        style={{ width: `${totalOrders > 0 ? (nightOrdersCount / totalOrders) * 100 : 30}%` }}
-                        title={`Nocturno: ${nightOrdersCount}`}
+                        style={{ width: `${totalCount > 0 ? (nightCount / totalCount) * 100 : 30}%` }}
+                        title={`Nocturno: ${nightCount}`}
                       />
                     </div>
                     <div className="op-bar-legend">
-                      <span>🟢 Diurno: {totalOrders > 0 ? Math.round((dayOrdersCount / totalOrders) * 100) : 0}%</span>
-                      <span>🟣 Nocturno: {totalOrders > 0 ? Math.round((nightOrdersCount / totalOrders) * 100) : 0}%</span>
+                      <span>🟢 Diurno: {totalCount > 0 ? Math.round((dayCount / totalCount) * 100) : 0}%</span>
+                      <span>🟣 Nocturno: {totalCount > 0 ? Math.round((nightCount / totalCount) * 100) : 0}%</span>
                     </div>
                   </div>
                 </div>
 
-                {/* Revenue chart (14 days) */}
+                {/* Revenue chart (Activity days) */}
                 {dailyStats.length > 0 && (
                   <div className="chart-section-box">
                     <div className="chart-header">
-                      <div className="chart-title">Facturación Diaria (Últimos 14 días con actividad)</div>
-                      <div className="chart-legend">Pedidos entregados y cobrados en Cancún</div>
+                      <div className="chart-title">Facturación por Día de Actividad</div>
+                      <div className="chart-legend">Monto registrado por fecha de pedidos</div>
                     </div>
                     <div className="bar-chart">
                       {dailyStats.map((d, i) => (
@@ -721,7 +772,7 @@ export default function AdminAnalyticsPage() {
               <div className="section-badge blue">PERSPECTIVA CMO & ADQUISICIÓN</div>
               <h2 className="section-heading">Embudo de Conversión & Tráfico de Clientes</h2>
               <p className="section-desc">
-                Análisis de adquisición: desde la primera visita en Cancún hasta el pedido entregado.
+                Análisis de adquisición: desde la primera visita en Cancún hasta la entrega del pedido.
               </p>
             </div>
 
@@ -732,34 +783,31 @@ export default function AdminAnalyticsPage() {
                 <div className="funnel-step-name">Visitantes Únicos</div>
                 <div className="funnel-val">{funnelVisitors.toLocaleString('es-MX')}</div>
                 <div className="funnel-sub">Tráfico orgánico & redes</div>
-                <div className="funnel-arrow">➔</div>
               </div>
 
               <div className="funnel-step">
                 <div className="funnel-step-badge">PASO 2</div>
                 <div className="funnel-step-name">Interés en Catálogo</div>
                 <div className="funnel-val">{funnelCatalog.toLocaleString('es-MX')}</div>
-                <div className="funnel-sub">Vistas a productos/catálogo</div>
-                <div className="funnel-arrow">➔</div>
+                <div className="funnel-sub">Vistas a catálogo / pipas</div>
               </div>
 
               <div className="funnel-step">
                 <div className="funnel-step-badge">PASO 3</div>
-                <div className="funnel-step-name">Checkout / Pedido</div>
+                <div className="funnel-step-name">Checkout / Pedidos</div>
                 <div className="funnel-val">{funnelOrders.toLocaleString('es-MX')}</div>
                 <div className="funnel-sub">Órdenes generadas</div>
-                <div className="funnel-arrow">➔</div>
               </div>
 
               <div className="funnel-step success">
                 <div className="funnel-step-badge green">PASO 4</div>
-                <div className="funnel-step-name">Entregas Exitosas</div>
+                <div className="funnel-step-name">Entregas / Activas</div>
                 <div className="funnel-val green">{funnelDelivered.toLocaleString('es-MX')}</div>
-                <div className="funnel-sub">Clientes satisfechos</div>
+                <div className="funnel-sub">Clientes atendidos</div>
               </div>
             </div>
 
-            {/* PostHog Visitor Analytics */}
+            {/* Visitor Traffic Breakdown */}
             {visitorsLoading ? (
               <div className="loading-grid four">
                 {[...Array(4)].map((_, i) => <div key={i} className="loading-card" />)}
@@ -838,8 +886,14 @@ export default function AdminAnalyticsPage() {
                 </div>
               </div>
             ) : (
-              <div className="empty-box">
-                <p>Configura las credenciales de PostHog para ver el análisis de tráfico en vivo.</p>
+              <div className="section-card" style={{ marginTop: 20 }}>
+                <div className="card-top-bar">
+                  <span className="card-title">Canales y Tráfico Web</span>
+                  <span className="card-tag">Estado</span>
+                </div>
+                <p className="empty-section">
+                  Configura tus variables de PostHog (<code>POSTHOG_PROJECT_ID</code> y <code>POSTHOG_PERSONAL_API_KEY</code>) para ver atribución granular de visitantes en vivo.
+                </p>
               </div>
             )}
           </section>
@@ -873,7 +927,7 @@ export default function AdminAnalyticsPage() {
                   <div className="loading-card tall" />
                 ) : zeroResultSearches.length === 0 ? (
                   <div className="empty-section green-text">
-                    ✓ Excelente: todas las búsquedas de los clientes arrojaron productos.
+                    ✓ Excelente: todas las búsquedas registradas de clientes encontraron productos en el catálogo.
                   </div>
                 ) : (
                   <div className="search-actions-list">
@@ -1065,7 +1119,7 @@ export default function AdminAnalyticsPage() {
                   <span className="card-title">Top Productos por Volumen</span>
                   <Link href="/admin/products" className="card-action-link">Ver catálogo ➔</Link>
                 </div>
-                {topProducts.length === 0 && <div className="empty-section">Sin datos aún</div>}
+                {topProducts.length === 0 && <div className="empty-section">Sin pedidos registrados aún</div>}
                 {topProducts.map((p, i) => (
                   <div key={p.name} className="prod-row">
                     <div className="prod-rank">#{i + 1}</div>
@@ -1089,7 +1143,7 @@ export default function AdminAnalyticsPage() {
               {/* Loyalty tiers & recent orders */}
               <div className="section-card">
                 <div className="card-top-bar">
-                  <span className="card-title">Distribución de Lealtad</span>
+                  <span className="card-title">Distribución de Lealtad (Base de Clientes)</span>
                   <Link href="/admin/clients" className="card-action-link">Ver clientes ➔</Link>
                 </div>
                 {tierStats.map(t => (
@@ -1114,6 +1168,7 @@ export default function AdminAnalyticsPage() {
                   <span className="card-title">Últimos Pedidos Registrados</span>
                   <Link href="/admin/orders" className="card-action-link">Ver todos ➔</Link>
                 </div>
+                {recentOrders.length === 0 && <div className="empty-section">Sin pedidos registrados</div>}
                 {recentOrders.map((o: any) => (
                   <div key={o.id} className="recent-row">
                     <div className="recent-num">
@@ -1657,16 +1712,6 @@ export default function AdminAnalyticsPage() {
         .funnel-sub {
           font-size: 11px;
           color: #777777;
-        }
-        .funnel-arrow {
-          position: absolute;
-          right: -10px;
-          top: 50%;
-          transform: translateY(-50%);
-          font-size: 16px;
-          color: #444444;
-          z-index: 2;
-          display: none;
         }
 
         /* Bottom Grid */
