@@ -100,13 +100,13 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           display: flex;
           min-height: 100vh;
           background: #111;
-          font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+          font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
           color: #fff;
         }
 
-        /* ── Sidebar ── */
+        /* ── Sidebar (Mobile Default: Hidden off-canvas) ── */
         .sidebar {
-          width: 220px;
+          width: 250px;
           flex-shrink: 0;
           background: #0d0d0d;
           border-right: 1px solid #1a1a1a;
@@ -116,22 +116,19 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           top: 0; left: 0; bottom: 0;
           z-index: 100;
           transform: translateX(-100%);
-          transition: transform 0.25s ease;
+          transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1);
         }
 
-        @media (min-width: 768px) {
-          .sidebar { transform: translateX(0); position: sticky; top: 0; height: 100vh; }
-          .topbar  { display: none; }
-          .admin-main { margin-left: 220px; }
-          .side-overlay { display: none; }
+        .sidebar.open {
+          transform: translateX(0);
+          box-shadow: 10px 0 30px rgba(0, 0, 0, 0.8);
         }
-
-        .sidebar.open { transform: translateX(0); }
 
         .side-overlay {
           position: fixed;
           inset: 0;
-          background: rgba(0,0,0,0.5);
+          background: rgba(0, 0, 0, 0.65);
+          backdrop-filter: blur(2px);
           z-index: 99;
         }
 
@@ -142,11 +139,11 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
 
         .sb-eyebrow { font-size: 10px; letter-spacing: .2em; color: #888; text-transform: uppercase; }
         .sb-brand   { font-family: Georgia, serif; font-style: italic; font-size: 28px; color: #fff; line-height: 1; }
-        .sb-tag     { font-size: 9px; letter-spacing: .15em; color: #CC2222; text-transform: uppercase; margin-top: 3px; }
+        .sb-tag     { font-size: 9px; letter-spacing: .15em; color: #DC143C; text-transform: uppercase; margin-top: 3px; font-weight: 700; }
 
         .sb-rule {
-          width: 32px; height: 1px;
-          background: #CC2222;
+          width: 32px; height: 2px;
+          background: #DC143C;
           margin: 0 auto 16px;
         }
 
@@ -155,20 +152,21 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           padding: 8px 12px;
           display: flex;
           flex-direction: column;
-          gap: 2px;
+          gap: 4px;
         }
 
         .nav-item {
           display: flex;
           align-items: center;
-          gap: 10px;
-          padding: 10px 12px;
+          gap: 12px;
+          padding: 10px 14px;
           border-radius: 8px;
           font-size: 14px;
+          font-weight: 500;
           color: #888;
           text-decoration: none;
           cursor: pointer;
-          transition: all 0.15s;
+          transition: all 0.15s ease;
           background: transparent;
           border: none;
           width: 100%;
@@ -176,9 +174,9 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         }
 
         .nav-item:hover  { background: #1a1a1a; color: #fff; }
-        .nav-item.active { background: rgba(204, 34, 34, 0.15); color: #fff; }
+        .nav-item.active { background: rgba(220, 20, 60, 0.15); color: #fff; border-left: 3px solid #DC143C; }
         .nav-item.active .nav-icon { filter: none; }
-        .nav-item.logout:hover { color: #f87171; }
+        .nav-item.logout:hover { color: #f87171; background: rgba(239, 68, 68, 0.1); }
 
         .nav-icon { font-size: 16px; flex-shrink: 0; }
 
@@ -187,17 +185,19 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           border-top: 1px solid #1a1a1a;
           display: flex;
           flex-direction: column;
-          gap: 2px;
+          gap: 4px;
         }
 
-        /* ── Main ── */
+        /* ── Main Content Area ── */
         .admin-main {
           flex: 1;
           min-width: 0;
           background: #111;
+          display: flex;
+          flex-direction: column;
         }
 
-        /* ── Mobile topbar ── */
+        /* ── Mobile topbar (Visible ONLY on mobile devices <768px) ── */
         .topbar {
           display: flex;
           align-items: center;
@@ -217,11 +217,39 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           font-size: 20px;
           cursor: pointer;
           padding: 4px 8px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
         }
 
         .topbar-title {
           font-size: 15px;
           font-weight: 600;
+        }
+
+        /* ── Desktop Breakpoint (>= 768px): Hide mobile topbar & fix sidebar ── */
+        @media (min-width: 768px) {
+          .topbar {
+            display: none !important;
+          }
+
+          .side-overlay {
+            display: none !important;
+          }
+
+          .sidebar {
+            width: 220px;
+            transform: translateX(0) !important;
+            position: fixed;
+            top: 0;
+            left: 0;
+            bottom: 0;
+            height: 100vh;
+          }
+
+          .admin-main {
+            margin-left: 220px;
+          }
         }
       `}</style>
     </div>
