@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { isValidAdminRequest } from '@/lib/auth';
 
 export const dynamic = 'force-dynamic';
 
@@ -26,6 +27,10 @@ async function executeHogQL(query: string, projectId: string, apiKey: string) {
 }
 
 export async function GET(request: Request) {
+  if (!await isValidAdminRequest(request)) {
+    return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
+  }
+
   try {
     const { searchParams } = new URL(request.url);
     const daysParam = searchParams.get('days');
