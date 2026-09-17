@@ -941,7 +941,7 @@ export default function AdminClientsPage() {
                 onClick={async () => {
                   if (confirm(`¿Estás seguro de que deseas eliminar permanentemente a ${selectedClient.name} y todo su historial de pedidos? Esta acción no se puede deshacer.`)) {
                     try {
-                      const res = await adminFetch(`/api/admin/clients?phone=${encodeURIComponent(selectedClient.phone)}`, { method: 'DELETE' })
+                      const res = await adminFetch(`/api/admin/clients?id=${encodeURIComponent(selectedClient.id || '')}&phone=${encodeURIComponent(selectedClient.phone || '')}`, { method: 'DELETE' })
                       if (res.ok) {
                         toast.success('Cliente eliminado')
                         setSelectedClient(null)

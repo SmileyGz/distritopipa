@@ -9,33 +9,53 @@ export async function DELETE(req: NextRequest) {
 
   try {
     const { searchParams } = new URL(req.url)
-    const phone = searchParams.get('phone') || ''
+    const clientId = searchParams.get('id') || ''
+    const rawPhone = searchParams.get('phone') || ''
+    const cleanPhone = rawPhone.replace(/\D/g, '')
 
-    // If there is no phone number, it means these are orphaned test orders (no customer profile)
-    // We should safely wipe any order that has no customer_id.
-    if (!phone) {
+    let customerIds: string[] = []
+    if (clientId) {
+      customerIds.push(clientId)
+    }
+
+    if (rawPhone || cleanPhone) {
+      const { data: customers } = await supabaseAdmin
+        .from('customers')
+        .select('id')
+        .or(`phone.eq.${rawPhone},phone.eq.${cleanPhone}`)
+
+      if (customers) {
+        for (const c of customers) {
+          if (!customerIds.includes(c.id)) customerIds.push(c.id)
+        }
+      }
+    }
+
+    // If neither id nor phone was provided, wipe orphaned orders without customer_id
+    if (customerIds.length === 0 && !rawPhone && !cleanPhone) {
       const { error: orphanErr } = await supabaseAdmin.from('orders').delete().is('customer_id', null)
       if (orphanErr) throw orphanErr
       return NextResponse.json({ success: true })
     }
 
-    // Find the customer by phone (use limit instead of single to prevent crashes if zero or multiple exist)
-    const { data: customers, error: fetchErr } = await supabaseAdmin
-      .from('customers')
-      .select('id')
-      .eq('phone', phone)
-      .limit(1)
+    // 1. Delete associated points_ledger if table exists
+    for (const cid of customerIds) {
+      try {
+        await supabaseAdmin.from('points_ledger').delete().eq('customer_id', cid)
+      } catch {}
+    }
 
-    if (fetchErr) throw fetchErr
+    // 2. Delete all orders for this customer (by ID and phone)
+    for (const cid of customerIds) {
+      await supabaseAdmin.from('orders').delete().eq('customer_id', cid)
+    }
+    if (rawPhone || cleanPhone) {
+      await supabaseAdmin.from('orders').delete().or(`customer_phone.eq.${rawPhone},customer_phone.eq.${cleanPhone}`)
+    }
 
-    if (customers && customers.length > 0) {
-      const customer = customers[0]
-      // 1. Delete all their orders
-      const { error: orderErr } = await supabaseAdmin.from('orders').delete().eq('customer_id', customer.id)
-      if (orderErr) throw orderErr
-      
-      // 2. Delete the customer profile
-      const { error: custErr } = await supabaseAdmin.from('customers').delete().eq('id', customer.id)
+    // 3. Delete customer profiles
+    for (const cid of customerIds) {
+      const { error: custErr } = await supabaseAdmin.from('customers').delete().eq('id', cid)
       if (custErr) throw custErr
     }
 
