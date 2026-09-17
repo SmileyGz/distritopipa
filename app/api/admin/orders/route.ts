@@ -16,7 +16,7 @@ export async function GET(req: NextRequest) {
 
   const { data, error } = await supabaseAdmin
     .from('orders')
-    .select('*, customers (first_name, phone)')
+    .select('*, customers (id, first_name, phone, email)')
     .order('created_at', { ascending: false })
 
   if (error) {
@@ -28,9 +28,9 @@ export async function GET(req: NextRequest) {
     id: o.id,
     order_number: o.order_number || o.id.split('-')[0].toUpperCase(),
     status: o.status === 'new' ? 'pending' : o.status,
-    customer_name: o.customers?.first_name || 'Desconocido',
-    customer_phone: o.customers?.phone || '',
-    customer_email: o.customer_email || '',
+    customer_name: o.customers?.first_name || o.customer_name || 'Desconocido',
+    customer_phone: o.customers?.phone || o.customer_phone || '',
+    customer_email: o.customer_email || o.customers?.email || '',
     items: o.items || [],
     subtotal_mxn: o.subtotal || 0,
     delivery_fee: o.delivery_fee || 0,

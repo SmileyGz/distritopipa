@@ -130,8 +130,10 @@ export async function POST(req: NextRequest) {
 
     if (existing) {
       customer = existing
-      // Opt: update their latest name
-      await supabase.from('customers').update({ first_name: customer_name }).eq('id', existing.id)
+      // Opt: update their latest name and email if available
+      const updates: Record<string, any> = { first_name: customer_name }
+      if (customer_email) updates.email = customer_email
+      await supabase.from('customers').update(updates).eq('id', existing.id)
     } else {
       const { data: newCust, error: insErr } = await supabase
         .from('customers')
