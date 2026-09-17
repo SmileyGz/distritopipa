@@ -21,6 +21,7 @@ interface Order {
   id: string
   order_number: string
   status: string
+  customer_id?: string
   customer_name: string
   customer_phone: string
   customer_email?: string
@@ -34,6 +35,7 @@ interface Order {
 export type ClientSegment = 'nuevo' | 'recurrente' | 'vip' | 'comunidad'
 
 export interface ClientProfile {
+  id?: string
   phone: string
   name: string
   email: string
@@ -102,6 +104,7 @@ export default function AdminClientsPage() {
 
       if (!acc[phone]) {
         acc[phone] = {
+          id: order.customer_id || '',
           phone,
           name: storedNames[phone] || order.customer_name || 'Cliente',
           email: storedEmails[phone] || order.customer_email || '',
@@ -115,6 +118,10 @@ export default function AdminClientsPage() {
           firstOrderDate: order.created_at,
           orders: [],
         }
+      }
+
+      if (!acc[phone].id && order.customer_id) {
+        acc[phone].id = order.customer_id
       }
 
       // Preserve most complete email & address
