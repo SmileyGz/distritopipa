@@ -54,6 +54,8 @@ interface Order {
   is_night?: boolean
   payment_mode: 'deposit' | 'pickup_cash' | 'full_prepay'
   delivery_address?: string
+  customer_notes?: string
+  delivery_notes?: string
   scheduled_at?: string
   admin_notes?: string
   created_at: string
@@ -119,7 +121,8 @@ function buildDispatchDossier(order: Order): string {
     order.payment_mode !== 'full_prepay'
       ? `💵 COBRAR EN EFECTIVO AL ENTREGAR: $${saldo.toLocaleString('es-MX')} MXN`
       : null,
-    order.admin_notes ? `📝 Notas: ${order.admin_notes}` : null,
+    (order.customer_notes || order.delivery_notes) ? `💬 NOTAS DEL CLIENTE: ${order.customer_notes || order.delivery_notes}` : null,
+    order.admin_notes ? `📝 Notas internas: ${order.admin_notes}` : null,
   ].filter(Boolean)
 
   return lines.join('\n')
@@ -520,8 +523,9 @@ export default function AdminOrdersPage() {
         const phone = (o.customer_phone || '').replace(/\D/g, '')
         const email = (o.customer_email || '').toLowerCase()
         const addr = (o.delivery_address || '').toLowerCase()
+        const notes = `${o.customer_notes || ''} ${o.delivery_notes || ''} ${o.admin_notes || ''}`.toLowerCase()
         const itemsText = (o.items || []).map(i => i.name.toLowerCase()).join(' ')
-        return num.includes(q) || name.includes(q) || phone.includes(q) || email.includes(q) || addr.includes(q) || itemsText.includes(q)
+        return num.includes(q) || name.includes(q) || phone.includes(q) || email.includes(q) || addr.includes(q) || itemsText.includes(q) || notes.includes(q)
       })
     }
 
@@ -934,6 +938,18 @@ export default function AdminOrdersPage() {
                     {cod.label}
                   </span>
 
+                  {/* Customer order notes badge */}
+                  {(order.customer_notes || order.delivery_notes) && (
+                    <button
+                      className="chip-copy chip-customer-note"
+                      title="Instrucciones del cliente. Clic para copiar"
+                      onClick={e => copyToClipboard(order.customer_notes || order.delivery_notes || '', 'Notas del Cliente', e)}
+                    >
+                      💬 &ldquo;{(order.customer_notes || order.delivery_notes)?.slice(0, 32)}...&rdquo;
+                      <span className="copy-icon">📋</span>
+                    </button>
+                  )}
+
                   <span className="date-stamp">
                     {new Date(order.created_at).toLocaleString('es-MX', {
                       day: 'numeric',
@@ -1176,6 +1192,25 @@ export default function AdminOrdersPage() {
                     </div>
 
                   </div>
+
+                  {/* Customer Instructions from Checkout */}
+                  {(order.customer_notes || order.delivery_notes) && (
+                    <div className="customer-instructions-card">
+                      <div className="cic-header">
+                        <span className="cic-icon">💬</span>
+                        <span className="cic-title">Instrucciones del Cliente (Checkout Online)</span>
+                        <button
+                          className="btn-tiny-copy ml-auto"
+                          onClick={e => copyToClipboard(order.customer_notes || order.delivery_notes || '', 'Instrucciones del Cliente', e)}
+                        >
+                          📋 Copiar
+                        </button>
+                      </div>
+                      <div className="cic-body">
+                        &ldquo;{order.customer_notes || order.delivery_notes}&rdquo;
+                      </div>
+                    </div>
+                  )}
 
                   {/* Internal Admin Notes */}
                   <div className="admin-notes-card">
@@ -1720,6 +1755,22 @@ export default function AdminOrdersPage() {
           text-overflow: ellipsis;
         }
 
+        .chip-customer-note {
+          background: rgba(245, 158, 11, 0.12);
+          border-color: rgba(245, 158, 11, 0.35);
+          color: #fbbf24;
+          max-width: 260px;
+          white-space: nowrap;
+          overflow: hidden;
+          text-overflow: ellipsis;
+        }
+
+        .chip-customer-note:hover {
+          background: rgba(245, 158, 11, 0.22);
+          border-color: #f59e0b;
+          color: #fef3c7;
+        }
+
         .copy-icon {
           font-size: 10px;
           opacity: 0.6;
@@ -2154,6 +2205,50 @@ export default function AdminOrdersPage() {
         .btn-tiny-maps:hover {
           background: #1e3a8a;
           color: #fff;
+        }
+
+        /* Customer instructions card */
+        .customer-instructions-card {
+          background: rgba(245, 158, 11, 0.08);
+          border: 1px solid rgba(245, 158, 11, 0.3);
+          border-radius: 10px;
+          padding: 12px 14px;
+          display: flex;
+          flex-direction: column;
+          gap: 6px;
+        }
+
+        .cic-header {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+        }
+
+        .cic-header .ml-auto {
+          margin-left: auto;
+        }
+
+        .cic-icon {
+          font-size: 15px;
+        }
+
+        .cic-title {
+          font-size: 12px;
+          font-weight: 700;
+          color: #fbbf24;
+          text-transform: uppercase;
+          letter-spacing: 0.04em;
+        }
+
+        .cic-body {
+          font-size: 13.5px;
+          color: #f3f4f6;
+          font-style: italic;
+          line-height: 1.5;
+          background: rgba(0, 0, 0, 0.25);
+          padding: 8px 12px;
+          border-radius: 6px;
+          border-left: 3px solid #f59e0b;
         }
 
         /* Admin notes card */

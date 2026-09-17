@@ -99,6 +99,9 @@ function SuccessContent() {
       msg += `\nZona: ${orderData.zone === 'zone1' ? '1 a 6 km' : '6 a 10 km'}`
       msg += `\nHorario: ${orderData.timeOfDay === 'day' ? 'Día' : 'Noche'}`
     }
+    if (orderData.orderNotes) {
+      msg += `\nNotas: ${orderData.orderNotes}`
+    }
     msg += `\n\n✅ *${isTotal ? 'Total' : 'Anticipo de $50 MXN'} pagado por MercadoPago* (ID: ${payment_id || 'N/A'})`
     
     if (balanceDue > 0) {

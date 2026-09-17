@@ -80,6 +80,7 @@ function CheckoutContent() {
   const [addressStreet, setAddressStreet] = useState('')
   const [addressColonia, setAddressColonia] = useState('')
   const [addressRef, setAddressRef] = useState('')
+  const [orderNotes, setOrderNotes] = useState('')
   const address = `${addressStreet.trim()}, ${addressColonia.trim()}${addressRef.trim() ? `. Ref: ${addressRef.trim()}` : ''}`
   
   // Step 3: Payment
@@ -141,6 +142,7 @@ function CheckoutContent() {
           if (data.addressStreet) setAddressStreet(data.addressStreet)
           if (data.addressColonia) setAddressColonia(data.addressColonia)
           if (data.addressRef) setAddressRef(data.addressRef)
+          if (data.orderNotes) setOrderNotes(data.orderNotes)
           
           setStep(3)
           setPaymentFailedNotice(true)
@@ -184,6 +186,9 @@ function CheckoutContent() {
         })
         msg += `\nCliente: ${customerName} (${customerPhone})`
         msg += `\nHorario agendado: ${pickupTime}`
+        if (orderNotes.trim()) {
+          msg += `\nNotas: ${orderNotes.trim()}`
+        }
         msg += `\nTotal a pagar en efectivo: $${finalTotal.toLocaleString('es-MX')} MXN\n\n`
         msg += `Por favor, envíame la ubicación exacta.`
         
@@ -202,6 +207,7 @@ function CheckoutContent() {
             customer_phone: customerPhone,
             customer_email: customerEmail,
             delivery_address: 'Pickup Local',
+            delivery_notes: orderNotes.trim() || undefined,
             is_night: false,
             payment_preference: 'anticipo'
           })
@@ -221,6 +227,7 @@ function CheckoutContent() {
             customer_phone: customerPhone,
             customer_email: customerEmail,
             delivery_address: fulfillment === 'pickup' ? 'Pickup Local' : address,
+            delivery_notes: orderNotes.trim() || undefined,
             is_night: timeOfDay === 'night',
             payment_preference: 'spei'
           })
@@ -239,6 +246,7 @@ function CheckoutContent() {
             address,
             zone,
             timeOfDay,
+            orderNotes,
             finalTotal,
             fulfillment
           }))
@@ -260,6 +268,7 @@ function CheckoutContent() {
             customer_phone: customerPhone,
             customer_email: customerEmail,
             delivery_address: fulfillment === 'pickup' ? 'Pickup Local' : address,
+            delivery_notes: orderNotes.trim() || undefined,
             is_night: timeOfDay === 'night',
             payment_preference: paymentPref
           })
@@ -279,6 +288,7 @@ function CheckoutContent() {
             addressStreet,
             addressColonia,
             addressRef,
+            orderNotes,
             zone,
             timeOfDay,
             finalTotal,
@@ -477,6 +487,17 @@ function CheckoutContent() {
                       value={addressRef} onChange={e => setAddressRef(e.target.value)}
                     />
                   </div>
+                  <div className="form-group">
+                    <label className="section-label">Notas o Instrucciones para la Entrega (Opcional)</label>
+                    <textarea 
+                      className="sleek-input" 
+                      rows={2}
+                      placeholder="Ej. Tocar timbre portón blanco, llamar al llegar, dejar con caseta..." 
+                      value={orderNotes} onChange={e => setOrderNotes(e.target.value)}
+                      style={{ resize: 'vertical', minHeight: '60px' }}
+                    />
+                    <p className="hint-text">Cualquier detalle que nuestro repartidor deba saber al llegar.</p>
+                  </div>
                   <div className="wizard-actions">
                     <button className="btn-ghost" onClick={handleBack}>Regresar</button>
                     <button 
@@ -541,6 +562,16 @@ function CheckoutContent() {
                       })}
                     </select>
                     <p className="hint-text">Te enviaremos la ubicación exacta por WhatsApp al confirmar.</p>
+                  </div>
+                  <div className="form-group">
+                    <label className="section-label">Notas o Instrucciones para tu Visita (Opcional)</label>
+                    <textarea 
+                      className="sleek-input" 
+                      rows={2}
+                      placeholder="Ej. Llego en moto, requiero cambio de $500, llego con un amigo..." 
+                      value={orderNotes} onChange={e => setOrderNotes(e.target.value)}
+                      style={{ resize: 'vertical', minHeight: '60px' }}
+                    />
                   </div>
                   <div className="wizard-actions">
                     <button className="btn-ghost" onClick={handleBack}>Regresar</button>

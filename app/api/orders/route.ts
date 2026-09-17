@@ -41,6 +41,8 @@ type OrderBody = {
   customer_email?: string
   delivery_address?: string
   delivery_notes?: string
+  order_notes?: string
+  customer_notes?: string
   is_night?: boolean         // after 8pm flag
   payment_preference?: 'anticipo' | 'total' | 'spei'
 }
@@ -162,6 +164,7 @@ export async function POST(req: NextRequest) {
       subtotal,
       delivery_zone,
       delivery_address,
+      delivery_notes: delivery_notes || (body as any).order_notes || (body as any).customer_notes || null,
       is_night,
       delivery_fee,
       total,

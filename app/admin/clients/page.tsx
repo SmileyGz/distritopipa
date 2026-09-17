@@ -26,6 +26,8 @@ interface Order {
   customer_phone: string
   customer_email?: string
   delivery_address?: string
+  delivery_notes?: string
+  customer_notes?: string
   total_mxn: number
   created_at: string
   items?: OrderItem[]
@@ -932,6 +934,12 @@ export default function AdminClientsPage() {
                         </div>
                       )}
 
+                      {(order.customer_notes || order.delivery_notes) && (
+                        <div className="order-notes-snippet">
+                          💬 &ldquo;{order.customer_notes || order.delivery_notes}&rdquo;
+                        </div>
+                      )}
+
                       <div className="order-row-total">
                         Total: <strong>${order.total_mxn?.toLocaleString('es-MX')} MXN</strong>
                       </div>
@@ -1810,6 +1818,15 @@ export default function AdminClientsPage() {
           padding: 2px 6px;
           border-radius: 4px;
           color: #cccccc;
+        }
+        .order-notes-snippet {
+          font-size: 11.5px;
+          color: #fbbf24;
+          background: rgba(245, 158, 11, 0.08);
+          border-left: 2px solid #f59e0b;
+          padding: 4px 8px;
+          border-radius: 4px;
+          font-style: italic;
         }
         .order-row-total {
           font-size: 12px;
