@@ -118,18 +118,20 @@ function SuccessContent() {
 
   if (!mounted) return null
 
-  // Dedicated SPEI Pre-reservation Screen (No WhatsApp redirect/button)
+  // Dedicated SPEI Order Screen (No WhatsApp redirect/button)
   if (isSpei) {
     const customerEmail = emailParam || orderData?.customerEmail || ''
     const orderNumber = orderNumberParam || orderData?.order_number || 'En proceso'
+    const isPickup = orderData?.fulfillment === 'pickup'
     const totalAmount = Number(totalParam) || orderData?.finalTotal || 0
-    const balanceDue = totalAmount > 50 ? totalAmount - 50 : 0
+    const transferAmount = isPickup ? totalAmount : 50
+    const balanceDue = isPickup ? 0 : (totalAmount > 50 ? totalAmount - 50 : 0)
 
     return (
       <main className="success-page">
         <div className="success-card fade-in">
           <div className="success-icon">📩</div>
-          <h2>¡Pre-reservación Registrada!</h2>
+          <h2>¡Pedido Registrado!</h2>
           <p className="success-text">
             Te hemos enviado los datos completos para tu transferencia a: <br />
             <strong style={{ color: '#fff', fontSize: '15px' }}>{customerEmail}</strong>
@@ -162,8 +164,8 @@ function SuccessContent() {
             </div>
             <div className="bdc-divider"></div>
             <div className="bdc-row">
-              <span className="bdc-label">Anticipo a transferir:</span>
-              <span className="bdc-value highlight-green">$50 MXN</span>
+              <span className="bdc-label">{isPickup ? 'Total a transferir:' : 'Anticipo a transferir:'}</span>
+              <span className="bdc-value highlight-green">${transferAmount.toLocaleString('es-MX')} MXN</span>
             </div>
             {balanceDue > 0 && (
               <div className="bdc-row">
@@ -175,7 +177,9 @@ function SuccessContent() {
 
           <div className="next-steps spei-steps">
             <p>
-              Revisa tu bandeja de entrada (o spam) para ver el comprobante. En cuanto realices tu transferencia de $50, apartaremos tus artículos para entrega.
+              {isPickup
+                ? `Revisa tu bandeja de entrada (o spam) para ver los datos. En cuanto realices tu pago de $${transferAmount.toLocaleString('es-MX')} MXN, coordina tu horario de visita por WhatsApp.`
+                : `Revisa tu bandeja de entrada (o spam) para ver los datos. En cuanto realices tu anticipo de $50 MXN, apartaremos tus artículos para entrega.`}
             </p>
           </div>
 

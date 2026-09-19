@@ -112,7 +112,7 @@ function CheckoutContent() {
   const isDelivery = fulfillment === 'delivery';
   const amountToPayNow = isDelivery 
     ? (paymentPref === 'total' ? finalTotal : 50)
-    : (paymentPref === 'total' ? finalTotal : 0);
+    : (paymentPref === 'anticipo' ? 0 : finalTotal);
   const balanceDue = finalTotal - amountToPayNow;
 
   const handleNext = () => {
@@ -275,7 +275,10 @@ function CheckoutContent() {
             customer_phone: customerPhone,
             customer_email: customerEmail,
             delivery_address: fulfillment === 'pickup' ? 'Pickup Local' : address,
-            delivery_notes: orderNotes.trim() || undefined,
+            delivery_notes: [
+              fulfillment === 'pickup' && pickupTime ? `Horario agendado: ${pickupTime}` : '',
+              orderNotes.trim()
+            ].filter(Boolean).join(' | ') || undefined,
             is_night: timeOfDay === 'night',
             payment_preference: 'spei'
           })
@@ -302,7 +305,7 @@ function CheckoutContent() {
           router.push(`/checkout/success?type=spei&order_number=${encodeURIComponent(data.order_number || '')}&email=${encodeURIComponent(customerEmail)}&total=${finalTotal}`)
         } else {
           setIsProcessingPayment(false)
-          toast.error(data.error || 'Error al generar pre-reservación')
+          toast.error(data.error || 'Error al generar pedido')
         }
       } else {
         // Any MP flow (Delivery Anticipo, Delivery Total, Pickup Total)
@@ -383,7 +386,7 @@ function CheckoutContent() {
             </div>
             <h3 className="ppo-title">
               {processingMode === 'spei'
-                ? 'Registrando Pre-reservación...'
+                ? 'Registrando Pedido...'
                 : processingMode === 'pickup'
                   ? 'Preparando tu pedido...'
                   : 'Conectando con la Pasarela de Pago...'}
@@ -674,7 +677,7 @@ function CheckoutContent() {
                           <span className="icon">🏦</span>
                           <div className="text-left">
                             <strong>Transferencia Bancaria SPEI (Anticipo $50)</strong>
-                            <p>Genera tu pre-reservación. Te enviamos los datos bancarios a tu correo para transferir.</p>
+                            <p>Genera tu pedido. Te enviamos los datos bancarios a tu correo para transferir.</p>
                           </div>
                         </button>
                       </>
@@ -697,8 +700,8 @@ function CheckoutContent() {
                         <button type="button" className={`method-btn ${paymentPref === 'spei' ? 'active' : ''}`} onClick={() => setPaymentPref('spei')}>
                           <span className="icon">🏦</span>
                           <div className="text-left">
-                            <strong>Transferencia Bancaria SPEI (Anticipo $50)</strong>
-                            <p>Genera tu pre-reservación. Te enviamos los datos a tu correo para transferir.</p>
+                            <strong>Transferencia Bancaria SPEI</strong>
+                            <p>Genera tu pedido. Te enviamos los datos a tu correo para transferir.</p>
                           </div>
                         </button>
                       </>
@@ -717,7 +720,7 @@ function CheckoutContent() {
                     <button className="btn-ghost" onClick={handleBack}>Regresar</button>
                     <button className="btn-primary" onClick={handleConfirmOrder}>
                       {paymentPref === 'spei' 
-                        ? 'Confirmar Pre-reservación' 
+                        ? 'Confirmar Pedido' 
                         : (fulfillment === 'pickup' && paymentPref === 'anticipo') 
                           ? 'Confirmar por WhatsApp' 
                           : 'Confirmar y Pagar'}

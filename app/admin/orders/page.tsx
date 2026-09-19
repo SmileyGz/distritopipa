@@ -333,12 +333,16 @@ export default function AdminOrdersPage() {
     let html = ''
 
     if (type === 'pre_confirm') {
-      const amountToPay = (order.payment_mode === 'full_prepay' ? order.total_mxn : order.anticipo_mxn).toLocaleString('es-MX')
+      const isFull = order.payment_mode === 'full_prepay' || (order.delivery_mode === 'pickup' && order.payment_mode !== 'pickup_cash')
+      const amountToPay = (isFull ? order.total_mxn : (order.anticipo_mxn || 50)).toLocaleString('es-MX')
       subject = `Tu pedido está casi listo 🤝 - Pedido ${order.order_number}`
+      const introCopy = isFull
+        ? `<p>Para mandar tu pedido directo a preparación por la vía rápida, requerimos el pago total de <strong>$${amountToPay} MXN</strong>.</p>`
+        : `<p>Para separar tus piezas y agendar la entrega, pedimos un anticipo de <strong>$${amountToPay} MXN</strong>. (Esto nos ayuda a asegurar que el trato es serio y apartar tu mercancía sin broncas).</p>
+           <p>El resto lo liquidas al momento de la entrega.</p>`
       const content = `
         <p>¡Qué onda ${order.customer_name}! Gracias por armar tu pedido con Distrito Pipa.</p>
-        <p>Para separar tus piezas y agendar la entrega, pedimos un anticipo de <strong>$${amountToPay} MXN</strong>. (Esto nos ayuda a asegurar que el trato es serio y apartar tu mercancía sin broncas).</p>
-        <p>El resto lo liquidas al momento de la entrega.</p>
+        ${introCopy}
         <p>Aquí te dejo los datos para la transferencia:</p>
         <ul>
           <li><strong>Banco:</strong> ${BANK_CONFIG.bankName}</li>

@@ -160,9 +160,9 @@ export async function POST(req: NextRequest) {
   }
   const total = subtotal + delivery_fee
   
-  // Amount to charge via MP
+  // Amount to charge via MP / bank
   let anticipo = delivery_zone === 'pickup' ? 0 : 50
-  if (payment_preference === 'total') {
+  if (payment_preference === 'total' || (delivery_zone === 'pickup' && payment_preference === 'spei')) {
     anticipo = total
   }
 
@@ -213,7 +213,9 @@ export async function POST(req: NextRequest) {
       is_night,
       delivery_fee,
       total,
-      payment_mode: payment_preference === 'total' ? 'full_prepay' : (delivery_zone === 'pickup' ? 'pickup_cash' : 'deposit'),
+      payment_mode: (payment_preference === 'total' || (delivery_zone === 'pickup' && payment_preference === 'spei'))
+        ? 'full_prepay'
+        : (delivery_zone === 'pickup' ? 'pickup_cash' : 'deposit'),
       anticipo_amount: anticipo,
       anticipo_status: 'pending',
       fulfillment_type: delivery_zone === 'pickup' ? 'pickup' : 'delivery',
@@ -274,10 +276,12 @@ export async function POST(req: NextRequest) {
   // Automatically send Pre-Confirmation Email if they provided one
   if (customer_email) {
     const isSpei = payment_preference === 'spei'
-    const isPickupCash = delivery_zone === 'pickup' && payment_preference !== 'total'
-    const amountToPay = (payment_preference === 'total' ? total : (anticipo > 0 ? anticipo : 50)).toLocaleString('es-MX')
+    const isPickup = delivery_zone === 'pickup'
+    const isPickupCash = isPickup && !isSpei && payment_preference !== 'total'
+    const isFullPayment = payment_preference === 'total' || (isPickup && isSpei)
+    const amountToPay = (isFullPayment ? total : (anticipo > 0 ? anticipo : 50)).toLocaleString('es-MX')
     const subject = isSpei 
-      ? `Pre-reservación de tu pedido ${order.order_number} - Distrito Pipa`
+      ? `Pedido ${order.order_number} registrado - Distrito Pipa`
       : isPickupCash
         ? `¡Apartado confirmado! Nos vemos pronto 🤝 - Pedido ${order.order_number}`
         : `Tu pedido está casi listo 🤝 - Pedido ${order.order_number}`
@@ -297,10 +301,16 @@ export async function POST(req: NextRequest) {
     let copyBody = ''
 
     if (isSpei) {
-      copyBody = `<p>Hemos registrado tu pre-reservación con éxito.</p>
-         <p>Para apartar tus piezas y agendar la entrega de tu pedido, por favor realiza tu transferencia de anticipo de <strong>$50 MXN</strong> a la cuenta indicada abajo.</p>
-         <p>El saldo restante de <strong>$${(total - 50).toLocaleString('es-MX')} MXN</strong> lo liquidas <strong>en efectivo</strong> al momento de recibir tus artículos.</p>
-         <p><em>¿Ocupas cambio? (avísanos con tiempo si necesitas cambio de algún billete para el saldo en efectivo)</em></p>`
+      if (isPickup) {
+        copyBody = `<p>Hemos registrado tu pedido con éxito.</p>
+           <p>Para apartar tus piezas y tenerlas listas para tu visita, por favor realiza tu transferencia por el total de <strong>$${total.toLocaleString('es-MX')} MXN</strong> a la cuenta indicada abajo.</p>
+           <p>Una vez hecha tu transferencia, solo escríbenos por WhatsApp para coordinar a qué hora pasas a recoger tus artículos. ¡Puro VIP!</p>`
+      } else {
+        copyBody = `<p>Hemos registrado tu pedido con éxito.</p>
+           <p>Para apartar tus piezas y agendar la entrega de tu pedido, por favor realiza tu transferencia de anticipo de <strong>$50 MXN</strong> a la cuenta indicada abajo.</p>
+           <p>El saldo restante de <strong>$${(total - 50).toLocaleString('es-MX')} MXN</strong> lo liquidas <strong>en efectivo</strong> al momento de recibir tus artículos.</p>
+           <p><em>¿Ocupas cambio? (avísanos con tiempo si necesitas cambio de algún billete para el saldo en efectivo)</em></p>`
+      }
     } else if (delivery_zone === 'pickup') {
       if (payment_preference === 'total') {
         copyBody = `<p>Para mandar tu pedido directo a producción por la vía rápida, necesitamos el pago total de <strong>$${amountToPay} MXN</strong>.</p>
@@ -324,17 +334,18 @@ export async function POST(req: NextRequest) {
 
     let manualBankInfo = ''
     if (isSpei || paymentButton !== '') {
+      const isTotalBank = isFullPayment
       manualBankInfo = `
       <div style="background-color: #1a1a1a; border: 1px solid #333; border-radius: 8px; padding: 20px; margin: 24px 0; color: #fff;">
-        <h3 style="color: #27ae60; margin-top: 0; margin-bottom: 12px; font-size: 16px;">Datos para transferencia SPEI (Anticipo $50 MXN):</h3>
+        <h3 style="color: #27ae60; margin-top: 0; margin-bottom: 12px; font-size: 16px;">Datos para transferencia SPEI${isTotalBank ? ` (Total $${total.toLocaleString('es-MX')} MXN)` : ' (Anticipo $50 MXN)'}:</h3>
         <p style="margin: 6px 0; font-size: 14px;"><strong>Banco:</strong> ${BANK_CONFIG.bankName}</p>
         <p style="margin: 6px 0; font-size: 14px;"><strong>CLABE:</strong> <span style="font-family: monospace; font-size: 15px; color: #fff; background: #000; padding: 4px 8px; border-radius: 4px; border: 1px solid #444;">${BANK_CONFIG.formattedClabe}</span></p>
         <p style="margin: 6px 0; font-size: 14px;"><strong>A nombre de:</strong> ${BANK_CONFIG.recipient}</p>
         <p style="margin: 6px 0; font-size: 14px;"><strong>Concepto / Referencia:</strong> <strong style="color: #DC143C;">${order.order_number}</strong></p>
-        <p style="margin: 6px 0; font-size: 14px;"><strong>Monto a transferir:</strong> $50 MXN</p>
-        <p style="margin: 6px 0; font-size: 14px;"><strong>Resto en efectivo al recibir:</strong> $${(total - 50).toLocaleString('es-MX')} MXN</p>
+        <p style="margin: 6px 0; font-size: 14px;"><strong>Monto a transferir:</strong> $${(isTotalBank ? total : 50).toLocaleString('es-MX')} MXN</p>
+        ${!isTotalBank ? `<p style="margin: 6px 0; font-size: 14px;"><strong>Resto en efectivo al recibir:</strong> $${(total - 50).toLocaleString('es-MX')} MXN</p>` : ''}
       </div>
-      <p style="font-size: 13px; color: #888;">Una vez realizada tu transferencia, procesaremos tu orden y la pondremos en ruta de entrega.</p>
+      <p style="font-size: 13px; color: #888;">Una vez realizada tu transferencia, avísanos por WhatsApp para coordinar los detalles.</p>
       `
     } else if (isPickupCash) {
       manualBankInfo = `
@@ -372,10 +383,10 @@ export async function POST(req: NextRequest) {
       ${manualBankInfo}
     `
     const headerTitle = isSpei 
-      ? 'Pre-reservación de Pedido' 
+      ? 'Confirmación de Pedido' 
       : isPickupCash 
         ? 'Apartado de Pedido' 
-        : 'Instrucciones de Pago'
+        : (payment_preference === 'total' ? 'Confirmación de Pedido' : 'Instrucciones de Anticipo')
     const html = getBrandedEmailHtml(headerTitle, content)
     await sendEmail({ to: customer_email, subject, html }).catch(console.error)
   }
