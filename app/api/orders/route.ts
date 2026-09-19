@@ -306,10 +306,9 @@ export async function POST(req: NextRequest) {
         copyBody = `<p>Para mandar tu pedido directo a producción por la vía rápida, necesitamos el pago total de <strong>$${amountToPay} MXN</strong>.</p>
            <p>Al liquidar todo de golpe, tu orden queda completamente cubierta. Una vez hecho el pago, solo escríbenos por WhatsApp para coordinar a qué hora pasas a recogerlo. ¡Puro VIP!</p>`
       } else {
-        copyBody = `<p>Tus piezas ya están separadas y listas para que pases a recogerlas en nuestro spot.</p>
-           <p>El total de <strong>$${total.toLocaleString('es-MX')} MXN</strong> lo liquidas <strong>en efectivo al momento de tu visita</strong>.</p>
-           <p>📍 <strong>Punto de entrega:</strong> Región 96 (por Soriana Nichupté / Coppel Nichupté, Cancún).</p>
-           <p>Si ya nos mandaste mensaje por WhatsApp, en breve afinamos coordenadas exactas para recibirte a la hora acordada.</p>
+        copyBody = `<p>Tus piezas ya están separadas para tu recolección.</p>
+           <p>El total de <strong>$${total.toLocaleString('es-MX')} MXN</strong> lo liquidas <strong>en efectivo</strong> al momento de recoger tus artículos.</p>
+           <p>📲 <strong>Ubicación exacta:</strong> Por seguridad y para estar listos a tu llegada, <strong>las coordenadas exactas te las compartiremos directamente por WhatsApp</strong> en cuanto afinemos tu hora de visita.</p>
            <p><em>¿Ocupas cambio? (avísanos con tiempo porfa si necesitas cambio de algún billete)</em></p>`
       }
     } else {
@@ -339,7 +338,7 @@ export async function POST(req: NextRequest) {
       `
     } else if (isPickupCash) {
       manualBankInfo = `
-      <p>¡Seguimos activos! Escríbenos por WhatsApp para afinar coordenadas exactas de tu recolección.</p>
+      <p>¡Seguimos activos! Escríbenos por WhatsApp con tu número de pedido para afinar tu hora y pasarte las coordenadas exactas.</p>
       `
     } else {
       manualBankInfo = `
