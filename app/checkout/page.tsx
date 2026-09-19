@@ -189,13 +189,68 @@ function CheckoutContent() {
     
     try {
       if (fulfillment === 'pickup' && paymentPref === 'anticipo') {
-        // Pickup cash doesn't use MercadoPago, goes straight to WhatsApp
-        let msg = `Hola! Quiero agendar una visita (Pickup) para recoger:\n\n`
+        // Pickup cash: Await database save and confirmation email BEFORE opening WhatsApp
+        const fullNotes = [
+          pickupTime ? `Horario agendado: ${pickupTime}` : '',
+          orderNotes.trim()
+        ].filter(Boolean).join(' | ')
+
+        let orderNum = ''
+        try {
+          const res = await fetch('/api/orders', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            keepalive: true,
+            body: JSON.stringify({
+              items: items.map(i => ({ 
+                product_id: i.product.id, 
+                name: i.product.name_es, 
+                qty: i.quantity, 
+                unit_price: i.product.price_mxn, 
+                color: i.color, 
+                size: i.size, 
+                bundle_price: getDiscountedPriceForItem(i, items) 
+              })),
+              delivery_zone: 'pickup',
+              customer_name: customerName,
+              customer_phone: customerPhone,
+              customer_email: customerEmail,
+              delivery_address: 'Pickup Local',
+              delivery_notes: fullNotes || undefined,
+              is_night: false,
+              payment_preference: 'anticipo'
+            })
+          })
+
+          const data = await res.json()
+          if (data.order_number) {
+            orderNum = data.order_number
+          }
+          if (data.order_id) {
+            try {
+              posthog.capture('purchase', {
+                order_id: data.order_id,
+                order_number: data.order_number,
+                value: finalTotal,
+                currency: 'MXN',
+                payment_type: 'pickup_cash',
+                fulfillment: 'pickup'
+              })
+            } catch (phErr) {}
+          }
+        } catch (err) {
+          console.error('Error saving pickup order:', err)
+        }
+
+        const folioText = orderNum ? ` (Pedido #${orderNum})` : ''
+        let msg = `Hola! Quiero agendar una visita (Pickup)${folioText} para recoger:\n\n`
         items.forEach(item => {
           msg += `📦 ${item.quantity}x ${item.product.name_es.split('|')[0].trim()} ($${item.quantity * item.product.price_mxn})\n`
         })
         msg += `\nCliente: ${customerName} (${customerPhone})`
-        msg += `\nHorario agendado: ${pickupTime}`
+        if (pickupTime) {
+          msg += `\nHorario agendado: ${pickupTime}`
+        }
         if (orderNotes.trim()) {
           msg += `\nNotas: ${orderNotes.trim()}`
         }
@@ -205,25 +260,8 @@ function CheckoutContent() {
         const whatsappUrl = `https://wa.me/${process.env.NEXT_PUBLIC_WHATSAPP_NUMBER || '529987393474'}?text=${encodeURIComponent(msg)}`
         
         clearCart()
-        
-        // Fire and forget db save
-        fetch('/api/orders', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            items: items.map(i => ({ product_id: i.product.id, name: i.product.name_es, qty: i.quantity, unit_price: i.product.price_mxn, color: i.color, size: i.size, bundle_price: getDiscountedPriceForItem(i, items) })),
-            delivery_zone: 'pickup',
-            customer_name: customerName,
-            customer_phone: customerPhone,
-            customer_email: customerEmail,
-            delivery_address: 'Pickup Local',
-            delivery_notes: orderNotes.trim() || undefined,
-            is_night: false,
-            payment_preference: 'anticipo'
-          })
-        }).catch(console.error)
 
-        // Directly redirect to prevent popup blockers
+        // Directly redirect to WhatsApp
         window.location.href = whatsappUrl
       } else if (paymentPref === 'spei') {
         // SPEI Pre-reservation flow: Save order, send pre-reservation email, redirect to confirmation page (NO WhatsApp)

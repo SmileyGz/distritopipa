@@ -274,10 +274,13 @@ export async function POST(req: NextRequest) {
   // Automatically send Pre-Confirmation Email if they provided one
   if (customer_email) {
     const isSpei = payment_preference === 'spei'
+    const isPickupCash = delivery_zone === 'pickup' && payment_preference !== 'total'
     const amountToPay = (payment_preference === 'total' ? total : (anticipo > 0 ? anticipo : 50)).toLocaleString('es-MX')
     const subject = isSpei 
       ? `Pre-reservación de tu pedido ${order.order_number} - Distrito Pipa`
-      : `Tu pedido está casi listo 🤝 - Pedido ${order.order_number}`
+      : isPickupCash
+        ? `¡Apartado confirmado! Nos vemos pronto 🤝 - Pedido ${order.order_number}`
+        : `Tu pedido está casi listo 🤝 - Pedido ${order.order_number}`
     
     let paymentButton = ''
     if (mpInitPoint) {
@@ -303,8 +306,10 @@ export async function POST(req: NextRequest) {
         copyBody = `<p>Para mandar tu pedido directo a producción por la vía rápida, necesitamos el pago total de <strong>$${amountToPay} MXN</strong>.</p>
            <p>Al liquidar todo de golpe, tu orden queda completamente cubierta. Una vez hecho el pago, solo escríbenos por WhatsApp para coordinar a qué hora pasas a recogerlo. ¡Puro VIP!</p>`
       } else {
-        copyBody = `<p>Tu pedido está separado y listo para ser recolectado en nuestro punto de entrega.</p>
-           <p>Solo escríbenos por WhatsApp para coordinar la hora. El total pendiente de <strong>$${total} MXN</strong> lo liquidas <strong>en efectivo</strong> al momento de recoger tus piezas.</p>
+        copyBody = `<p>Tus piezas ya están separadas y listas para que pases a recogerlas en nuestro spot.</p>
+           <p>El total de <strong>$${total.toLocaleString('es-MX')} MXN</strong> lo liquidas <strong>en efectivo al momento de tu visita</strong>.</p>
+           <p>📍 <strong>Punto de entrega:</strong> Región 96 (por Soriana Nichupté / Coppel Nichupté, Cancún).</p>
+           <p>Si ya nos mandaste mensaje por WhatsApp, en breve afinamos coordenadas exactas para recibirte a la hora acordada.</p>
            <p><em>¿Ocupas cambio? (avísanos con tiempo porfa si necesitas cambio de algún billete)</em></p>`
       }
     } else {
@@ -331,6 +336,10 @@ export async function POST(req: NextRequest) {
         <p style="margin: 6px 0; font-size: 14px;"><strong>Resto en efectivo al recibir:</strong> $${(total - 50).toLocaleString('es-MX')} MXN</p>
       </div>
       <p style="font-size: 13px; color: #888;">Una vez realizada tu transferencia, procesaremos tu orden y la pondremos en ruta de entrega.</p>
+      `
+    } else if (isPickupCash) {
+      manualBankInfo = `
+      <p>¡Seguimos activos! Escríbenos por WhatsApp para afinar coordenadas exactas de tu recolección.</p>
       `
     } else {
       manualBankInfo = `
@@ -363,7 +372,12 @@ export async function POST(req: NextRequest) {
 
       ${manualBankInfo}
     `
-    const html = getBrandedEmailHtml(isSpei ? 'Pre-reservación de Pedido' : 'Instrucciones de Pago', content)
+    const headerTitle = isSpei 
+      ? 'Pre-reservación de Pedido' 
+      : isPickupCash 
+        ? 'Apartado de Pedido' 
+        : 'Instrucciones de Pago'
+    const html = getBrandedEmailHtml(headerTitle, content)
     await sendEmail({ to: customer_email, subject, html }).catch(console.error)
   }
 
