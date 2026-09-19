@@ -252,12 +252,12 @@ export async function POST(req: NextRequest) {
 
     // Upsert customer by phone
     let customer: any = null
-    const cleanPhone = customer_phone.trim()
+    const cleanPhone = customer_phone.trim().replace(/\D/g, '') || customer_phone.trim()
     try {
       const { data: existingCust } = await supabaseAdmin
         .from('customers')
         .select('id, first_name, phone, email')
-        .eq('phone', cleanPhone)
+        .or(`phone.eq.${cleanPhone},phone.eq.${customer_phone.trim()}`)
         .maybeSingle()
 
       if (existingCust) {
@@ -273,7 +273,7 @@ export async function POST(req: NextRequest) {
             first_name: customer_name.trim(),
             email: customer_email?.trim() || null,
           })
-          .select('id, first_name, phone, email')
+          .select('id')
           .single()
 
         if (!insCustErr && newCust) {
@@ -285,8 +285,13 @@ export async function POST(req: NextRequest) {
     }
 
     const rawNotes = (delivery_notes || customer_notes || '').trim()
-    const addressWithNotes = rawNotes
-      ? (delivery_address.trim() ? `${delivery_address.trim()} [Notas: ${rawNotes}]` : `[Notas: ${rawNotes}]`)
+    const allNotesParts: string[] = []
+    if (rawNotes) allNotesParts.push(`Notas: ${rawNotes}`)
+    if (admin_notes?.trim()) allNotesParts.push(`Admin: ${admin_notes.trim()}`)
+    const notesJoined = allNotesParts.join(' | ')
+
+    const addressWithNotes = notesJoined
+      ? (delivery_address.trim() ? `${delivery_address.trim()} [${notesJoined}]` : `[${notesJoined}]`)
       : delivery_address.trim()
 
     const baseOrderData: Record<string, any> = {
@@ -296,7 +301,7 @@ export async function POST(req: NextRequest) {
       subtotal: calculatedSubtotal,
       delivery_fee: calculatedDeliveryFee,
       total: calculatedTotal,
-      fulfillment_type: delivery_mode,
+      fulfillment_type: delivery_mode === 'pickup' ? 'pickup' : 'delivery',
       delivery_zone: delivery_mode === 'pickup' ? 'pickup' : (delivery_zone || 'zone1'),
       delivery_address: addressWithNotes,
       is_night: !!is_night,
@@ -304,44 +309,59 @@ export async function POST(req: NextRequest) {
       anticipo_amount: calculatedAnticipo,
       anticipo_status: anticipo_paid ? 'paid' : 'pending',
       status: status || 'confirmed',
-      admin_notes: admin_notes?.trim() || null,
     }
 
     let orderResult: any = null
     let orderError: any = null
 
-    // 1. Try inserting with delivery_notes
-    if (rawNotes) {
-      const attempt = await supabaseAdmin
+    // Attempt 1: Try with delivery_notes and/or admin_notes if present
+    const payloadWithOptionalNotes: Record<string, any> = { ...baseOrderData }
+    if (rawNotes) payloadWithOptionalNotes.delivery_notes = rawNotes
+    if (admin_notes?.trim()) payloadWithOptionalNotes.admin_notes = admin_notes.trim()
+
+    const attempt1 = await supabaseAdmin
+      .from('orders')
+      .insert(payloadWithOptionalNotes)
+      .select('id, order_number, created_at')
+      .single()
+
+    orderResult = attempt1.data
+    orderError = attempt1.error
+
+    // Attempt 2: If attempt 1 failed due to missing column (e.g. delivery_notes or admin_notes) or schema cache
+    if (orderError && (orderError.message.includes('schema cache') || orderError.message.includes('column') || !orderResult)) {
+      console.warn('Orders table missing optional columns. Falling back to baseOrderData...', orderError?.message)
+      const attempt2 = await supabaseAdmin
+        .from('orders')
+        .insert(baseOrderData)
+        .select('id, order_number, created_at')
+        .single()
+
+      orderResult = attempt2.data
+      orderError = attempt2.error
+    }
+
+    // Attempt 3: If attempt 2 failed due to status check constraint (e.g., table only accepts 'new')
+    if (orderError && (orderError.message.includes('status') || !orderResult)) {
+      console.warn('Status constraint triggered. Falling back with status "new"...', orderError?.message)
+      const attempt3 = await supabaseAdmin
         .from('orders')
         .insert({
           ...baseOrderData,
-          delivery_notes: rawNotes,
+          status: 'new',
         })
-        .select('*, customers(id, first_name, phone, email)')
+        .select('id, order_number, created_at')
         .single()
 
-      orderResult = attempt.data
-      orderError = attempt.error
-    }
-
-    // 2. Fallback if delivery_notes is missing from schema cache
-    if (!rawNotes || (orderError && (orderError.message.includes('delivery_notes') || orderError.message.includes('schema cache')))) {
-      const attemptFallback = await supabaseAdmin
-        .from('orders')
-        .insert(baseOrderData)
-        .select('*, customers(id, first_name, phone, email)')
-        .single()
-
-      orderResult = attemptFallback.data
-      orderError = attemptFallback.error
+      orderResult = attempt3.data
+      orderError = attempt3.error
     }
 
     if (orderError || !orderResult) {
       console.error('Admin order creation error:', orderError)
       return NextResponse.json({
         error: 'Error al registrar pedido en la base de datos',
-        details: orderError?.message || 'Insert failed'
+        details: orderError?.message || orderError?.details || orderError?.hint || JSON.stringify(orderError)
       }, { status: 500 })
     }
 
@@ -349,28 +369,28 @@ export async function POST(req: NextRequest) {
     const mappedOrder = {
       id: createdOrder.id,
       order_number: createdOrder.order_number || createdOrder.id.split('-')[0].toUpperCase(),
-      status: createdOrder.status === 'new' ? 'pending' : createdOrder.status,
+      status: createdOrder.status === 'new' ? 'pending' : (createdOrder.status || status || 'confirmed'),
       customer_name: customer_name.trim(),
       customer_phone: cleanPhone,
       customer_email: customer_email?.trim() || '',
-      items: createdOrder.items || items,
-      subtotal_mxn: createdOrder.subtotal ?? calculatedSubtotal,
-      delivery_fee: createdOrder.delivery_fee ?? calculatedDeliveryFee,
-      total_mxn: createdOrder.total ?? calculatedTotal,
-      anticipo_mxn: createdOrder.anticipo_amount ?? calculatedAnticipo,
-      anticipo_paid: createdOrder.anticipo_status === 'paid',
-      full_paid: createdOrder.payment_mode === 'full_prepay' && createdOrder.anticipo_status === 'paid',
-      delivery_mode: createdOrder.fulfillment_type || delivery_mode,
-      delivery_zone: createdOrder.delivery_zone || (delivery_mode === 'pickup' ? 'pickup' : delivery_zone),
-      is_night: !!createdOrder.is_night,
-      payment_mode: createdOrder.payment_mode || payment_mode,
-      delivery_address: (createdOrder.delivery_address || '').replace(/\[Notas:\s*[\s\S]*?\]/, '').trim(),
-      customer_notes: createdOrder.delivery_notes || rawNotes,
-      delivery_notes: createdOrder.delivery_notes || rawNotes,
-      admin_notes: createdOrder.admin_notes || admin_notes || '',
-      payment_link: createdOrder.payment_link || null,
-      created_at: createdOrder.created_at,
-      updated_at: createdOrder.updated_at,
+      items: items,
+      subtotal_mxn: calculatedSubtotal,
+      delivery_fee: calculatedDeliveryFee,
+      total_mxn: calculatedTotal,
+      anticipo_mxn: calculatedAnticipo,
+      anticipo_paid: !!anticipo_paid,
+      full_paid: payment_mode === 'full_prepay' && !!anticipo_paid,
+      delivery_mode: delivery_mode,
+      delivery_zone: delivery_mode === 'pickup' ? 'pickup' : (delivery_zone || 'zone1'),
+      is_night: !!is_night,
+      payment_mode: payment_mode,
+      delivery_address: delivery_address.trim(),
+      customer_notes: rawNotes,
+      delivery_notes: rawNotes,
+      admin_notes: admin_notes?.trim() || '',
+      payment_link: null,
+      created_at: createdOrder.created_at || new Date().toISOString(),
+      updated_at: createdOrder.created_at || new Date().toISOString(),
     }
 
     // Optional email confirmation if customer provided email and send_email is true

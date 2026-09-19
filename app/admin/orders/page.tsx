@@ -421,7 +421,7 @@ export default function AdminOrdersPage() {
 
       const data = await res.json()
       if (!res.ok || !data.success) {
-        throw new Error(data.error || 'Error al registrar pedido')
+        throw new Error(data.details ? `${data.error}: ${data.details}` : (data.error || 'Error al registrar pedido'))
       }
 
       toast.success(`¡Pedido #${data.order.order_number} creado con éxito!`)
