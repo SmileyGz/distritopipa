@@ -199,34 +199,72 @@ export async function POST(req: NextRequest) {
     console.error('Customer lookup/insert error:', err)
   }
 
-  // Create the order
-  const { data: order, error } = await supabase
-    .from('orders')
-    .insert({
-      customer_id: customer?.id,
-      customer_email,
-      items: verifiedItems,
-      subtotal,
-      delivery_zone,
-      delivery_address,
-      delivery_notes: delivery_notes || (body as any).order_notes || (body as any).customer_notes || null,
-      is_night,
-      delivery_fee,
-      total,
-      payment_mode: (payment_preference === 'total' || (delivery_zone === 'pickup' && payment_preference === 'spei'))
-        ? 'full_prepay'
-        : (delivery_zone === 'pickup' ? 'pickup_cash' : 'deposit'),
-      anticipo_amount: anticipo,
-      anticipo_status: 'pending',
-      fulfillment_type: delivery_zone === 'pickup' ? 'pickup' : 'delivery',
-      status: 'new',
-    })
-    .select('id, order_number, created_at')
-    .single()
+  // Create the order with resilient schema fallback
+  const rawNotes = (delivery_notes || (body as any).order_notes || (body as any).customer_notes || '').trim()
 
-  if (error) {
+  // Ensure notes are also saved inside delivery_address so they are never lost even if delivery_notes column is missing
+  const addressWithNotes = rawNotes
+    ? (delivery_address ? `${delivery_address} [Notas: ${rawNotes}]` : `[Notas: ${rawNotes}]`)
+    : delivery_address
+
+  const baseOrderData: Record<string, any> = {
+    customer_id: customer?.id,
+    customer_email,
+    items: verifiedItems,
+    subtotal,
+    delivery_zone,
+    delivery_address: addressWithNotes,
+    is_night,
+    delivery_fee,
+    total,
+    payment_mode: (payment_preference === 'total' || (delivery_zone === 'pickup' && payment_preference === 'spei'))
+      ? 'full_prepay'
+      : (delivery_zone === 'pickup' ? 'pickup_cash' : 'deposit'),
+    anticipo_amount: anticipo,
+    anticipo_status: 'pending',
+    fulfillment_type: delivery_zone === 'pickup' ? 'pickup' : 'delivery',
+    status: 'new',
+  }
+
+  let orderResult: any = null
+  let orderError: any = null
+
+  // 1. Try inserting with delivery_notes if notes exist
+  if (rawNotes) {
+    const attemptWithNotes = await supabase
+      .from('orders')
+      .insert({
+        ...baseOrderData,
+        delivery_notes: rawNotes,
+      })
+      .select('id, order_number, created_at')
+      .single()
+
+    orderResult = attemptWithNotes.data
+    orderError = attemptWithNotes.error
+  }
+
+  // 2. If no notes OR if insert failed due to delivery_notes not in schema cache, fallback to baseOrderData
+  if (!rawNotes || (orderError && (orderError.message.includes('delivery_notes') || orderError.message.includes('schema cache')))) {
+    if (orderError) {
+      console.warn('Orders table missing delivery_notes column in schema cache. Retrying insert with notes in delivery_address...')
+    }
+    const attemptFallback = await supabase
+      .from('orders')
+      .insert(baseOrderData)
+      .select('id, order_number, created_at')
+      .single()
+
+    orderResult = attemptFallback.data
+    orderError = attemptFallback.error
+  }
+
+  const order = orderResult
+  const error = orderError
+
+  if (error || !order) {
     console.error('Order creation error:', error)
-    return NextResponse.json({ error: 'Error al crear pedido. Intenta de nuevo.', sb_error: error.message }, { status: 500 })
+    return NextResponse.json({ error: 'Error al crear pedido. Intenta de nuevo.', sb_error: error?.message || 'Database insert failed' }, { status: 500 })
   }
 
   // --- MercadoPago Integration ---
