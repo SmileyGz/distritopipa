@@ -43,7 +43,79 @@ input, select, textarea { font-family: inherit; color: var(--text-primary); }
   .dp-nav { padding: 20px 40px; }
 }
 
-.dp-footer { padding: 30px 20px; text-align: center; border-top: 0.5px solid #1a1a1a; display: flex; flex-direction: column; align-items: center; gap: 24px; background: #0a0a0a; }
+.dp-footer { padding: 36px 20px; text-align: center; border-top: 0.5px solid #1a1a1a; display: flex; flex-direction: column; align-items: center; gap: 20px; background: #0a0a0a; }
+.footer-socials { display: flex; align-items: center; justify-content: center; gap: 12px; flex-wrap: wrap; }
+.footer-social-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 16px;
+  background: #141414;
+  border: 1px solid #242424;
+  border-radius: 20px;
+  color: #aaa;
+  text-decoration: none;
+  font-size: 13px;
+  font-weight: 500;
+  transition: all 0.2s ease;
+}
+.footer-social-link:hover {
+  color: #fff;
+  border-color: #DC143C;
+  background: #1c1c1c;
+  transform: translateY(-2px);
+}
+
+/* POST-ORDER SOCIAL CARD */
+.post-order-social-card {
+  margin-top: 24px;
+  padding: 18px 16px;
+  background: #141414;
+  border: 1px solid #242424;
+  border-radius: 12px;
+  text-align: center;
+}
+.posc-badge {
+  display: inline-block;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: #DC143C;
+  margin-bottom: 6px;
+}
+.posc-text {
+  font-size: 12px;
+  color: #999;
+  line-height: 1.4;
+  margin: 0 0 14px 0;
+}
+.posc-buttons {
+  display: flex;
+  gap: 10px;
+  justify-content: center;
+  flex-wrap: wrap;
+}
+.posc-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 16px;
+  border-radius: 20px;
+  font-size: 12px;
+  font-weight: 600;
+  text-decoration: none;
+  color: #ccc;
+  background: #202020;
+  border: 1px solid #333;
+  transition: all 0.2s ease;
+}
+.posc-btn:hover {
+  color: #fff;
+  border-color: #DC143C;
+  background: #282828;
+  transform: translateY(-2px);
+}
 .footer-main { display: flex; flex-direction: column; gap: 6px; }
 .footer-age { font-size: 12px; color: #555; }
 .footer-legal { font-size: 11px; color: #444; }
