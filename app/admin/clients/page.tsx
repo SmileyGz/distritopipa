@@ -1001,7 +1001,7 @@ export default function AdminClientsPage() {
                     <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                       {selectedClient.communityQuestions.map(q => (
                         <div key={q.id} style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 8, padding: '10px 12px' }}>
-                          <div style={{ fontSize: 13, color: '#fff', marginBottom: 4, lineHeight: 1.4 }}>"{q.content}"</div>
+                          <div style={{ fontSize: 13, color: '#fff', marginBottom: 4, lineHeight: 1.4 }}>&ldquo;{q.content}&rdquo;</div>
                           <div style={{ fontSize: 11, color: '#888', display: 'flex', justifyContent: 'space-between' }}>
                             <span>{new Date(q.createdAt).toLocaleDateString('es-MX', { day: '2-digit', month: 'short', year: 'numeric' })}</span>
                             <span>▲ {q.upvotes} {q.upvotes === 1 ? 'voto' : 'votos'}</span>
@@ -1020,7 +1020,7 @@ export default function AdminClientsPage() {
                     <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                       {selectedClient.communityAnswers.map(ans => (
                         <div key={ans.id} style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 8, padding: '10px 12px' }}>
-                          <div style={{ fontSize: 13, color: '#fff', marginBottom: 4, lineHeight: 1.4 }}>"{ans.content}"</div>
+                          <div style={{ fontSize: 13, color: '#fff', marginBottom: 4, lineHeight: 1.4 }}>&ldquo;{ans.content}&rdquo;</div>
                           <div style={{ fontSize: 11, color: '#888', display: 'flex', justifyContent: 'space-between' }}>
                             <span>{new Date(ans.createdAt).toLocaleDateString('es-MX', { day: '2-digit', month: 'short', year: 'numeric' })}</span>
                             <span style={{ color: '#DC143C', fontWeight: 600 }}>+ $40 VIP · ▲ {ans.upvotes} {ans.upvotes === 1 ? 'voto' : 'votos'}</span>
