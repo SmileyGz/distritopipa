@@ -23,6 +23,7 @@ function SuccessContent() {
   const [copiedClabe, setCopiedClabe] = useState(false)
 
   const isSpei = type === 'spei'
+  const isPickup = type === 'pickup'
 
   useEffect(() => {
     setMounted(true)
@@ -33,6 +34,11 @@ function SuccessContent() {
         const storedSpei = localStorage.getItem('dp_spei_order')
         if (storedSpei) {
           setOrderData(JSON.parse(storedSpei))
+        }
+      } else if (isPickup) {
+        const storedPickup = localStorage.getItem('dp_pickup_order')
+        if (storedPickup) {
+          setOrderData(JSON.parse(storedPickup))
         }
       } else {
         const stored = localStorage.getItem('dp_pending_order')
@@ -313,6 +319,207 @@ function SuccessContent() {
             font-size: 12px;
             color: #aaa;
             line-height: 1.5;
+          }
+          .btn-catalog {
+            background: #27ae60;
+            color: #fff;
+            text-decoration: none;
+            border-radius: 8px;
+            padding: 14px 24px;
+            font-size: 15px;
+            font-weight: 600;
+            display: block;
+            width: 100%;
+            transition: background 0.2s;
+          }
+          .btn-catalog:hover {
+            background: #219653;
+          }
+          .fade-in { animation: fadeIn 0.4s ease; }
+          @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+        `}</style>
+      </main>
+    )
+  }
+
+  // Dedicated Pickup Order Screen
+  if (isPickup) {
+    const orderNumber = orderNumberParam || orderData?.order_number || 'En proceso'
+    const pickupTime = searchParams.get('time') || orderData?.pickupTime || ''
+    const totalAmount = Number(totalParam) || orderData?.finalTotal || 0
+    const whatsappUrl = orderData?.whatsappUrl || `https://wa.me/${process.env.NEXT_PUBLIC_WHATSAPP_NUMBER || '529987393474'}`
+
+    return (
+      <main className="success-page">
+        <div className="success-card fade-in">
+          <div className="success-icon">🤝</div>
+          <h2>¡Visita Agendada!</h2>
+          <p className="success-text">
+            Hemos registrado tu pedido con éxito. Por favor confirma tu llegada por WhatsApp para pasarte la ubicación exacta.
+          </p>
+
+          <div className="bank-details-card">
+            <div className="bdc-header">
+              <span>🧾 DETALLES DE TU PEDIDO</span>
+            </div>
+            <div className="bdc-row">
+              <span className="bdc-label">Folio:</span>
+              <span className="bdc-value highlight-ref">{orderNumber}</span>
+            </div>
+            {pickupTime && (
+              <div className="bdc-row">
+                <span className="bdc-label">Horario agendado:</span>
+                <span className="bdc-value">{pickupTime}</span>
+              </div>
+            )}
+            <div className="bdc-row">
+              <span className="bdc-label">Modalidad:</span>
+              <span className="bdc-value">Recoger en persona</span>
+            </div>
+            {orderData?.vehicleLabel && (
+              <div className="bdc-row">
+                <span className="bdc-label">Llegada:</span>
+                <span className="bdc-value">{orderData.vehicleLabel}{orderData.modeLabel ? ` (${orderData.modeLabel})` : ''}</span>
+              </div>
+            )}
+            {orderData?.changeLabel && (
+              <div className="bdc-row">
+                <span className="bdc-label">Pago:</span>
+                <span className="bdc-value">{orderData.changeLabel}</span>
+              </div>
+            )}
+            <div className="bdc-divider"></div>
+            <div className="bdc-row">
+              <span className="bdc-label">Total a pagar al recibir:</span>
+              <span className="bdc-value highlight-green">${totalAmount.toLocaleString('es-MX')} MXN</span>
+            </div>
+          </div>
+
+          <div className="spei-steps" style={{ borderColor: 'rgba(39, 174, 96, 0.4)' }}>
+            <p>
+              📲 <strong>Ubicación exacta:</strong> Te enviaremos el enlace de Google Maps directamente por WhatsApp.
+            </p>
+          </div>
+
+          <div className="action-buttons">
+            <a 
+              href={whatsappUrl} 
+              target="_blank" 
+              rel="noopener noreferrer" 
+              className="btn-whatsapp"
+              style={{ textDecoration: 'none' }}
+            >
+              <span className="w-icon">💬</span>
+              Abrir chat de WhatsApp
+            </a>
+            <div style={{ marginTop: '12px' }}>
+              <Link href="/catalogo" className="btn-catalog" style={{ background: '#222', border: '1px solid #333' }}>
+                Volver al Catálogo
+              </Link>
+            </div>
+          </div>
+        </div>
+
+        <style>{`
+          .success-page {
+            min-height: 100vh;
+            background: #111;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+            color: #fff;
+          }
+          .success-card {
+            background: #1a1a1a;
+            border: 1px solid #2a2a2a;
+            border-radius: 12px;
+            padding: 40px;
+            max-width: 520px;
+            width: 100%;
+            text-align: center;
+          }
+          .success-icon {
+            font-size: 60px;
+            margin-bottom: 16px;
+          }
+          .success-card h2 {
+            font-family: var(--font-bebas), sans-serif;
+            font-size: 34px;
+            letter-spacing: 0.05em;
+            margin: 0 0 12px 0;
+            color: #27ae60;
+          }
+          .success-text {
+            color: #aaa;
+            font-size: 14px;
+            line-height: 1.5;
+            margin-bottom: 24px;
+          }
+          .bank-details-card {
+            background: #141414;
+            border: 1px solid #282828;
+            border-radius: 8px;
+            padding: 20px;
+            text-align: left;
+            margin-bottom: 20px;
+          }
+          .bdc-header {
+            font-size: 11px;
+            font-weight: 700;
+            letter-spacing: 0.08em;
+            color: #27ae60;
+            margin-bottom: 14px;
+            border-bottom: 1px solid #222;
+            padding-bottom: 8px;
+          }
+          .bdc-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 13px;
+            margin-bottom: 10px;
+          }
+          .bdc-label { color: #888; }
+          .bdc-value { color: #ddd; font-weight: 500; }
+          .highlight-ref { color: #fff; font-family: monospace; font-size: 15px; background: #222; padding: 2px 6px; border-radius: 4px; }
+          .highlight-green { color: #27ae60; font-weight: 700; font-size: 16px; }
+          .bdc-divider {
+            border-top: 1px dashed #2a2a2a;
+            margin: 12px 0;
+          }
+          .spei-steps {
+            background: rgba(39, 174, 96, 0.08);
+            border: 1px solid rgba(39, 174, 96, 0.2);
+            border-radius: 8px;
+            padding: 14px;
+            margin-bottom: 24px;
+          }
+          .spei-steps p {
+            margin: 0;
+            font-size: 12px;
+            color: #aaa;
+            line-height: 1.5;
+          }
+          .btn-whatsapp {
+            background: #25D366;
+            color: #fff;
+            border: none;
+            border-radius: 8px;
+            padding: 16px 24px;
+            font-family: var(--font-inter), sans-serif;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            width: 100%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 12px;
+            transition: background 0.2s;
+          }
+          .btn-whatsapp:hover {
+            background: #1DA851;
           }
           .btn-catalog {
             background: #27ae60;

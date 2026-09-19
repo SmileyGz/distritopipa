@@ -87,6 +87,9 @@ function CheckoutContent() {
   const [customerPhone, setCustomerPhone] = useState('') 
   const [customerEmail, setCustomerEmail] = useState('')
   const [pickupTime, setPickupTime] = useState('')
+  const [arrivalVehicle, setArrivalVehicle] = useState<'auto' | 'moto' | 'pie'>('auto')
+  const [arrivalMode, setArrivalMode] = useState<'ventanilla' | 'bajar'>('ventanilla')
+  const [cashChange, setCashChange] = useState<'exacto' | '200' | '500'>('exacto')
   const [addressStreet, setAddressStreet] = useState('')
   const [addressColonia, setAddressColonia] = useState('')
   const [addressRef, setAddressRef] = useState('')
@@ -189,10 +192,15 @@ function CheckoutContent() {
     
     try {
       if (fulfillment === 'pickup' && paymentPref === 'anticipo') {
-        // Pickup cash: Await database save and confirmation email BEFORE opening WhatsApp
+        const vehicleLabel = arrivalVehicle === 'auto' ? 'Auto' : arrivalVehicle === 'moto' ? 'Moto' : 'A pie'
+        const modeLabel = arrivalVehicle !== 'pie' ? (arrivalMode === 'ventanilla' ? 'En ventanilla' : 'Me bajo') : ''
+        const changeLabel = cashChange === 'exacto' ? 'Trae exacto' : `Cambio de $${cashChange}`
+
         const fullNotes = [
           pickupTime ? `Horario agendado: ${pickupTime}` : '',
-          orderNotes.trim()
+          `Llegada: ${vehicleLabel}${modeLabel ? ` (${modeLabel})` : ''}`,
+          `Pago: ${changeLabel}`,
+          orderNotes.trim() ? `Notas: ${orderNotes.trim()}` : ''
         ].filter(Boolean).join(' | ')
 
         let orderNum = ''
@@ -251,6 +259,8 @@ function CheckoutContent() {
         if (pickupTime) {
           msg += `\nHorario agendado: ${pickupTime}`
         }
+        msg += `\nLlegada: ${vehicleLabel}${modeLabel ? ` (${modeLabel})` : ''}`
+        msg += `\nPago: ${changeLabel}`
         if (orderNotes.trim()) {
           msg += `\nNotas: ${orderNotes.trim()}`
         }
@@ -259,10 +269,25 @@ function CheckoutContent() {
         
         const whatsappUrl = `https://wa.me/${process.env.NEXT_PUBLIC_WHATSAPP_NUMBER || '529987393474'}?text=${encodeURIComponent(msg)}`
         
+        localStorage.setItem('dp_pickup_order', JSON.stringify({
+          order_number: orderNum,
+          customerName,
+          customerPhone,
+          customerEmail,
+          pickupTime,
+          vehicleLabel,
+          modeLabel,
+          changeLabel,
+          orderNotes: orderNotes.trim(),
+          finalTotal,
+          whatsappUrl
+        }))
+
         clearCart()
 
-        // Directly redirect to WhatsApp
-        window.location.href = whatsappUrl
+        // Open WhatsApp in new tab and route current page to dedicated success screen
+        window.open(whatsappUrl, '_blank')
+        router.push(`/checkout/success?type=pickup&order_number=${encodeURIComponent(orderNum)}&time=${encodeURIComponent(pickupTime)}&total=${finalTotal}`)
       } else if (paymentPref === 'spei') {
         // SPEI Pre-reservation flow: Save order, send pre-reservation email, redirect to confirmation page (NO WhatsApp)
         const res = await fetch('/api/orders', {
@@ -614,6 +639,83 @@ function CheckoutContent() {
                     </select>
                     <p className="hint-text">Te enviaremos la ubicación exacta por WhatsApp al confirmar.</p>
                   </div>
+
+                  <div className="form-group">
+                    <label className="section-label">¿En qué llegas?</label>
+                    <div className="chip-group">
+                      <button 
+                        type="button" 
+                        className={`chip-btn ${arrivalVehicle === 'auto' ? 'active' : ''}`}
+                        onClick={() => setArrivalVehicle('auto')}
+                      >
+                        🚗 Auto
+                      </button>
+                      <button 
+                        type="button" 
+                        className={`chip-btn ${arrivalVehicle === 'moto' ? 'active' : ''}`}
+                        onClick={() => setArrivalVehicle('moto')}
+                      >
+                        🏍️ Moto
+                      </button>
+                      <button 
+                        type="button" 
+                        className={`chip-btn ${arrivalVehicle === 'pie' ? 'active' : ''}`}
+                        onClick={() => setArrivalVehicle('pie')}
+                      >
+                        🚶 A pie
+                      </button>
+                    </div>
+                  </div>
+
+                  {arrivalVehicle !== 'pie' && (
+                    <div className="form-group">
+                      <label className="section-label">Entrega</label>
+                      <div className="chip-group">
+                        <button 
+                          type="button" 
+                          className={`chip-btn ${arrivalMode === 'ventanilla' ? 'active' : ''}`}
+                          onClick={() => setArrivalMode('ventanilla')}
+                        >
+                          ⚡️ En ventanilla
+                        </button>
+                        <button 
+                          type="button" 
+                          className={`chip-btn ${arrivalMode === 'bajar' ? 'active' : ''}`}
+                          onClick={() => setArrivalMode('bajar')}
+                        >
+                          🚶 Me bajo
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
+                  <div className="form-group">
+                    <label className="section-label">¿Ocupas cambio?</label>
+                    <div className="chip-group">
+                      <button 
+                        type="button" 
+                        className={`chip-btn ${cashChange === 'exacto' ? 'active' : ''}`}
+                        onClick={() => setCashChange('exacto')}
+                      >
+                        💵 Traigo exacto
+                      </button>
+                      <button 
+                        type="button" 
+                        className={`chip-btn ${cashChange === '200' ? 'active' : ''}`}
+                        onClick={() => setCashChange('200')}
+                      >
+                        Cambio de $200
+                      </button>
+                      <button 
+                        type="button" 
+                        className={`chip-btn ${cashChange === '500' ? 'active' : ''}`}
+                        onClick={() => setCashChange('500')}
+                      >
+                        Cambio de $500
+                      </button>
+                    </div>
+                  </div>
+
                   <div className="form-group">
                     <label className="section-label">Notas o Instrucciones para tu Visita (Opcional)</label>
                     <textarea 
@@ -920,6 +1022,16 @@ function CheckoutContent() {
         }
         .sleek-input:focus { border-color: #DC143C; }
         .hint-text { font-size: 12px; color: #888; line-height: 1.4; }
+        .chip-group { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 2px; }
+        .chip-btn {
+          background: #161616; border: 1px solid #333; color: #ccc;
+          padding: 8px 14px; border-radius: 6px; font-size: 13px; font-weight: 500;
+          cursor: pointer; transition: all 0.2s ease; display: inline-flex; align-items: center; gap: 6px;
+        }
+        .chip-btn:hover { border-color: #555; color: #fff; }
+        .chip-btn.active {
+          background: rgba(220, 20, 60, 0.15); border-color: #DC143C; color: #fff; font-weight: 600;
+        }
 
         .deposit-box {
           background: #222; border-left: 3px solid #DC143C; padding: 16px; border-radius: 0 8px 8px 0;
