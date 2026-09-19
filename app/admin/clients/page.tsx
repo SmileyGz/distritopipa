@@ -40,6 +40,7 @@ export interface ClientProfile {
   id?: string
   phone: string
   name: string
+  nickname?: string
   email: string
   address: string
   notes: string
@@ -54,11 +55,13 @@ export interface ClientProfile {
   communityPoints: number
   questionsCount: number
   answersCount: number
+  communityQuestions: { id: string; content: string; createdAt: string; upvotes: number }[]
+  communityAnswers: { id: string; content: string; parentId?: string; createdAt: string; upvotes: number }[]
   segment: ClientSegment
 }
 
 type SortField = 'recent' | 'name' | 'spent' | 'orders'
-type FilterTier = 'all' | 'Oro' | 'Plata' | 'Bronce' | 'recurrente' | 'nuevo'
+type FilterTier = 'all' | 'Oro' | 'Plata' | 'Bronce' | 'recurrente' | 'nuevo' | 'comunidad'
 
 export default function AdminClientsPage() {
   const [clients, setClients] = useState<ClientProfile[]>([])
@@ -163,34 +166,67 @@ export default function AdminClientsPage() {
       return acc
     }, {} as Record<string, any>)
 
-    // Community engagement points
-    const posts = JSON.parse(localStorage.getItem('dp_mock_community_posts') || '[]')
+    // Fetch real community activity from Supabase
+    let communityPosts: any[] = []
+    try {
+      const commRes = await adminFetch('/api/admin/community')
+      const commJson = await commRes.json()
+      if (commRes.ok && Array.isArray(commJson.posts)) {
+        communityPosts = commJson.posts
+      } else {
+        communityPosts = JSON.parse(localStorage.getItem('dp_mock_community_posts') || '[]')
+      }
+    } catch (err) {
+      console.error('Error cargando posts de comunidad para CRM:', err)
+      communityPosts = JSON.parse(localStorage.getItem('dp_mock_community_posts') || '[]')
+    }
+
     const answerCounts: Record<string, number> = {}
     const questionCounts: Record<string, number> = {}
-    const communityNames: Record<string, string> = {}
+    const communityNicknames: Record<string, string> = {}
+    const userQuestions: Record<string, { id: string; content: string; createdAt: string; upvotes: number }[]> = {}
+    const userAnswers: Record<string, { id: string; content: string; parentId?: string; createdAt: string; upvotes: number }[]> = {}
 
-    posts.forEach((p: any) => {
-      const authorPhone = p.author?.phone?.replace(/\D/g, '')
-      if (authorPhone) {
-        questionCounts[authorPhone] = (questionCounts[authorPhone] || 0) + 1
-        communityNames[authorPhone] = p.author.nickname
+    communityPosts.forEach((p: any) => {
+      // customer_id stores the user's phone in community_posts, or p.author?.phone for mock
+      const rawPhone = p.customer_id || p.author?.phone || ''
+      const authorPhone = String(rawPhone).replace(/\D/g, '')
+      if (!authorPhone) return
+
+      const nick = p.author_name || p.author?.nickname || ''
+      if (nick && !communityNicknames[authorPhone]) {
+        communityNicknames[authorPhone] = nick
       }
 
-      p.answers?.forEach((ans: any) => {
-        const ansAuthorPhone = ans.author?.phone?.replace(/\D/g, '')
-        if (ansAuthorPhone) {
-          answerCounts[ansAuthorPhone] = (answerCounts[ansAuthorPhone] || 0) + 1
-          communityNames[ansAuthorPhone] = ans.author.nickname
-        }
-      })
+      if (!p.parent_id) {
+        questionCounts[authorPhone] = (questionCounts[authorPhone] || 0) + 1
+        if (!userQuestions[authorPhone]) userQuestions[authorPhone] = []
+        userQuestions[authorPhone].push({
+          id: p.id,
+          content: p.content,
+          createdAt: p.created_at,
+          upvotes: p.upvotes || 0,
+        })
+      } else {
+        answerCounts[authorPhone] = (answerCounts[authorPhone] || 0) + 1
+        if (!userAnswers[authorPhone]) userAnswers[authorPhone] = []
+        userAnswers[authorPhone].push({
+          id: p.id,
+          content: p.content,
+          parentId: p.parent_id,
+          createdAt: p.created_at,
+          upvotes: p.upvotes || 0,
+        })
+      }
     })
 
     // Include community users who have not ordered yet
-    Object.keys(communityNames).forEach(phone => {
+    Object.keys(communityNicknames).forEach(phone => {
       if (!grouped[phone]) {
         grouped[phone] = {
           phone,
-          name: storedNames[phone] || `${communityNames[phone]} (Comunidad)`,
+          name: storedNames[phone] || '', // Real name stays empty if not provided
+          nickname: communityNicknames[phone] || '',
           email: storedEmails[phone] || '',
           address: storedAddresses[phone] || '',
           notes: storedNotes[phone] || '',
@@ -201,6 +237,10 @@ export default function AdminClientsPage() {
           lastOrderDate: new Date().toISOString(),
           firstOrderDate: new Date().toISOString(),
           orders: [],
+        }
+      } else {
+        if (!grouped[phone].nickname && communityNicknames[phone]) {
+          grouped[phone].nickname = communityNicknames[phone]
         }
       }
     })
@@ -223,10 +263,13 @@ export default function AdminClientsPage() {
 
       return {
         ...c,
+        nickname: c.nickname || communityNicknames[c.phone] || undefined,
         totalSpent: newTotalSpent,
         communityPoints: gamificationPoints,
         questionsCount: qCount,
         answersCount: aCount,
+        communityQuestions: userQuestions[c.phone] || [],
+        communityAnswers: userAnswers[c.phone] || [],
         vipStatus: getVIPStatus(newTotalSpent),
         segment,
       }
@@ -313,11 +356,12 @@ export default function AdminClientsPage() {
   const filteredAndSortedClients = useMemo(() => {
     let result = [...clients]
 
-    // Search filter (name, phone, email, address)
+    // Search filter (name, nickname, phone, email, address)
     if (searchTerm.trim()) {
       const term = searchTerm.toLowerCase().trim()
       result = result.filter(c =>
-        c.name.toLowerCase().includes(term) ||
+        (c.name || '').toLowerCase().includes(term) ||
+        (c.nickname || '').toLowerCase().includes(term) ||
         c.phone.includes(term) ||
         c.email.toLowerCase().includes(term) ||
         c.address.toLowerCase().includes(term)
@@ -331,6 +375,8 @@ export default function AdminClientsPage() {
       result = result.filter(c => c.orderCount >= 2)
     } else if (filterTier === 'nuevo') {
       result = result.filter(c => c.orderCount === 1)
+    } else if (filterTier === 'comunidad') {
+      result = result.filter(c => c.segment === 'comunidad')
     }
 
     // Sorting
@@ -339,7 +385,7 @@ export default function AdminClientsPage() {
         case 'recent':
           return new Date(b.lastOrderDate).getTime() - new Date(a.lastOrderDate).getTime()
         case 'name':
-          return (a.name || '').localeCompare(b.name || '')
+          return (a.name || a.nickname || '').localeCompare(b.name || b.nickname || '')
         case 'spent':
           return b.totalSpent - a.totalSpent
         case 'orders':
@@ -357,6 +403,7 @@ export default function AdminClientsPage() {
     total: clients.length,
     recurrentes: clients.filter(c => c.orderCount >= 2).length,
     nuevos: clients.filter(c => c.orderCount === 1).length,
+    comunidad: clients.filter(c => c.segment === 'comunidad').length,
     oro: clients.filter(c => c.vipStatus.tier === 'Oro').length,
     plata: clients.filter(c => c.vipStatus.tier === 'Plata').length,
     bronce: clients.filter(c => c.vipStatus.tier === 'Bronce').length,
@@ -463,6 +510,12 @@ export default function AdminClientsPage() {
           🆕 Nuevos ({stats.nuevos})
         </button>
         <button
+          className={`pill ${filterTier === 'comunidad' ? 'active' : ''}`}
+          onClick={() => setFilterTier('comunidad')}
+        >
+          💬 Comunidad ({stats.comunidad})
+        </button>
+        <button
           className={`pill ${filterTier === 'Oro' ? 'active' : ''}`}
           onClick={() => setFilterTier('Oro')}
           style={{ borderColor: filterTier === 'Oro' ? getTierColor('Oro') : '' }}
@@ -506,11 +559,14 @@ export default function AdminClientsPage() {
         {!loading && filteredAndSortedClients.map(client => {
           const tierColor = getTierColor(client.vipStatus.tier)
           const initials = client.name
-            .split(' ')
-            .map(n => n[0])
-            .slice(0, 2)
-            .join('')
-            .toUpperCase() || 'DP'
+            ? client.name
+                .split(' ')
+                .filter(Boolean)
+                .map(n => n[0])
+                .slice(0, 2)
+                .join('')
+                .toUpperCase()
+            : (client.nickname ? client.nickname.slice(0, 2).toUpperCase() : 'CP')
 
           return (
             <div
@@ -526,7 +582,23 @@ export default function AdminClientsPage() {
               {/* Identity and Quick Copy */}
               <div className="client-main-info">
                 <div className="client-name-row">
-                  <span className="client-name">{client.name}</span>
+                  <span className="client-name">
+                    {client.name ? (
+                      client.name
+                    ) : (
+                      <span style={{ color: '#888', fontStyle: 'italic', fontWeight: 'normal' }}>Sin nombre registrado</span>
+                    )}
+                  </span>
+                  {client.nickname && (
+                    <span style={{ color: '#DC143C', background: '#1c1c1c', border: '1px solid #333', padding: '1px 8px', borderRadius: '12px', fontSize: '11px', fontWeight: 700 }}>
+                      @{client.nickname}
+                    </span>
+                  )}
+                  {client.segment === 'comunidad' && (
+                    <span style={{ color: '#aaa', background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', padding: '1px 8px', borderRadius: '12px', fontSize: '11px' }}>
+                      💬 Comunidad
+                    </span>
+                  )}
                   {client.orderCount >= 2 && (
                     <span className="badge-recurrente">🔄 Recurrente ({client.orderCount})</span>
                   )}
@@ -630,7 +702,9 @@ export default function AdminClientsPage() {
                 className="profile-avatar"
                 style={{ borderColor: getTierColor(selectedClient.vipStatus.tier) }}
               >
-                {selectedClient.name.split(' ').map(n => n[0]).slice(0, 2).join('').toUpperCase() || 'DP'}
+                {selectedClient.name
+                  ? selectedClient.name.split(' ').filter(Boolean).map(n => n[0]).slice(0, 2).join('').toUpperCase()
+                  : (selectedClient.nickname ? selectedClient.nickname.slice(0, 2).toUpperCase() : 'CP')}
               </div>
 
               <div className="profile-identity">
@@ -641,6 +715,7 @@ export default function AdminClientsPage() {
                       className="input-sleek"
                       value={editValue}
                       onChange={e => setEditValue(e.target.value)}
+                      placeholder="Nombre real del cliente"
                       autoFocus
                     />
                     <button
@@ -653,11 +728,18 @@ export default function AdminClientsPage() {
                   </div>
                 ) : (
                   <div className="hero-name-row">
-                    <h2 className="profile-name">{selectedClient.name}</h2>
+                    <h2 className="profile-name">
+                      {selectedClient.name ? selectedClient.name : <span style={{ color: '#888', fontStyle: 'italic', fontWeight: 'normal' }}>Sin nombre registrado</span>}
+                    </h2>
+                    {selectedClient.nickname && (
+                      <span style={{ color: '#DC143C', background: '#1c1c1c', border: '1px solid #333', padding: '2px 8px', borderRadius: '12px', fontSize: '12px', fontWeight: 700 }}>
+                        @{selectedClient.nickname}
+                      </span>
+                    )}
                     <button
                       className="btn-edit-text"
-                      onClick={() => { setEditingField('name'); setEditValue(selectedClient.name); }}
-                      title="Editar nombre"
+                      onClick={() => { setEditingField('name'); setEditValue(selectedClient.name || ''); }}
+                      title="Editar nombre real"
                     >
                       ✏️
                     </button>
@@ -677,7 +759,7 @@ export default function AdminClientsPage() {
                   </span>
 
                   <span className="badge-segment">
-                    {selectedClient.orderCount === 0 && 'Comunidad'}
+                    {selectedClient.orderCount === 0 && '💬 Comunidad'}
                     {selectedClient.orderCount === 1 && '🆕 Cliente Nuevo'}
                     {selectedClient.orderCount >= 2 && '🔄 Comprador Recurrente'}
                   </span>
@@ -702,7 +784,7 @@ export default function AdminClientsPage() {
             {/* Direct Communication Bar */}
             <div className="action-button-row">
               <a
-                href={`https://wa.me/${selectedClient.phone}?text=${encodeURIComponent(`Hola ${selectedClient.name}, te escribimos de Distrito Pipa Cancún:`)}`}
+                href={`https://wa.me/${selectedClient.phone}${selectedClient.name ? `?text=${encodeURIComponent(`Hola ${selectedClient.name}, te escribimos de Distrito Pipa Cancún:`)}` : ''}`}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="btn-action-channel whatsapp"
@@ -898,6 +980,58 @@ export default function AdminClientsPage() {
                 )}
               </div>
             </div>
+
+            {/* Community Interactions Section */}
+            {(selectedClient.communityQuestions?.length > 0 || selectedClient.communityAnswers?.length > 0) && (
+              <div className="section-card">
+                <div className="section-header-flex">
+                  <h3 className="section-title">
+                    💬 Actividad en Comunidad {selectedClient.nickname ? `(@${selectedClient.nickname})` : ''}
+                  </h3>
+                  <span className="section-tip">
+                    {selectedClient.questionsCount} {selectedClient.questionsCount === 1 ? 'duda' : 'dudas'} · {selectedClient.answersCount} {selectedClient.answersCount === 1 ? 'aporte' : 'aportes'}
+                  </span>
+                </div>
+
+                {selectedClient.communityQuestions?.length > 0 && (
+                  <div style={{ marginBottom: selectedClient.communityAnswers?.length > 0 ? 16 : 0 }}>
+                    <h4 style={{ fontSize: 12, color: '#aaa', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 8, fontWeight: 700 }}>
+                      ❓ Dudas Publicadas ({selectedClient.communityQuestions.length})
+                    </h4>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                      {selectedClient.communityQuestions.map(q => (
+                        <div key={q.id} style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 8, padding: '10px 12px' }}>
+                          <div style={{ fontSize: 13, color: '#fff', marginBottom: 4, lineHeight: 1.4 }}>"{q.content}"</div>
+                          <div style={{ fontSize: 11, color: '#888', display: 'flex', justifyContent: 'space-between' }}>
+                            <span>{new Date(q.createdAt).toLocaleDateString('es-MX', { day: '2-digit', month: 'short', year: 'numeric' })}</span>
+                            <span>▲ {q.upvotes} {q.upvotes === 1 ? 'voto' : 'votos'}</span>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {selectedClient.communityAnswers?.length > 0 && (
+                  <div>
+                    <h4 style={{ fontSize: 12, color: '#aaa', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 8, fontWeight: 700 }}>
+                      💡 Aportes y Respuestas ({selectedClient.communityAnswers.length})
+                    </h4>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                      {selectedClient.communityAnswers.map(ans => (
+                        <div key={ans.id} style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 8, padding: '10px 12px' }}>
+                          <div style={{ fontSize: 13, color: '#fff', marginBottom: 4, lineHeight: 1.4 }}>"{ans.content}"</div>
+                          <div style={{ fontSize: 11, color: '#888', display: 'flex', justifyContent: 'space-between' }}>
+                            <span>{new Date(ans.createdAt).toLocaleDateString('es-MX', { day: '2-digit', month: 'short', year: 'numeric' })}</span>
+                            <span style={{ color: '#DC143C', fontWeight: 600 }}>+ $40 VIP · ▲ {ans.upvotes} {ans.upvotes === 1 ? 'voto' : 'votos'}</span>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
 
             {/* Complete Order History */}
             <div className="section-card">
