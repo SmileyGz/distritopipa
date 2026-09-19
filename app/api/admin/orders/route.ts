@@ -167,3 +167,259 @@ export async function PATCH(req: NextRequest) {
     return NextResponse.json({ error: err.message }, { status: 500 })
   }
 }
+
+export async function POST(req: NextRequest) {
+  if (!await checkAuth(req)) {
+    return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
+  }
+
+  try {
+    const body = await req.json()
+    const {
+      customer_name,
+      customer_phone,
+      customer_email,
+      items,
+      delivery_mode = 'delivery',
+      delivery_zone = 'zone1',
+      delivery_address = '',
+      delivery_notes = '',
+      customer_notes = '',
+      admin_notes = '',
+      is_night = false,
+      subtotal_mxn,
+      delivery_fee,
+      total_mxn,
+      anticipo_mxn,
+      anticipo_paid = false,
+      payment_mode = 'deposit',
+      status = 'confirmed',
+      send_email = false,
+    } = body
+
+    if (!customer_name?.trim()) {
+      return NextResponse.json({ error: 'El nombre del cliente es obligatorio' }, { status: 400 })
+    }
+    if (!customer_phone?.trim()) {
+      return NextResponse.json({ error: 'El teléfono del cliente es obligatorio' }, { status: 400 })
+    }
+    if (!Array.isArray(items) || items.length === 0) {
+      return NextResponse.json({ error: 'Debes incluir al menos un artículo en el pedido' }, { status: 400 })
+    }
+
+    // Calculate subtotal
+    const calculatedSubtotal = subtotal_mxn !== undefined
+      ? Number(subtotal_mxn)
+      : items.reduce((sum: number, it: any) => {
+          const qty = Number(it.qty) || 1
+          const unitPrice = Number(it.unit_price) || 0
+          const itemTotal = it.bundle_price !== undefined && it.bundle_price > 0
+            ? Number(it.bundle_price)
+            : unitPrice * qty
+          return sum + itemTotal
+        }, 0)
+
+    // Calculate delivery fee
+    let calculatedDeliveryFee = delivery_fee !== undefined ? Number(delivery_fee) : 0
+    if (delivery_fee === undefined) {
+      if (delivery_mode === 'pickup') {
+        calculatedDeliveryFee = 0
+      } else if (delivery_zone === 'zone2') {
+        calculatedDeliveryFee = is_night ? 100 : 80
+      } else if (delivery_zone === 'zone1') {
+        calculatedDeliveryFee = is_night ? 80 : 50
+      } else {
+        calculatedDeliveryFee = 0
+      }
+    }
+
+    // Calculate total
+    const calculatedTotal = total_mxn !== undefined
+      ? Number(total_mxn)
+      : calculatedSubtotal + calculatedDeliveryFee
+
+    // Calculate anticipo
+    let calculatedAnticipo = anticipo_mxn !== undefined ? Number(anticipo_mxn) : 0
+    if (anticipo_mxn === undefined) {
+      if (payment_mode === 'full_prepay') {
+        calculatedAnticipo = calculatedTotal
+      } else if (delivery_mode === 'pickup') {
+        calculatedAnticipo = 0
+      } else {
+        calculatedAnticipo = 50
+      }
+    }
+
+    // Upsert customer by phone
+    let customer: any = null
+    const cleanPhone = customer_phone.trim()
+    try {
+      const { data: existingCust } = await supabaseAdmin
+        .from('customers')
+        .select('id, first_name, phone, email')
+        .eq('phone', cleanPhone)
+        .maybeSingle()
+
+      if (existingCust) {
+        customer = existingCust
+        const updates: Record<string, any> = { first_name: customer_name.trim() }
+        if (customer_email?.trim()) updates.email = customer_email.trim()
+        await supabaseAdmin.from('customers').update(updates).eq('id', existingCust.id)
+      } else {
+        const { data: newCust, error: insCustErr } = await supabaseAdmin
+          .from('customers')
+          .insert({
+            phone: cleanPhone,
+            first_name: customer_name.trim(),
+            email: customer_email?.trim() || null,
+          })
+          .select('id, first_name, phone, email')
+          .single()
+
+        if (!insCustErr && newCust) {
+          customer = newCust
+        }
+      }
+    } catch (custErr) {
+      console.error('Admin order: error resolving customer:', custErr)
+    }
+
+    const rawNotes = (delivery_notes || customer_notes || '').trim()
+    const addressWithNotes = rawNotes
+      ? (delivery_address.trim() ? `${delivery_address.trim()} [Notas: ${rawNotes}]` : `[Notas: ${rawNotes}]`)
+      : delivery_address.trim()
+
+    const baseOrderData: Record<string, any> = {
+      customer_id: customer?.id || null,
+      customer_email: customer_email?.trim() || null,
+      items,
+      subtotal: calculatedSubtotal,
+      delivery_fee: calculatedDeliveryFee,
+      total: calculatedTotal,
+      fulfillment_type: delivery_mode,
+      delivery_zone: delivery_mode === 'pickup' ? 'pickup' : (delivery_zone || 'zone1'),
+      delivery_address: addressWithNotes,
+      is_night: !!is_night,
+      payment_mode: payment_mode || (delivery_mode === 'pickup' ? 'pickup_cash' : 'deposit'),
+      anticipo_amount: calculatedAnticipo,
+      anticipo_status: anticipo_paid ? 'paid' : 'pending',
+      status: status || 'confirmed',
+      admin_notes: admin_notes?.trim() || null,
+    }
+
+    let orderResult: any = null
+    let orderError: any = null
+
+    // 1. Try inserting with delivery_notes
+    if (rawNotes) {
+      const attempt = await supabaseAdmin
+        .from('orders')
+        .insert({
+          ...baseOrderData,
+          delivery_notes: rawNotes,
+        })
+        .select('*, customers(id, first_name, phone, email)')
+        .single()
+
+      orderResult = attempt.data
+      orderError = attempt.error
+    }
+
+    // 2. Fallback if delivery_notes is missing from schema cache
+    if (!rawNotes || (orderError && (orderError.message.includes('delivery_notes') || orderError.message.includes('schema cache')))) {
+      const attemptFallback = await supabaseAdmin
+        .from('orders')
+        .insert(baseOrderData)
+        .select('*, customers(id, first_name, phone, email)')
+        .single()
+
+      orderResult = attemptFallback.data
+      orderError = attemptFallback.error
+    }
+
+    if (orderError || !orderResult) {
+      console.error('Admin order creation error:', orderError)
+      return NextResponse.json({
+        error: 'Error al registrar pedido en la base de datos',
+        details: orderError?.message || 'Insert failed'
+      }, { status: 500 })
+    }
+
+    const createdOrder = orderResult
+    const mappedOrder = {
+      id: createdOrder.id,
+      order_number: createdOrder.order_number || createdOrder.id.split('-')[0].toUpperCase(),
+      status: createdOrder.status === 'new' ? 'pending' : createdOrder.status,
+      customer_name: customer_name.trim(),
+      customer_phone: cleanPhone,
+      customer_email: customer_email?.trim() || '',
+      items: createdOrder.items || items,
+      subtotal_mxn: createdOrder.subtotal ?? calculatedSubtotal,
+      delivery_fee: createdOrder.delivery_fee ?? calculatedDeliveryFee,
+      total_mxn: createdOrder.total ?? calculatedTotal,
+      anticipo_mxn: createdOrder.anticipo_amount ?? calculatedAnticipo,
+      anticipo_paid: createdOrder.anticipo_status === 'paid',
+      full_paid: createdOrder.payment_mode === 'full_prepay' && createdOrder.anticipo_status === 'paid',
+      delivery_mode: createdOrder.fulfillment_type || delivery_mode,
+      delivery_zone: createdOrder.delivery_zone || (delivery_mode === 'pickup' ? 'pickup' : delivery_zone),
+      is_night: !!createdOrder.is_night,
+      payment_mode: createdOrder.payment_mode || payment_mode,
+      delivery_address: (createdOrder.delivery_address || '').replace(/\[Notas:\s*[\s\S]*?\]/, '').trim(),
+      customer_notes: createdOrder.delivery_notes || rawNotes,
+      delivery_notes: createdOrder.delivery_notes || rawNotes,
+      admin_notes: createdOrder.admin_notes || admin_notes || '',
+      payment_link: createdOrder.payment_link || null,
+      created_at: createdOrder.created_at,
+      updated_at: createdOrder.updated_at,
+    }
+
+    // Optional email confirmation if customer provided email and send_email is true
+    if (send_email && customer_email?.trim()) {
+      try {
+        const orderNumber = mappedOrder.order_number
+        const isFullPrepay = mappedOrder.payment_mode === 'full_prepay'
+        const subject = isFullPrepay
+          ? `¡Pago 100% Confirmado! - Pedido ${orderNumber}`
+          : `¡Pedido Confirmado! - Pedido ${orderNumber}`
+
+        const isPickup = mappedOrder.delivery_mode === 'pickup'
+        const copyBody = isPickup
+          ? `<p>Tus piezas ya están apartadas para ti en nuestro punto de entrega (Región 96, Cancún). En breve coordinamos tu horario de entrega.</p>`
+          : `<p>Tus piezas ya están apartadas para ti y tu pedido <strong>${orderNumber}</strong> está confirmado. En breve preparamos tu ruta.</p>`
+
+        const orderSummaryHtml = renderOrderSummaryHtml({
+          items: items.map((item: any) => ({
+            name: item.name,
+            title: item.name,
+            quantity: item.qty || 1,
+            price: item.unit_price || 0,
+            bundle_price: item.bundle_price,
+            total_price: item.bundle_price ?? ((item.unit_price || 0) * (item.qty || 1))
+          })),
+          subtotal: calculatedSubtotal,
+          deliveryFee: calculatedDeliveryFee,
+          total: calculatedTotal,
+          anticipoPaid: mappedOrder.anticipo_paid ? (isFullPrepay ? calculatedTotal : calculatedAnticipo) : 0
+        })
+
+        const content = `
+          <p>¡Hola ${customer_name.trim().split(' ')[0]}! Registramos tu pedido con éxito.</p>
+          ${copyBody}
+          ${orderSummaryHtml}
+          <p>Cualquier duda o cambio, escríbenos directamente por WhatsApp al <a href="https://wa.me/529983973410">+52 998 397 3410</a>.</p>
+        `
+        const headerTitle = isFullPrepay ? 'Pago 100% Confirmado' : 'Pedido Confirmado'
+        const html = getBrandedEmailHtml(headerTitle, content)
+        sendEmail({ to: customer_email.trim(), subject, html }).catch(console.error)
+      } catch (emErr) {
+        console.error('Error sending admin order confirmation email:', emErr)
+      }
+    }
+
+    return NextResponse.json({ success: true, order: mappedOrder })
+  } catch (err: any) {
+    console.error('POST /api/admin/orders error:', err)
+    return NextResponse.json({ error: err.message || 'Error interno del servidor' }, { status: 500 })
+  }
+}
+

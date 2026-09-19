@@ -192,6 +192,248 @@ export default function AdminOrdersPage() {
   const [cancelReason, setCancelReason] = useState<string>('Falta de anticipo (tiempo límite expirado)')
   const [cancelNotifyEmail, setCancelNotifyEmail] = useState<boolean>(true)
 
+  // ── Create Order Modal State ──
+  const [isCreateOpen, setIsCreateOpen] = useState(false)
+  const [catalogProducts, setCatalogProducts] = useState<Array<{ id: string; name_es: string; price_mxn: number; colors?: string[]; category?: string }>>([])
+  const [loadingProducts, setLoadingProducts] = useState(false)
+  const [createSubmitting, setCreateSubmitting] = useState(false)
+  const [createdOrderSuccess, setCreatedOrderSuccess] = useState<Order | null>(null)
+
+  // Form fields
+  const [custName, setCustName] = useState('')
+  const [custPhone, setCustPhone] = useState('')
+  const [custEmail, setCustEmail] = useState('')
+  const [delivMode, setDelivMode] = useState<'pickup' | 'delivery' | 'punto_medio'>('delivery')
+  const [delivZone, setDelivZone] = useState<'zone1' | 'zone2'>('zone1')
+  const [isNight, setIsNight] = useState(false)
+  const [delivAddress, setDelivAddress] = useState('')
+  const [delivNotes, setDelivNotes] = useState('')
+  const [adminNotes, setAdminNotes] = useState('')
+  const [payMode, setPayMode] = useState<'deposit' | 'pickup_cash' | 'full_prepay'>('deposit')
+  const [anticipoPaid, setAnticipoPaid] = useState(false)
+  const [initialStatus, setInitialStatus] = useState('confirmed')
+  const [sendEmailNotify, setSendEmailNotify] = useState(false)
+  const [customDeliveryFee, setCustomDeliveryFee] = useState<string>('')
+  const [customAnticipo, setCustomAnticipo] = useState<string>('')
+  const [orderItems, setOrderItems] = useState<OrderItem[]>([])
+
+  const resetCreateForm = () => {
+    setCustName('')
+    setCustPhone('')
+    setCustEmail('')
+    setDelivMode('delivery')
+    setDelivZone('zone1')
+    setIsNight(false)
+    setDelivAddress('')
+    setDelivNotes('')
+    setAdminNotes('')
+    setPayMode('deposit')
+    setAnticipoPaid(false)
+    setInitialStatus('confirmed')
+    setSendEmailNotify(false)
+    setCustomDeliveryFee('')
+    setCustomAnticipo('')
+    setOrderItems([])
+    setCreatedOrderSuccess(null)
+  }
+
+  const openCreateModal = async () => {
+    resetCreateForm()
+    setIsCreateOpen(true)
+    if (catalogProducts.length === 0) {
+      setLoadingProducts(true)
+      try {
+        const res = await fetch('/api/products')
+        const json = await res.json()
+        if (json.products) setCatalogProducts(json.products)
+      } catch (e) {
+        console.error('Failed to load products for manual order', e)
+      }
+      setLoadingProducts(false)
+    }
+  }
+
+  const calcSubtotal = useMemo(() => {
+    return orderItems.reduce((acc, it) => acc + (it.bundle_price !== undefined && it.bundle_price > 0 ? it.bundle_price : it.unit_price * (it.qty || 1)), 0)
+  }, [orderItems])
+
+  const calcDeliveryFee = useMemo(() => {
+    if (customDeliveryFee !== '') {
+      return Number(customDeliveryFee) || 0
+    }
+    if (delivMode === 'pickup') return 0
+    if (delivZone === 'zone2') return isNight ? 100 : 80
+    if (delivZone === 'zone1') return isNight ? 80 : 50
+    return 0
+  }, [customDeliveryFee, delivMode, delivZone, isNight])
+
+  const calcTotal = useMemo(() => {
+    return calcSubtotal + calcDeliveryFee
+  }, [calcSubtotal, calcDeliveryFee])
+
+  const calcAnticipo = useMemo(() => {
+    if (customAnticipo !== '') {
+      return Number(customAnticipo) || 0
+    }
+    if (payMode === 'full_prepay') return calcTotal
+    if (delivMode === 'pickup') return 0
+    return 50
+  }, [customAnticipo, payMode, delivMode, calcTotal])
+
+  const calcSaldoEntrega = useMemo(() => {
+    if (payMode === 'full_prepay') return 0
+    if (anticipoPaid) return Math.max(0, calcTotal - calcAnticipo)
+    return calcTotal
+  }, [payMode, anticipoPaid, calcTotal, calcAnticipo])
+
+  const handleSelectProduct = (productId: string) => {
+    if (!productId) return
+    const prod = catalogProducts.find(p => p.id === productId)
+    if (!prod) return
+    setOrderItems(prev => [
+      ...prev,
+      {
+        name: prod.name_es,
+        qty: 1,
+        unit_price: prod.price_mxn,
+        color: prod.colors && prod.colors.length > 0 ? prod.colors[0] : undefined,
+      }
+    ])
+  }
+
+  const handleAddCustomItem = () => {
+    setOrderItems(prev => [
+      ...prev,
+      {
+        name: '',
+        qty: 1,
+        unit_price: 0,
+      }
+    ])
+  }
+
+  const handleUpdateItem = (idx: number, field: keyof OrderItem, val: any) => {
+    setOrderItems(prev => {
+      const next = [...prev]
+      next[idx] = { ...next[idx], [field]: val }
+      return next
+    })
+  }
+
+  const handleRemoveItem = (idx: number) => {
+    setOrderItems(prev => prev.filter((_, i) => i !== idx))
+  }
+
+  const handleCreateOrderSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!custName.trim()) {
+      toast.error('Ingresa el nombre del cliente')
+      return
+    }
+    if (!custPhone.trim() || custPhone.trim().length < 10) {
+      toast.error('Ingresa un teléfono WhatsApp válido (10 dígitos)')
+      return
+    }
+    if (orderItems.length === 0) {
+      toast.error('Agrega al menos un artículo al pedido')
+      return
+    }
+    for (const item of orderItems) {
+      if (!item.name.trim()) {
+        toast.error('Todos los artículos deben tener un nombre')
+        return
+      }
+      if (!item.qty || item.qty < 1) {
+        toast.error('La cantidad mínima por artículo es 1')
+        return
+      }
+    }
+    if (delivMode === 'delivery' && !delivAddress.trim()) {
+      toast.error('Ingresa la dirección de entrega a domicilio')
+      return
+    }
+
+    setCreateSubmitting(true)
+
+    // Fallback for local testing if Supabase is dummy
+    if (process.env.NEXT_PUBLIC_SUPABASE_URL === 'https://dummy.supabase.co' || !process.env.NEXT_PUBLIC_SUPABASE_URL) {
+      const mockOrders = JSON.parse(localStorage.getItem('dp_mock_orders') || '[]')
+      const fakeOrder: Order = {
+        id: 'order-' + Date.now(),
+        order_number: 'DP-' + Math.floor(1000 + Math.random() * 9000),
+        status: initialStatus,
+        customer_name: custName.trim(),
+        customer_phone: custPhone.trim(),
+        customer_email: custEmail.trim() || undefined,
+        items: orderItems,
+        subtotal_mxn: calcSubtotal,
+        delivery_fee: calcDeliveryFee,
+        total_mxn: calcTotal,
+        anticipo_mxn: calcAnticipo,
+        anticipo_paid: anticipoPaid,
+        full_paid: payMode === 'full_prepay' && anticipoPaid,
+        delivery_mode: delivMode,
+        delivery_zone: delivMode === 'pickup' ? 'pickup' : delivZone,
+        is_night: isNight,
+        payment_mode: payMode,
+        delivery_address: delivAddress.trim(),
+        customer_notes: delivNotes.trim(),
+        delivery_notes: delivNotes.trim(),
+        admin_notes: adminNotes.trim(),
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      }
+      mockOrders.unshift(fakeOrder)
+      localStorage.setItem('dp_mock_orders', JSON.stringify(mockOrders))
+      setOrders(prev => [fakeOrder, ...prev])
+      setCreatedOrderSuccess(fakeOrder)
+      toast.success(`¡Pedido #${fakeOrder.order_number} creado con éxito!`)
+      setCreateSubmitting(false)
+      return
+    }
+
+    try {
+      const payload = {
+        customer_name: custName.trim(),
+        customer_phone: custPhone.trim(),
+        customer_email: custEmail.trim() || undefined,
+        delivery_mode: delivMode,
+        delivery_zone: delivMode === 'pickup' ? 'pickup' : delivZone,
+        is_night: isNight,
+        delivery_address: delivAddress.trim(),
+        delivery_notes: delivNotes.trim(),
+        admin_notes: adminNotes.trim(),
+        payment_mode: payMode,
+        anticipo_paid: anticipoPaid,
+        subtotal_mxn: calcSubtotal,
+        delivery_fee: calcDeliveryFee,
+        total_mxn: calcTotal,
+        anticipo_mxn: calcAnticipo,
+        status: initialStatus,
+        send_email: sendEmailNotify && !!custEmail.trim(),
+        items: orderItems,
+      }
+
+      const res = await adminFetch('/api/admin/orders', {
+        method: 'POST',
+        body: JSON.stringify(payload),
+      })
+
+      const data = await res.json()
+      if (!res.ok || !data.success) {
+        throw new Error(data.error || 'Error al registrar pedido')
+      }
+
+      toast.success(`¡Pedido #${data.order.order_number} creado con éxito!`)
+      setOrders(prev => [data.order, ...prev])
+      setCreatedOrderSuccess(data.order)
+    } catch (err: any) {
+      toast.error(err.message || 'Error al crear pedido')
+    } finally {
+      setCreateSubmitting(false)
+    }
+  }
+
   // ── Load orders ───────────────────────────────────────────
 
   const load = useCallback(async () => {
@@ -724,6 +966,475 @@ export default function AdminOrdersPage() {
         </div>
       )}
 
+      {/* ── CREATE ORDER MODAL ── */}
+      {isCreateOpen && (
+        <div className="modal-overlay" onClick={() => !createSubmitting && setIsCreateOpen(false)}>
+          <div className="preview-modal create-modal" onClick={e => e.stopPropagation()}>
+            {createdOrderSuccess ? (
+              /* Success View */
+              <div className="preview-body" style={{ textAlign: 'center', padding: '32px 24px' }}>
+                <div style={{ fontSize: '48px', marginBottom: '12px' }}>🎉</div>
+                <h3 style={{ fontSize: '22px', fontWeight: 800, color: '#fff', marginBottom: '6px', fontFamily: "'Bebas Neue', sans-serif", letterSpacing: '1px' }}>
+                  ¡Pedido #{createdOrderSuccess.order_number} Registrado!
+                </h3>
+                <p style={{ fontSize: '13px', color: '#aaa', marginBottom: '20px' }}>
+                  El pedido fue guardado exitosamente en la base de datos y sumado a tus métricas.
+                </p>
+
+                <div style={{ background: '#111', border: '1px solid #282828', borderRadius: '10px', padding: '16px', textAlign: 'left', marginBottom: '24px' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px', fontSize: '13px' }}>
+                    <span style={{ color: '#888' }}>Cliente:</span>
+                    <strong style={{ color: '#fff' }}>{createdOrderSuccess.customer_name}</strong>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px', fontSize: '13px' }}>
+                    <span style={{ color: '#888' }}>WhatsApp:</span>
+                    <strong style={{ color: '#fff' }}>{createdOrderSuccess.customer_phone}</strong>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px', fontSize: '13px' }}>
+                    <span style={{ color: '#888' }}>Modalidad:</span>
+                    <strong style={{ color: '#fff' }}>{DELIVERY_LABELS[createdOrderSuccess.delivery_mode] || createdOrderSuccess.delivery_mode}</strong>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '15px', paddingTop: '10px', borderTop: '1px solid #262626' }}>
+                    <span style={{ color: '#aaa', fontWeight: 600 }}>Total Pedido:</span>
+                    <strong style={{ color: '#DC143C', fontSize: '17px' }}>${(createdOrderSuccess.total_mxn || 0).toLocaleString('es-MX')} MXN</strong>
+                  </div>
+                </div>
+
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                  <a
+                    className="btn-whatsapp"
+                    href={buildConfirmationUrl(toMessageOrder(createdOrderSuccess))}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    style={{ padding: '12px', justifyContent: 'center', fontSize: '14px', fontWeight: 700 }}
+                  >
+                    💬 Enviar Confirmación por WhatsApp →
+                  </a>
+                  <div style={{ display: 'flex', gap: '10px' }}>
+                    <button
+                      type="button"
+                      className="btn-outline"
+                      style={{ flex: 1, padding: '10px', fontSize: '13px' }}
+                      onClick={() => {
+                        setIsCreateOpen(false)
+                        setCreatedOrderSuccess(null)
+                      }}
+                    >
+                      Ver en la cola
+                    </button>
+                    <button
+                      type="button"
+                      style={{ flex: 1, padding: '10px', fontSize: '13px', background: '#262626', color: '#fff', border: '1px solid #333', borderRadius: '8px', cursor: 'pointer', fontWeight: 600 }}
+                      onClick={resetCreateForm}
+                    >
+                      + Crear otro pedido
+                    </button>
+                  </div>
+                </div>
+              </div>
+            ) : (
+              /* Order Form */
+              <>
+                <div className="preview-header">
+                  <div>
+                    <div className="preview-title" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <span>+ Crear Pedido Manual</span>
+                      <span style={{ fontSize: '10px', background: 'rgba(220, 20, 60, 0.15)', color: '#DC143C', padding: '2px 6px', borderRadius: '4px', border: '1px solid rgba(220, 20, 60, 0.3)', fontWeight: 700 }}>ADMIN</span>
+                    </div>
+                    <div className="preview-sub">Registra pedidos de WhatsApp, llamadas o mostrador Región 96.</div>
+                  </div>
+                  <button className="close-btn" onClick={() => setIsCreateOpen(false)}>✕</button>
+                </div>
+
+                <form onSubmit={handleCreateOrderSubmit}>
+                  <div className="create-modal-body">
+                    {/* SECCIÓN 1: DATOS DEL CLIENTE */}
+                    <div className="form-section">
+                      <div className="form-section-title">👤 1. Datos del Cliente</div>
+                      <div className="form-row-grid">
+                        <div>
+                          <label className="form-label">Nombre del Cliente *</label>
+                          <input
+                            type="text"
+                            required
+                            placeholder="Ej: Daniel Vargas"
+                            className="form-input"
+                            value={custName}
+                            onChange={e => setCustName(e.target.value)}
+                          />
+                        </div>
+                        <div>
+                          <label className="form-label">WhatsApp (10 dígitos) *</label>
+                          <input
+                            type="tel"
+                            required
+                            placeholder="Ej: 9981234567"
+                            className="form-input"
+                            value={custPhone}
+                            onChange={e => setCustPhone(e.target.value.replace(/\D/g, '').slice(0, 10))}
+                          />
+                        </div>
+                      </div>
+                      <div style={{ marginTop: '10px' }}>
+                        <label className="form-label">Correo Electrónico (Opcional)</label>
+                        <input
+                          type="email"
+                          placeholder="cliente@ejemplo.com"
+                          className="form-input"
+                          value={custEmail}
+                          onChange={e => setCustEmail(e.target.value)}
+                        />
+                      </div>
+                    </div>
+
+                    {/* SECCIÓN 2: ARTÍCULOS */}
+                    <div className="form-section">
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                        <div className="form-section-title" style={{ margin: 0 }}>🛍️ 2. Artículos ({orderItems.length})</div>
+                        <button
+                          type="button"
+                          className="btn-ghost"
+                          style={{ fontSize: '11px', padding: '3px 8px', color: '#DC143C' }}
+                          onClick={handleAddCustomItem}
+                        >
+                          + Personalizado
+                        </button>
+                      </div>
+
+                      <div style={{ marginBottom: '12px' }}>
+                        <select
+                          className="form-select"
+                          value=""
+                          disabled={loadingProducts}
+                          onChange={e => {
+                            handleSelectProduct(e.target.value)
+                            e.target.value = ""
+                          }}
+                        >
+                          <option value="">{loadingProducts ? 'Cargando catálogo...' : '➕ Seleccionar producto del catálogo para agregar...'}</option>
+                          {catalogProducts.map(p => (
+                            <option key={p.id} value={p.id}>
+                              {p.name_es} — ${(p.price_mxn || 0).toLocaleString('es-MX')} MXN
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+
+                      {orderItems.length === 0 ? (
+                        <div style={{ padding: '16px', background: '#111', borderRadius: '8px', border: '1px dashed #333', textAlign: 'center', color: '#777', fontSize: '12px' }}>
+                          Selecciona un producto arriba o haz clic en &quot;+ Personalizado&quot; para agregarlo.
+                        </div>
+                      ) : (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                          {orderItems.map((item, idx) => (
+                            <div key={idx} style={{ display: 'flex', gap: '8px', alignItems: 'center', background: '#111', border: '1px solid #262626', borderRadius: '8px', padding: '10px' }}>
+                              <div style={{ flex: 3 }}>
+                                <input
+                                  type="text"
+                                  required
+                                  placeholder="Nombre del artículo"
+                                  className="form-input"
+                                  style={{ fontSize: '12px', padding: '6px 8px' }}
+                                  value={item.name}
+                                  onChange={e => handleUpdateItem(idx, 'name', e.target.value)}
+                                />
+                              </div>
+                              <div style={{ flex: 1.5 }}>
+                                <input
+                                  type="text"
+                                  placeholder="Color / Var"
+                                  className="form-input"
+                                  style={{ fontSize: '12px', padding: '6px 8px' }}
+                                  value={item.color || ''}
+                                  onChange={e => handleUpdateItem(idx, 'color', e.target.value)}
+                                />
+                              </div>
+                              <div style={{ width: '60px' }}>
+                                <input
+                                  type="number"
+                                  min="1"
+                                  required
+                                  title="Cantidad"
+                                  className="form-input"
+                                  style={{ fontSize: '12px', padding: '6px 6px', textAlign: 'center' }}
+                                  value={item.qty}
+                                  onChange={e => handleUpdateItem(idx, 'qty', Math.max(1, parseInt(e.target.value) || 1))}
+                                />
+                              </div>
+                              <div style={{ width: '80px' }}>
+                                <input
+                                  type="number"
+                                  min="0"
+                                  required
+                                  title="Precio Unitario"
+                                  className="form-input"
+                                  style={{ fontSize: '12px', padding: '6px 6px', textAlign: 'right' }}
+                                  value={item.unit_price}
+                                  onChange={e => handleUpdateItem(idx, 'unit_price', Math.max(0, parseFloat(e.target.value) || 0))}
+                                />
+                              </div>
+                              <div style={{ width: '65px', textAlign: 'right', fontSize: '12px', fontWeight: 600, color: '#fff' }}>
+                                ${((item.bundle_price ?? item.unit_price * (item.qty || 1))).toLocaleString('es-MX')}
+                              </div>
+                              <button
+                                type="button"
+                                title="Eliminar artículo"
+                                style={{ background: 'none', border: 'none', color: '#ff5555', cursor: 'pointer', padding: '4px', fontSize: '14px' }}
+                                onClick={() => handleRemoveItem(idx)}
+                              >
+                                ✕
+                              </button>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* SECCIÓN 3: ENTREGA */}
+                    <div className="form-section">
+                      <div className="form-section-title">🛵 3. Entrega & Logística</div>
+                      <div className="form-row-grid">
+                        <div>
+                          <label className="form-label">Modalidad de Entrega</label>
+                          <select
+                            className="form-select"
+                            value={delivMode === 'pickup' ? 'pickup' : (delivMode === 'punto_medio' ? 'punto_medio' : delivZone)}
+                            onChange={e => {
+                              const val = e.target.value
+                              if (val === 'pickup') {
+                                setDelivMode('pickup')
+                                if (payMode === 'deposit') setPayMode('pickup_cash')
+                              } else if (val === 'punto_medio') {
+                                setDelivMode('punto_medio')
+                              } else if (val === 'zone1') {
+                                setDelivMode('delivery')
+                                setDelivZone('zone1')
+                                if (payMode === 'pickup_cash') setPayMode('deposit')
+                              } else if (val === 'zone2') {
+                                setDelivMode('delivery')
+                                setDelivZone('zone2')
+                                if (payMode === 'pickup_cash') setPayMode('deposit')
+                              }
+                            }}
+                          >
+                            <option value="pickup">📍 Recolección Región 96 ($0 MXN)</option>
+                            <option value="zone1">🚗 Domicilio Zona 1 (1–6 km: $50 / $80 noche)</option>
+                            <option value="zone2">🚗 Domicilio Zona 2 (6–10 km: $80 / $100 noche)</option>
+                            <option value="punto_medio">🏢 Punto Medio Cancún ($0 MXN)</option>
+                          </select>
+                        </div>
+
+                        <div>
+                          <label className="form-label">Costo de Envío ($ MXN)</label>
+                          <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                            <input
+                              type="number"
+                              min="0"
+                              className="form-input"
+                              placeholder={calcDeliveryFee.toString()}
+                              value={customDeliveryFee}
+                              onChange={e => setCustomDeliveryFee(e.target.value)}
+                            />
+                            {customDeliveryFee !== '' && (
+                              <button
+                                type="button"
+                                className="btn-ghost"
+                                style={{ fontSize: '11px', whiteSpace: 'nowrap', padding: '6px 8px' }}
+                                onClick={() => setCustomDeliveryFee('')}
+                              >
+                                Auto ({calcDeliveryFee})
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+
+                      <div style={{ marginTop: '10px' }}>
+                        <label className="checkbox-label">
+                          <input
+                            type="checkbox"
+                            checked={isNight}
+                            onChange={e => setIsNight(e.target.checked)}
+                            className="checkbox-input"
+                          />
+                          <span>🌙 <strong>Horario Nocturno (+8:00 PM)</strong> — Recargo noche (+${delivZone === 'zone2' ? '20' : '30'} MXN)</span>
+                        </label>
+                      </div>
+
+                      {delivMode === 'delivery' && (
+                        <div style={{ marginTop: '12px' }}>
+                          <label className="form-label">Dirección de Entrega *</label>
+                          <input
+                            type="text"
+                            required
+                            placeholder="Calle, Número, Región / Supermanzana, Referencias..."
+                            className="form-input"
+                            value={delivAddress}
+                            onChange={e => setDelivAddress(e.target.value)}
+                          />
+                        </div>
+                      )}
+
+                      <div style={{ marginTop: '12px' }}>
+                        <label className="form-label">Notas / Instrucciones de Entrega (Cliente)</label>
+                        <input
+                          type="text"
+                          placeholder="Ej: Portón café, timbrar dos veces, entregar a su hermano..."
+                          className="form-input"
+                          value={delivNotes}
+                          onChange={e => setDelivNotes(e.target.value)}
+                        />
+                      </div>
+                    </div>
+
+                    {/* SECCIÓN 4: PAGO & ESTADO */}
+                    <div className="form-section">
+                      <div className="form-section-title">💳 4. Forma de Pago & Estado Inicial</div>
+                      <div className="form-row-grid">
+                        <div>
+                          <label className="form-label">Forma de Pago</label>
+                          <select
+                            className="form-select"
+                            value={payMode}
+                            onChange={e => {
+                              const val = e.target.value as any
+                              setPayMode(val)
+                              if (val === 'full_prepay') setAnticipoPaid(true)
+                            }}
+                          >
+                            <option value="deposit">📱 Anticipo $50 transferencia + Saldo contra-entrega</option>
+                            <option value="pickup_cash">💵 Efectivo al recoger / entregar</option>
+                            <option value="full_prepay">💳 Pago 100% anticipado (Transferencia / SPEI)</option>
+                          </select>
+                        </div>
+
+                        <div>
+                          <label className="form-label">Estado Inicial del Pedido</label>
+                          <select
+                            className="form-select"
+                            value={initialStatus}
+                            onChange={e => setInitialStatus(e.target.value)}
+                          >
+                            <option value="confirmed">✅ Confirmado / Apartado (Recomendado)</option>
+                            <option value="pending">⏳ Pendiente (Por confirmar)</option>
+                            <option value="preparing">📦 En preparación</option>
+                            <option value="ready">🏁 Listo para entrega</option>
+                            <option value="delivered">🎉 Entregado y liquidado</option>
+                          </select>
+                        </div>
+                      </div>
+
+                      <div className="form-row-grid" style={{ marginTop: '10px' }}>
+                        <div>
+                          <label className="form-label">Monto de Anticipo ($ MXN)</label>
+                          <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                            <input
+                              type="number"
+                              min="0"
+                              className="form-input"
+                              placeholder={calcAnticipo.toString()}
+                              value={customAnticipo}
+                              onChange={e => setCustomAnticipo(e.target.value)}
+                            />
+                            {customAnticipo !== '' && (
+                              <button
+                                type="button"
+                                className="btn-ghost"
+                                style={{ fontSize: '11px', whiteSpace: 'nowrap', padding: '6px 8px' }}
+                                onClick={() => setCustomAnticipo('')}
+                              >
+                                Auto ({calcAnticipo})
+                              </button>
+                            )}
+                          </div>
+                        </div>
+
+                        <div style={{ display: 'flex', alignItems: 'center', marginTop: '20px' }}>
+                          <label className="checkbox-label">
+                            <input
+                              type="checkbox"
+                              checked={anticipoPaid}
+                              onChange={e => setAnticipoPaid(e.target.checked)}
+                              className="checkbox-input"
+                            />
+                            <span><strong>¿Anticipo ya pagado / recibido?</strong></span>
+                          </label>
+                        </div>
+                      </div>
+
+                      {custEmail.trim() && (
+                        <div style={{ marginTop: '10px' }}>
+                          <label className="checkbox-label">
+                            <input
+                              type="checkbox"
+                              checked={sendEmailNotify}
+                              onChange={e => setSendEmailNotify(e.target.checked)}
+                              className="checkbox-input"
+                            />
+                            <span>Enviar confirmación por correo a <strong>{custEmail}</strong></span>
+                          </label>
+                        </div>
+                      )}
+
+                      <div style={{ marginTop: '12px' }}>
+                        <label className="form-label">Notas Internas (Admin)</label>
+                        <input
+                          type="text"
+                          placeholder="Ej: Cliente frecuente de WhatsApp, pedido express..."
+                          className="form-input"
+                          value={adminNotes}
+                          onChange={e => setAdminNotes(e.target.value)}
+                        />
+                      </div>
+                    </div>
+
+                    {/* RESUMEN FINANCIERO */}
+                    <div className="create-summary-card">
+                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px', marginBottom: '6px' }}>
+                        <span style={{ color: '#888' }}>Subtotal ({orderItems.reduce((s, i) => s + (i.qty || 1), 0)} pzs):</span>
+                        <span style={{ color: '#ccc' }}>${calcSubtotal.toLocaleString('es-MX')} MXN</span>
+                      </div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px', marginBottom: '6px' }}>
+                        <span style={{ color: '#888' }}>Costo de Envío:</span>
+                        <span style={{ color: '#ccc' }}>${calcDeliveryFee.toLocaleString('es-MX')} MXN</span>
+                      </div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '16px', fontWeight: 800, paddingTop: '8px', borderTop: '1px solid #262626', marginBottom: '6px' }}>
+                        <span style={{ color: '#fff' }}>TOTAL DEL PEDIDO:</span>
+                        <span style={{ color: '#DC143C' }}>${calcTotal.toLocaleString('es-MX')} MXN</span>
+                      </div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px' }}>
+                        <span style={{ color: '#aaa' }}>
+                          {payMode === 'full_prepay'
+                            ? '💳 100% Pagado'
+                            : (anticipoPaid ? `✓ Anticipo $${calcAnticipo} pagado` : `⏳ Anticipo $${calcAnticipo} pendiente`)}:
+                        </span>
+                        <span style={{ color: payMode === 'full_prepay' ? '#4ade80' : '#f59e0b', fontWeight: 700 }}>
+                          {calcSaldoEntrega === 0 ? 'Liquidado $0' : `Saldo a cobrar contra-entrega: $${calcSaldoEntrega.toLocaleString('es-MX')} MXN`}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="preview-footer justify-between" style={{ padding: '16px 20px', borderTop: '1px solid #262626' }}>
+                    <button type="button" className="btn-ghost" onClick={() => setIsCreateOpen(false)}>
+                      Cancelar
+                    </button>
+                    <button
+                      type="submit"
+                      className="btn-primary"
+                      disabled={createSubmitting}
+                      style={{ background: '#DC143C', borderColor: '#DC143C', color: '#fff', fontWeight: 700, padding: '10px 20px', cursor: 'pointer', borderRadius: '8px' }}
+                    >
+                      {createSubmitting ? 'Registrando...' : '💾 Registrar Pedido en el Sistema'}
+                    </button>
+                  </div>
+                </form>
+              </>
+            )}
+          </div>
+        </div>
+      )}
+
       {/* ── HEADER ── */}
       <header className="page-header">
         <div>
@@ -733,7 +1444,25 @@ export default function AdminOrdersPage() {
             Gestión de entregas locales, cobros contra-entrega y comunicación directa con clientes y mensajeros.
           </p>
         </div>
-        <div className="header-actions">
+        <div className="header-actions" style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+          <button
+            className="btn-primary"
+            onClick={openCreateModal}
+            style={{
+              background: '#DC143C',
+              borderColor: '#DC143C',
+              color: '#fff',
+              fontWeight: 700,
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '6px',
+              padding: '8px 16px',
+              borderRadius: '8px',
+              cursor: 'pointer',
+            }}
+          >
+            <span style={{ fontSize: '16px', lineHeight: 1 }}>+</span> Crear Pedido
+          </button>
           <button className="btn-outline" onClick={load}>
             <span className="btn-icon">↺</span> Actualizar
           </button>
@@ -2669,6 +3398,72 @@ export default function AdminOrdersPage() {
         }
 
         .mt-2 { margin-top: 8px; }
+
+        .create-modal {
+          max-width: 680px;
+        }
+
+        .create-modal-body {
+          padding: 20px;
+          overflow-y: auto;
+          max-height: calc(85vh - 130px);
+          display: flex;
+          flex-direction: column;
+          gap: 16px;
+        }
+
+        .form-section {
+          background: #181818;
+          border: 1px solid #282828;
+          border-radius: 10px;
+          padding: 14px;
+        }
+
+        .form-section-title {
+          font-size: 13px;
+          font-weight: 700;
+          color: #eee;
+          margin-bottom: 12px;
+          display: flex;
+          align-items: center;
+          gap: 6px;
+        }
+
+        .form-row-grid {
+          display: grid;
+          grid-template-columns: 1fr 1fr;
+          gap: 12px;
+        }
+
+        @media (max-width: 640px) {
+          .form-row-grid {
+            grid-template-columns: 1fr;
+          }
+        }
+
+        .form-input {
+          width: 100%;
+          background: #111;
+          border: 1px solid #333;
+          border-radius: 6px;
+          padding: 8px 12px;
+          color: #fff;
+          font-size: 13px;
+          box-sizing: border-box;
+          outline: none;
+          transition: border-color 0.15s ease;
+        }
+
+        .form-input:focus {
+          border-color: #DC143C;
+        }
+
+        .create-summary-card {
+          background: #111;
+          border: 1px solid rgba(220, 20, 60, 0.4);
+          border-radius: 10px;
+          padding: 14px;
+        }
       `}</style>
     </div>
   )
