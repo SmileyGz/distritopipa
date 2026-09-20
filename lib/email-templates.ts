@@ -39,13 +39,31 @@ export function getBrandedEmailHtml(title: string, contentHtml: string): string 
 
           <!-- Footer -->
           <tr>
-            <td align="center" style="padding: 30px 20px; background-color: #151515; border-top: 1px solid #333333;">
-              <h1 style="margin: 0 0 10px 0; font-family: 'Bebas Neue', sans-serif; font-size: 28px; letter-spacing: 2px; color: #DC143C; text-transform: uppercase;">
+            <td align="center" style="padding: 32px 20px; background-color: #151515; border-top: 1px solid #333333;">
+              <h1 style="margin: 0 0 8px 0; font-family: 'Bebas Neue', sans-serif; font-size: 28px; letter-spacing: 2px; color: #DC143C; text-transform: uppercase;">
                 DISTRITO <span style="color: #FFFFFF; font-family: 'Times New Roman', serif; font-style: italic; text-transform: none; font-size: 30px;">Pipa</span>
               </h1>
-              <p style="margin: 0; color: #888888; font-size: 12px;">
+              <p style="margin: 0; color: #888888; font-size: 12px; line-height: 1.4;">
                 <strong>Distrito Pipa Cancún</strong><br>
-                La opción local de confianza. Entregas rápidas y seguras.
+                La opción local de confianza · Entregas rápidas y seguras
+              </p>
+
+              <!-- Social Links -->
+              <table border="0" cellspacing="0" cellpadding="0" style="margin: 20px 0 10px 0;">
+                <tr>
+                  <td align="center">
+                    <a href="https://www.facebook.com/distritopipacancun/" target="_blank" rel="noopener noreferrer" style="display: inline-block; padding: 7px 16px; margin: 0 5px; background-color: #242424; border: 1px solid #383838; border-radius: 20px; color: #FFFFFF; font-size: 12px; font-weight: 600; text-decoration: none; font-family: 'Inter', Helvetica, Arial, sans-serif;">
+                      <span style="color: #DC143C; font-size: 12px; margin-right: 5px;">●</span>Facebook
+                    </a>
+                    <a href="https://www.instagram.com/distritopipa/" target="_blank" rel="noopener noreferrer" style="display: inline-block; padding: 7px 16px; margin: 0 5px; background-color: #242424; border: 1px solid #383838; border-radius: 20px; color: #FFFFFF; font-size: 12px; font-weight: 600; text-decoration: none; font-family: 'Inter', Helvetica, Arial, sans-serif;">
+                      <span style="color: #DC143C; font-size: 12px; margin-right: 5px;">●</span>Instagram
+                    </a>
+                  </td>
+                </tr>
+              </table>
+
+              <p style="margin: 4px 0 0 0; color: #666666; font-size: 11px;">
+                Síguenos para ver restocks, dinámicas y entregas del día en Cancún
               </p>
             </td>
           </tr>
