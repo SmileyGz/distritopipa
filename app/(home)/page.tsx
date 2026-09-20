@@ -69,22 +69,8 @@ export default async function HomePage() {
 
       {/* 3. SOCIAL PROOF */}
       <div className="social-proof">
-        <div className="sp-main">
-          <div className="sp-bag">📦</div>
-          <p className="sp-text"><strong>Más de 120 vecinos</strong> en Cancún ya confían en nosotros. <em>&quot;Llegó en 20 mins a la 96, excelente servicio.&quot;</em></p>
-        </div>
-        <a
-          href="https://www.facebook.com/distritopipacancun/"
-          target="_blank"
-          rel="noopener noreferrer"
-          className="sp-social-badge"
-          title="Ver entregas y opiniones en Facebook"
-        >
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
-            <path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/>
-          </svg>
-          <span>Ver entregas en Facebook →</span>
-        </a>
+        <div className="sp-bag">📦</div>
+        <p className="sp-text"><strong>Más de 120 vecinos</strong> en Cancún ya confían en nosotros. <em>&quot;Llegó en 20 mins a la 96, excelente servicio.&quot;</em></p>
       </div>
 
       {/* 4. CATEGORY GRID (MOVED UP) */}
@@ -153,32 +139,7 @@ export default async function HomePage() {
         </div>
         <div className="anticipo-note">
           <span className="anticipo-dot">💳</span>
-          <div className="anticipo-body">
-            <p className="anticipo-text">
-              Asegura tu pieza con un anticipo de solo $50 MXN. Liquida el resto en efectivo al recibir. Fácil y seguro.{' '}
-              <Link href="/checkout" className="anticipo-link">Cómo funciona →</Link>
-            </p>
-            <div className="anticipo-trust-row">
-              <span className="trust-badge-label">🛡️ Entregas 100% reales en Cancún:</span>
-              <a
-                href="https://www.facebook.com/distritopipacancun/"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="anticipo-social-link"
-              >
-                Checar Facebook
-              </a>
-              <span className="trust-sep">·</span>
-              <a
-                href="https://www.instagram.com/distritopipa/"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="anticipo-social-link"
-              >
-                Instagram
-              </a>
-            </div>
-          </div>
+          <p className="anticipo-text">Asegura tu pieza con un anticipo de solo $50 MXN. Liquida el resto en efectivo al recibir. Fácil y seguro. <Link href="/checkout" className="anticipo-link">Cómo funciona →</Link></p>
         </div>
       </section>
 
@@ -305,32 +266,10 @@ const styles = `
   .cta-ghost { padding: 13px 20px; background: transparent; color: #ccc; border: 1px solid rgba(255,255,255,0.08); border-radius: 6px; font-size: 14px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; cursor: pointer; text-decoration: none; display: inline-flex; align-items: center; justify-content: center; transition: all 0.2s ease-out; }
   .cta-ghost:hover { background: rgba(26,26,26,0.6); border-color: #DC143C; color: #fff; box-shadow: 0 4px 20px rgba(220, 20, 60, 0.15); transform: translateY(-2px); }
 
-  .social-proof { display: flex; align-items: center; justify-content: center; gap: 16px; padding: 14px 20px; background: #0d0d0d; border-top: 0.5px solid #1a1a1a; border-bottom: 0.5px solid #1a1a1a; flex-wrap: wrap; }
-  .sp-main { display: flex; align-items: center; gap: 10px; }
+  .social-proof { display: flex; align-items: center; justify-content: center; gap: 12px; padding: 14px 20px; background: #0d0d0d; border-top: 0.5px solid #1a1a1a; border-bottom: 0.5px solid #1a1a1a; }
   .sp-bag { font-size: 24px; }
-  .sp-text { font-size: 12px; color: #888; line-height: 1.4; margin: 0; }
+  .sp-text { font-size: 12px; color: #888; line-height: 1.4; }
   .sp-text strong { color: #fff; }
-  .sp-social-badge {
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-    padding: 6px 12px;
-    background: rgba(255,255,255,0.04);
-    border: 1px solid rgba(255,255,255,0.1);
-    border-radius: 20px;
-    color: #ccc;
-    font-size: 11px;
-    font-weight: 600;
-    text-decoration: none;
-    transition: all 0.2s ease;
-    white-space: nowrap;
-  }
-  .sp-social-badge:hover {
-    color: #fff;
-    background: rgba(220, 20, 60, 0.15);
-    border-color: #DC143C;
-    transform: translateY(-1px);
-  }
 
   .section { padding: 32px 20px; }
   .section-label { display: flex; align-items: center; gap: 10px; margin-bottom: 20px; }
@@ -387,16 +326,11 @@ const styles = `
   .del-card { padding: 14px 10px; text-align: center; display: flex; flex-direction: column; gap: 4px; }
   .del-icon { font-size: 24px; }
   .del-mode { font-size: 12px; font-weight: 600; color: #fff; }
+  .del-price { font-size: 11px; color: #888; }
   .anticipo-note { padding: 16px; display: flex; align-items: flex-start; gap: 12px; }
-  .anticipo-dot { font-size: 20px; line-height: 1; margin-top: 2px; }
-  .anticipo-body { display: flex; flex-direction: column; gap: 8px; }
-  .anticipo-text { font-size: 13px; color: #aaa; line-height: 1.5; margin: 0; }
+  .anticipo-dot { font-size: 20px; }
+  .anticipo-text { font-size: 13px; color: #aaa; line-height: 1.5; }
   .anticipo-link { color: #DC143C; text-decoration: none; font-weight: 500; }
-  .anticipo-trust-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-size: 11px; color: #777; margin-top: 2px; }
-  .trust-badge-label { color: #aaa; font-weight: 500; }
-  .anticipo-social-link { color: #DC143C; text-decoration: none; font-weight: 600; transition: color 0.15s; }
-  .anticipo-social-link:hover { color: #ff3355; text-decoration: underline; }
-  .trust-sep { color: #444; }
 
   .loyalty-teaser { padding: 0 20px; }
   .loyalty-inner { background: linear-gradient(135deg, #1a1a1a, #2a1a1a); border: 0.5px solid #DC143C; border-radius: 12px; padding: 24px; text-align: center; }
