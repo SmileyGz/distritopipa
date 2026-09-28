@@ -28,6 +28,7 @@ export default function CopyManagementPage() {
   const [postingDate, setPostingDate] = useState<string>('');
   const [internalNotes, setInternalNotes] = useState('');
   const [publishingLog, setPublishingLog] = useState<PublicationLogEntry[]>([]);
+  const [revisions, setRevisions] = useState<any[]>([]);
   
   // Quick Log modal / form state
   const [showLogModal, setShowLogModal] = useState(false);
@@ -180,7 +181,6 @@ export default function CopyManagementPage() {
 
     toast.success('🚀 Envío registrado en el historial');
     
-    // Auto-save with the updated publication log
     await handleSave({
       publishing_log: updatedLog,
       status: 'posted',
@@ -193,6 +193,46 @@ export default function CopyManagementPage() {
     setPublishingLog(updated);
     toast.success('Registro de envío removido');
     await handleSave({ publishing_log: updated });
+  }
+
+  // Revisions Eraser Handlers
+  async function handleDeleteSingleRevision(revId: string) {
+    if (!confirm('¿Eliminar esta versión específica del historial de texto?')) return;
+    try {
+      const res = await fetch(`/api/admin/copy?revision_id=${revId}`, { method: 'DELETE' });
+      if (res.ok) {
+        setRevisions((prev) => prev.filter((r) => r.id !== revId));
+        toast.success('Versión eliminada del historial');
+        fetchDrafts();
+      } else {
+        throw new Error('Error al eliminar revisión');
+      }
+    } catch (err: any) {
+      toast.error(err.message || 'No se pudo eliminar');
+    }
+  }
+
+  async function handleClearAllRevisions() {
+    if (!activeDraft?.id) return;
+    if (!confirm(`¿Borrar TODO el historial de revisiones de texto para "${activeDraft.title}"? (Esta acción dejará limpio el historial de cambios)`)) return;
+    
+    try {
+      const res = await fetch(`/api/admin/copy?clear_revisions_draft_id=${activeDraft.id}`, { method: 'DELETE' });
+      if (res.ok) {
+        setRevisions([]);
+        toast.success('🗑️ Historial de revisiones de texto limpiado');
+        fetchDrafts();
+      } else {
+        throw new Error('Error al limpiar revisiones');
+      }
+    } catch (err: any) {
+      toast.error(err.message || 'No se pudo limpiar');
+    }
+  }
+
+  function handleRestoreRevision(text: string) {
+    setFbMarketplaceCopy(text);
+    toast.success('↺ Texto restaurado en el editor de Marketplace');
   }
 
   async function handleDelete() {
@@ -226,6 +266,7 @@ export default function CopyManagementPage() {
     setPostingDate('');
     setInternalNotes('');
     setPublishingLog([]);
+    setRevisions([]);
     setImgNoGlass(false);
     setImgNoSmoke(false);
     setImgFocusDelivery(false);
@@ -243,6 +284,7 @@ export default function CopyManagementPage() {
     setImgNoGlass(d.img_no_glass || false);
     setImgNoSmoke(d.img_no_smoke || false);
     setImgFocusDelivery(d.img_focus_delivery || false);
+    setRevisions(d.copy_revisions || []);
 
     // Parse publishing log safely
     try {
@@ -262,6 +304,14 @@ export default function CopyManagementPage() {
     navigator.clipboard.writeText(text);
     toast.success(`📋 ${label} copiado al portapapeles`);
   }
+
+  // Sorted revisions: NEWEST at the top!
+  const sortedRevisions = useMemo(() => {
+    if (!revisions || revisions.length === 0) return [];
+    return [...revisions].sort(
+      (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+    );
+  }, [revisions]);
 
   // Filtered drafts
   const filteredDrafts = useMemo(() => {
@@ -363,7 +413,7 @@ export default function CopyManagementPage() {
       {/* Main Grid */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
         {/* Left Column: Explorer & Filters */}
-        <div className="lg:col-span-4 bg-zinc-900/60 border border-zinc-800 rounded-2xl p-5 backdrop-blur-sm flex flex-col h-fit max-h-[820px]">
+        <div className="lg:col-span-4 bg-zinc-900/60 border border-zinc-800 rounded-2xl p-5 backdrop-blur-sm flex flex-col h-fit max-h-[860px]">
           {/* Search bar */}
           <div className="mb-3">
             <input
@@ -484,7 +534,7 @@ export default function CopyManagementPage() {
                   onClick={() => setShowLogModal(true)}
                   className="bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold px-3 py-1.5 rounded-lg transition shadow-md shadow-emerald-950/40 flex items-center gap-1.5"
                 >
-                  <span>🚀</span> + Registrar Envío / Re-publicación
+                  <span>🚀</span> + Registrar Envío
                 </button>
                 <button
                   type="button"
@@ -755,7 +805,7 @@ export default function CopyManagementPage() {
                     🚀 Registro de Publicaciones & Re-envíos ({publishingLog.length})
                   </h3>
                   <span className="text-[10px] bg-zinc-800 text-zinc-400 px-2 py-0.5 rounded-full">
-                    Tracking de Reuso
+                    Historial de Reuso
                   </span>
                 </div>
                 <p className="text-[11px] text-zinc-400 mt-0.5">
@@ -842,27 +892,80 @@ export default function CopyManagementPage() {
             />
           </div>
 
-          {/* Text Revision History (ONLY for real text changes) */}
-          {activeDraft?.copy_revisions && activeDraft.copy_revisions.length > 0 && (
-            <div className="bg-zinc-950/40 border border-zinc-800/80 rounded-xl p-4 space-y-2">
-              <h4 className="text-xs font-bold uppercase tracking-wider text-zinc-400">
-                🔄 Historial de Revisiones de Texto ({activeDraft.copy_revisions.length} cambios de redacción)
-              </h4>
-              <p className="text-[11px] text-zinc-500">
-                Se registra automáticamente sólo cuando modificas las palabras del texto de Marketplace.
-              </p>
-              <div className="space-y-2 max-h-32 overflow-y-auto pr-1">
-                {activeDraft.copy_revisions.map((rev: any, idx: number) => (
-                  <div key={rev.id || idx} className="text-xs bg-zinc-900 p-2.5 rounded-lg border border-zinc-800/80">
-                    <div className="text-[10px] text-zinc-500 mb-1 flex justify-between">
-                      <span>Versión de Texto #{activeDraft.copy_revisions.length - idx}</span>
-                      <span>{new Date(rev.created_at).toLocaleString()}</span>
+          {/* 🔄 Text Revision History with ERASER and CORRECT CHRONOLOGICAL SORTING */}
+          {sortedRevisions.length > 0 && (
+            <div className="bg-zinc-950/60 border border-zinc-800 rounded-xl p-4 space-y-3">
+              <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 pb-2 border-b border-zinc-800/80">
+                <div>
+                  <h4 className="text-xs font-bold uppercase tracking-wider text-zinc-300 flex items-center gap-2">
+                    <span>🔄</span> Historial de Revisiones de Texto ({sortedRevisions.length})
+                  </h4>
+                  <p className="text-[11px] text-zinc-500">
+                    Ordenado cronológicamente (la versión más reciente arriba).
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={handleClearAllRevisions}
+                  className="text-[11px] text-red-400 hover:text-red-300 bg-red-950/30 hover:bg-red-950/60 border border-red-900/50 px-2.5 py-1 rounded-lg transition flex items-center gap-1"
+                  title="Borrar todo el historial de revisiones"
+                >
+                  <span>🗑️</span> Limpiar Todo el Historial
+                </button>
+              </div>
+
+              <div className="space-y-2 max-h-48 overflow-y-auto pr-1">
+                {sortedRevisions.map((rev: any, idx: number) => {
+                  const versionNumber = sortedRevisions.length - idx;
+                  const isLatest = idx === 0;
+
+                  return (
+                    <div
+                      key={rev.id || idx}
+                      className={`text-xs p-3 rounded-xl border transition-all ${
+                        isLatest
+                          ? 'bg-zinc-900 border-zinc-700/80'
+                          : 'bg-zinc-950/60 border-zinc-800/60 opacity-80 hover:opacity-100'
+                      }`}
+                    >
+                      <div className="flex items-center justify-between mb-1.5 text-[11px]">
+                        <div className="flex items-center gap-2">
+                          <span className={`font-bold px-2 py-0.5 rounded text-[10px] ${
+                            isLatest ? 'bg-blue-950 text-blue-300 border border-blue-800' : 'bg-zinc-800 text-zinc-400'
+                          }`}>
+                            Versión #{versionNumber} {isLatest ? '(Más reciente)' : versionNumber === 1 ? '(Original)' : ''}
+                          </span>
+                          <span className="text-zinc-500">
+                            {new Date(rev.created_at).toLocaleString()}
+                          </span>
+                        </div>
+
+                        <div className="flex items-center gap-1.5">
+                          <button
+                            type="button"
+                            onClick={() => handleRestoreRevision(rev.facebook_marketplace_copy)}
+                            className="text-[10px] text-zinc-300 hover:text-white bg-zinc-800 hover:bg-zinc-700 px-2 py-0.5 rounded transition"
+                            title="Restaurar este texto en el editor"
+                          >
+                            ↺ Restaurar
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteSingleRevision(rev.id)}
+                            className="text-zinc-500 hover:text-red-400 text-xs px-1.5 py-0.5 rounded transition"
+                            title="Eliminar esta revisión"
+                          >
+                            ✕
+                          </button>
+                        </div>
+                      </div>
+
+                      <p className="text-zinc-300 text-[11px] line-clamp-3 italic bg-zinc-950/80 p-2 rounded-lg border border-zinc-900">
+                        &quot;{rev.facebook_marketplace_copy}&quot;
+                      </p>
                     </div>
-                    <p className="text-zinc-300 line-clamp-2 italic">
-                      &quot;{rev.facebook_marketplace_copy}&quot;
-                    </p>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             </div>
           )}

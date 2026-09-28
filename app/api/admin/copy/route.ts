@@ -29,7 +29,6 @@ export async function POST(req: NextRequest) {
     const { id, copy_revisions, ...payload } = body;
 
     if (id) {
-      // 1. Check existing record to see if marketplace text actually changed
       const { data: existing } = await supabaseAdmin
         .from('copy_drafts')
         .select('facebook_marketplace_copy')
@@ -39,7 +38,6 @@ export async function POST(req: NextRequest) {
       let data: any = null;
       let updateError: any = null;
 
-      // Try update with payload
       const res = await supabaseAdmin
         .from('copy_drafts')
         .update(payload)
@@ -50,7 +48,6 @@ export async function POST(req: NextRequest) {
       data = res.data;
       updateError = res.error;
 
-      // If error is about missing publishing_log column in DB, fallback gracefully
       if (updateError && updateError.message?.includes('publishing_log')) {
         const { publishing_log, ...cleanPayload } = payload;
         const retryRes = await supabaseAdmin
@@ -127,19 +124,41 @@ export async function DELETE(req: NextRequest) {
 
   const { searchParams } = new URL(req.url);
   const id = searchParams.get('id');
+  const revisionId = searchParams.get('revision_id');
+  const clearRevisionsDraftId = searchParams.get('clear_revisions_draft_id');
 
-  if (!id) {
-    return NextResponse.json({ error: 'ID requerido' }, { status: 400 });
+  // 1. Delete single revision
+  if (revisionId) {
+    const { error } = await supabaseAdmin
+      .from('copy_revisions')
+      .delete()
+      .eq('id', revisionId);
+
+    if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+    return NextResponse.json({ success: true, deletedRevisionId: revisionId });
   }
 
-  const { error } = await supabaseAdmin
-    .from('copy_drafts')
-    .delete()
-    .eq('id', id);
+  // 2. Clear all revisions for a draft
+  if (clearRevisionsDraftId) {
+    const { error } = await supabaseAdmin
+      .from('copy_revisions')
+      .delete()
+      .eq('draft_id', clearRevisionsDraftId);
 
-  if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+    return NextResponse.json({ success: true, clearedDraftId: clearRevisionsDraftId });
   }
 
-  return NextResponse.json({ success: true });
+  // 3. Delete entire draft
+  if (id) {
+    const { error } = await supabaseAdmin
+      .from('copy_drafts')
+      .delete()
+      .eq('id', id);
+
+    if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+    return NextResponse.json({ success: true, deletedDraftId: id });
+  }
+
+  return NextResponse.json({ error: 'Parámetro requerido' }, { status: 400 });
 }
