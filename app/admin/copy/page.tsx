@@ -30,10 +30,6 @@ export default function CopyManagementPage() {
   const [publishingLog, setPublishingLog] = useState<PublicationLogEntry[]>([]);
   const [revisions, setRevisions] = useState<any[]>([]);
   
-  // Quick Log modal / form state
-  const [showLogModal, setShowLogModal] = useState(false);
-  const [logChannel, setLogChannel] = useState<'whatsapp_group' | 'whatsapp_broadcast' | 'marketplace' | 'facebook_group'>('whatsapp_group');
-  const [logNotes, setLogNotes] = useState('');
 
   // Filter & Search
   const [filterStatus, setFilterStatus] = useState<string>('all');
@@ -165,10 +161,7 @@ export default function CopyManagementPage() {
     setStatus('posted');
     setPostingDate(new Date().toISOString().substring(0, 10));
 
-    setShowLogModal(false);
-    setLogNotes('');
-
-    toast.success(`🚀 Publicación en ${channelNames[channel]} registrada`);
+    toast.success(`Publicación en ${channelNames[channel]} registrada`);
     
     await handleSave({
       publishing_log: updatedLog,
@@ -508,40 +501,16 @@ export default function CopyManagementPage() {
               )}
             </div>
 
-            {/* Top Quick Actions (Both WA & FB equally represented, identical heights) */}
+            {/* Top Bar Actions */}
             {activeDraft && (
-              <div className="flex items-center gap-2 flex-wrap">
-                <button
-                  type="button"
-                  onClick={() => handleQuickRegister('whatsapp_group')}
-                  className="h-8 px-3 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold rounded-lg transition inline-flex items-center gap-1.5 shadow-sm"
-                  title="Registrar envío en WhatsApp"
-                >
-                  <span>📱</span> + Envío WA
-                </button>
-                <button
-                  type="button"
-                  onClick={() => handleQuickRegister('marketplace')}
-                  className="h-8 px-3 bg-orange-600 hover:bg-orange-500 text-white text-xs font-semibold rounded-lg transition inline-flex items-center gap-1.5 shadow-sm"
-                  title="Registrar publicación en Marketplace"
-                >
-                  <span>🛒</span> + Post FB
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setShowLogModal(true)}
-                  className="h-8 px-2.5 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 text-xs rounded-lg border border-zinc-700 transition inline-flex items-center"
-                  title="Añadir con nota personalizada"
-                >
-                  ✏️ Con Nota
-                </button>
+              <div className="flex items-center gap-2">
                 <button
                   type="button"
                   onClick={handleDelete}
                   disabled={deleting}
-                  className="h-8 px-2.5 text-red-400 hover:text-red-300 text-xs rounded-lg border border-red-900/40 hover:bg-red-950/30 transition inline-flex items-center"
+                  className="h-7 px-3 text-red-400 hover:text-red-300 text-xs font-medium rounded-lg border border-red-900/40 hover:bg-red-950/30 transition inline-flex items-center"
                 >
-                  {deleting ? '...' : 'Eliminar'}
+                  {deleting ? 'Eliminando...' : 'Eliminar Copy'}
                 </button>
               </div>
             )}
@@ -601,20 +570,20 @@ export default function CopyManagementPage() {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
             {/* WhatsApp Version */}
             <div className="space-y-2">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <span className="w-2.5 h-2.5 rounded-full bg-emerald-500"></span>
-                  <label className="text-xs font-bold uppercase tracking-wider text-emerald-400">
+              <div className="flex items-center justify-between gap-2">
+                <div className="flex items-center gap-2 min-w-0">
+                  <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 shrink-0"></span>
+                  <label className="text-xs font-bold uppercase tracking-wider text-emerald-400 truncate">
                     Versión WhatsApp
                   </label>
                 </div>
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 shrink-0">
                   <button
                     type="button"
                     onClick={() => copyToClipboard(whatsappCopy, 'WhatsApp')}
-                    className="h-7 px-3 text-xs font-medium bg-zinc-800 hover:bg-zinc-700 text-zinc-200 border border-zinc-700 rounded-lg inline-flex items-center justify-center gap-1.5 transition"
+                    className="h-7 px-3 text-xs font-medium bg-zinc-800 hover:bg-zinc-700 text-zinc-200 border border-zinc-700 rounded-lg inline-flex items-center justify-center transition whitespace-nowrap"
                   >
-                    <span>📋</span> Copiar
+                    Copiar
                   </button>
                   {activeDraft && (
                     <button
@@ -623,10 +592,10 @@ export default function CopyManagementPage() {
                         copyToClipboard(whatsappCopy, 'WhatsApp');
                         handleQuickRegister('whatsapp_group');
                       }}
-                      className="h-7 px-3 text-xs font-semibold bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg inline-flex items-center justify-center gap-1.5 transition shadow-sm"
-                      title="Copia el texto al portapapeles y registra inmediatamente la publicación"
+                      className="h-7 px-3 text-xs font-medium bg-emerald-600 hover:bg-emerald-500 text-white border border-emerald-500 rounded-lg inline-flex items-center justify-center transition shadow-sm whitespace-nowrap"
+                      title="Copia el texto al portapapeles y registra inmediatamente la difusión"
                     >
-                      <span>🚀</span> Copiar + Registrar
+                      Copiar + Registrar
                     </button>
                   )}
                 </div>
@@ -642,20 +611,20 @@ export default function CopyManagementPage() {
 
             {/* FB Marketplace Version */}
             <div className="space-y-2">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <span className="w-2.5 h-2.5 rounded-full bg-orange-500 animate-pulse"></span>
-                  <label className="text-xs font-bold uppercase tracking-wider text-orange-400">
+              <div className="flex items-center justify-between gap-2">
+                <div className="flex items-center gap-2 min-w-0">
+                  <span className="w-2.5 h-2.5 rounded-full bg-orange-500 animate-pulse shrink-0"></span>
+                  <label className="text-xs font-bold uppercase tracking-wider text-orange-400 truncate">
                     Versión FB Marketplace
                   </label>
                 </div>
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 shrink-0">
                   <button
                     type="button"
                     onClick={() => copyToClipboard(fbMarketplaceCopy, 'Marketplace')}
-                    className="h-7 px-3 text-xs font-medium bg-zinc-800 hover:bg-zinc-700 text-zinc-200 border border-zinc-700 rounded-lg inline-flex items-center justify-center gap-1.5 transition"
+                    className="h-7 px-3 text-xs font-medium bg-zinc-800 hover:bg-zinc-700 text-zinc-200 border border-zinc-700 rounded-lg inline-flex items-center justify-center transition whitespace-nowrap"
                   >
-                    <span>📋</span> Copiar
+                    Copiar
                   </button>
                   {activeDraft && (
                     <button
@@ -664,10 +633,10 @@ export default function CopyManagementPage() {
                         copyToClipboard(fbMarketplaceCopy, 'Marketplace');
                         handleQuickRegister('marketplace');
                       }}
-                      className="h-7 px-3 text-xs font-semibold bg-orange-600 hover:bg-orange-500 text-white rounded-lg inline-flex items-center justify-center gap-1.5 transition shadow-sm"
-                      title="Copia el texto y registra la publicación en Marketplace"
+                      className="h-7 px-3 text-xs font-medium bg-orange-600 hover:bg-orange-500 text-white border border-orange-500 rounded-lg inline-flex items-center justify-center transition shadow-sm whitespace-nowrap"
+                      title="Copia el texto y registra la difusión en Marketplace"
                     >
-                      <span>🚀</span> Copiar + Registrar
+                      Copiar + Registrar
                     </button>
                   )}
                 </div>
@@ -704,48 +673,22 @@ export default function CopyManagementPage() {
             </div>
           </div>
 
-          {/* 🚀 Dedicated Publishing / Repost Log (Balanced between WA and FB) */}
+          {/* Dedicated Publishing / Repost Log */}
           <div className="bg-zinc-950/80 border border-zinc-800 rounded-xl p-5 space-y-4">
-            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
+            <div className="flex items-center justify-between gap-2">
               <div>
                 <div className="flex items-center gap-2">
                   <h3 className="text-xs font-bold uppercase tracking-wider text-emerald-400">
-                    🚀 Registro de Publicaciones & Difusión ({publishingLog.length})
+                    Registro de Publicaciones & Difusión ({publishingLog.length})
                   </h3>
                   <span className="text-[10px] bg-zinc-800 text-zinc-400 px-2 py-0.5 rounded-full">
                     Historial de Reuso
                   </span>
                 </div>
                 <p className="text-[11px] text-zinc-400 mt-0.5">
-                  Cada vez que mandas este copy a WhatsApp o Marketplace queda registrado aquí con 1 solo clic.
+                  Cada vez que usas &quot;Copiar + Registrar&quot; en WhatsApp o Marketplace queda registrado aquí.
                 </p>
               </div>
-
-              {activeDraft && (
-                <div className="flex items-center gap-2 flex-wrap">
-                  <button
-                    type="button"
-                    onClick={() => handleQuickRegister('whatsapp_group')}
-                    className="h-7 px-3 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold rounded-lg transition inline-flex items-center gap-1.5 shadow-sm"
-                  >
-                    <span>📱</span> + Envío WA
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => handleQuickRegister('marketplace')}
-                    className="h-7 px-3 bg-orange-600 hover:bg-orange-500 text-white text-xs font-semibold rounded-lg transition inline-flex items-center gap-1.5 shadow-sm"
-                  >
-                    <span>🛒</span> + Post FB
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setShowLogModal(true)}
-                    className="h-7 px-2.5 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 text-xs rounded-lg border border-zinc-700 transition inline-flex items-center"
-                  >
-                    ✏️ Con Nota
-                  </button>
-                </div>
-              )}
             </div>
 
             {/* List of Publications */}
@@ -753,7 +696,7 @@ export default function CopyManagementPage() {
               <div className="text-center py-6 text-zinc-500 text-xs bg-zinc-900/40 rounded-xl border border-zinc-800/60">
                 <p>Aún no has registrado ningún envío para este copy.</p>
                 <p className="text-[11px] text-zinc-600 mt-0.5">
-                  Usa &quot;🚀 Copiar + Registrar&quot; o los botones de arriba para empezar a registrar difusiones.
+                  Usa &quot;Copiar + Registrar&quot; en los módulos de arriba para empezar a registrar difusiones.
                 </p>
               </div>
             ) : (
@@ -912,70 +855,6 @@ export default function CopyManagementPage() {
         </div>
       </div>
 
-      {/* Modal: Registrar Publicación / Re-envío (Completamente Opcional) */}
-      {showLogModal && (
-        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-zinc-900 border border-zinc-800 rounded-2xl max-w-md w-full p-6 space-y-4 shadow-2xl">
-            <div className="flex justify-between items-center pb-2 border-b border-zinc-800">
-              <h3 className="font-bold text-sm uppercase tracking-wider text-white">
-                🚀 Registrar Publicación con Nota
-              </h3>
-              <button
-                type="button"
-                onClick={() => setShowLogModal(false)}
-                className="text-zinc-500 hover:text-white text-sm"
-              >
-                ✕
-              </button>
-            </div>
-
-            <div>
-              <label className="block text-xs font-bold uppercase tracking-wider text-zinc-400 mb-1.5">
-                Canal
-              </label>
-              <select
-                value={logChannel}
-                onChange={(e: any) => setLogChannel(e.target.value)}
-                className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-[#DC143C]"
-              >
-                <option value="whatsapp_group">📱 WhatsApp (Grupos o Chat)</option>
-                <option value="whatsapp_broadcast">💬 WhatsApp Lista de Difusión</option>
-                <option value="marketplace">🛒 Facebook Marketplace</option>
-                <option value="facebook_group">👥 Grupos de Facebook</option>
-              </select>
-            </div>
-
-            <div>
-              <label className="block text-xs font-bold uppercase tracking-wider text-zinc-400 mb-1.5">
-                Nota o Resultado (Totalmente Opcional)
-              </label>
-              <textarea
-                value={logNotes}
-                onChange={(e) => setLogNotes(e.target.value)}
-                placeholder="Opcional: ej. Enviado a 15 grupos de Cancún..."
-                className="w-full bg-zinc-950 border border-zinc-800 rounded-xl p-2.5 text-xs text-zinc-200 placeholder-zinc-600 h-20 focus:outline-none focus:border-zinc-700"
-              />
-            </div>
-
-            <div className="flex justify-end gap-2 pt-2 border-t border-zinc-800">
-              <button
-                type="button"
-                onClick={() => setShowLogModal(false)}
-                className="px-3.5 py-2 rounded-xl text-xs font-semibold text-zinc-400 hover:text-white transition"
-              >
-                Cancelar
-              </button>
-              <button
-                type="button"
-                onClick={() => handleQuickRegister(logChannel, logNotes)}
-                className="bg-emerald-600 hover:bg-emerald-500 text-white px-4 py-2 rounded-xl text-xs font-bold transition shadow-lg shadow-emerald-950/40"
-              >
-                Guardar Envío
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }
