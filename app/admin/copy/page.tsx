@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { supabase } from '@/lib/supabase';
 import { scanCopy } from '@/lib/complianceScanner';
 import toast from 'react-hot-toast';
@@ -11,15 +11,25 @@ export default function CopyManagementPage() {
   const [loading, setLoading] = useState(true);
   const [dbError, setDbError] = useState<string | null>(null);
   
+  // Form fields
   const [title, setTitle] = useState('');
   const [draftCopy, setDraftCopy] = useState('');
   const [whatsappCopy, setWhatsappCopy] = useState('');
   const [fbMarketplaceCopy, setFbMarketplaceCopy] = useState('');
+  const [status, setStatus] = useState<string>('draft');
+  const [postingDate, setPostingDate] = useState<string>('');
+  const [internalNotes, setInternalNotes] = useState('');
   
+  // Image checklist
   const [imgNoGlass, setImgNoGlass] = useState(false);
   const [imgNoSmoke, setImgNoSmoke] = useState(false);
   const [imgFocusDelivery, setImgFocusDelivery] = useState(false);
+  
+  // Filter & Search
+  const [filterStatus, setFilterStatus] = useState<string>('all');
+  const [searchQuery, setSearchQuery] = useState('');
   const [saving, setSaving] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
   useEffect(() => {
     fetchDrafts();
@@ -28,7 +38,6 @@ export default function CopyManagementPage() {
   async function fetchDrafts() {
     setLoading(true);
     try {
-      // First try the server API route (bypasses RLS)
       const res = await fetch('/api/admin/copy');
       if (res.ok) {
         const json = await res.json();
@@ -37,10 +46,9 @@ export default function CopyManagementPage() {
         return;
       }
       
-      // Fallback to client Supabase
       const { data, error } = await supabase
         .from('copy_drafts')
-        .select('*')
+        .select('*, copy_revisions(*)')
         .order('created_at', { ascending: false });
 
       if (error) {
@@ -65,30 +73,31 @@ export default function CopyManagementPage() {
   const compliance = scanCopy(fbMarketplaceCopy);
   const imagesValid = imgNoGlass && imgNoSmoke && imgFocusDelivery;
   
-  // Can save if title exists AND at least one copy exists.
-  // If Marketplace copy is present, it MUST comply with blacklist & checklist.
-  // If only WhatsApp is present, the image checklist is optional!
   const marketplaceValid = !isMarketplaceActive || (compliance.isValid && imagesValid);
   const canSave = title.trim().length > 0 && hasAtLeastOneCopy && marketplaceValid;
 
-  async function handleSave() {
-    if (!canSave) return;
+  async function handleSave(forcedStatus?: string) {
+    if (!canSave && !forcedStatus) return;
     setSaving(true);
     
+    const finalStatus = forcedStatus || status;
+    const finalPostingDate = forcedStatus === 'posted' && !postingDate ? new Date().toISOString() : (postingDate ? new Date(postingDate).toISOString() : null);
+
     const payload = {
       ...(activeDraft?.id ? { id: activeDraft.id } : {}),
       title: title.trim(),
       draft_copy: draftCopy,
       whatsapp_copy: whatsappCopy,
       facebook_marketplace_copy: fbMarketplaceCopy,
+      status: finalStatus,
+      posting_date: finalPostingDate,
+      internal_notes: internalNotes,
       img_no_glass: imgNoGlass,
       img_no_smoke: imgNoSmoke,
       img_focus_delivery: imgFocusDelivery,
-      status: 'approved',
     };
 
     try {
-      // 1. Try saving via server-side API (service_role bypasses RLS)
       const res = await fetch('/api/admin/copy', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -96,39 +105,68 @@ export default function CopyManagementPage() {
       });
 
       if (res.ok) {
-        toast.success(activeDraft?.id ? '✓ Copy actualizado con éxito' : '✓ Copy guardado con éxito');
-        setActiveDraft(null);
-        clearForm();
+        const json = await res.json();
+        toast.success(activeDraft?.id ? '✓ Guardado y actualizado' : '✓ Creado con éxito');
+        if (json.draft) {
+          loadDraft(json.draft);
+        } else {
+          setActiveDraft(null);
+          clearForm();
+        }
         fetchDrafts();
         return;
       }
 
-      // 2. Fallback to direct Supabase client if API route not yet available
+      // Fallback
       if (activeDraft?.id) {
         const { error } = await supabase.from('copy_drafts').update(payload).eq('id', activeDraft.id);
         if (error) throw error;
-        toast.success('✓ Copy actualizado con éxito');
+        toast.success('✓ Actualizado con éxito');
       } else {
         const { error } = await supabase.from('copy_drafts').insert([payload]);
         if (error) throw error;
-        toast.success('✓ Copy guardado con éxito');
+        toast.success('✓ Guardado con éxito');
       }
 
-      setActiveDraft(null);
-      clearForm();
       fetchDrafts();
     } catch (err: any) {
-      toast.error('Error al guardar: ' + (err.message || 'Verifica la conexión a Supabase'));
+      toast.error('Error al guardar: ' + (err.message || 'Verifica la conexión'));
     } finally {
       setSaving(false);
     }
   }
 
+  async function handleDelete() {
+    if (!activeDraft?.id) return;
+    if (!confirm(`¿Eliminar definitivamente el borrador "${activeDraft.title}"?`)) return;
+    
+    setDeleting(true);
+    try {
+      const res = await fetch(`/api/admin/copy?id=${activeDraft.id}`, { method: 'DELETE' });
+      if (res.ok) {
+        toast.success('Borrador eliminado');
+        setActiveDraft(null);
+        clearForm();
+        fetchDrafts();
+      } else {
+        throw new Error('Error al eliminar');
+      }
+    } catch (err: any) {
+      toast.error(err.message || 'No se pudo eliminar');
+    } finally {
+      setDeleting(false);
+    }
+  }
+
   function clearForm() {
+    setActiveDraft(null);
     setTitle('');
     setDraftCopy('');
     setWhatsappCopy('');
     setFbMarketplaceCopy('');
+    setStatus('draft');
+    setPostingDate('');
+    setInternalNotes('');
     setImgNoGlass(false);
     setImgNoSmoke(false);
     setImgFocusDelivery(false);
@@ -140,64 +178,151 @@ export default function CopyManagementPage() {
     setDraftCopy(d.draft_copy || '');
     setWhatsappCopy(d.whatsapp_copy || '');
     setFbMarketplaceCopy(d.facebook_marketplace_copy || '');
+    setStatus(d.status || 'draft');
+    setPostingDate(d.posting_date ? d.posting_date.substring(0, 10) : '');
+    setInternalNotes(d.internal_notes || '');
     setImgNoGlass(d.img_no_glass || false);
     setImgNoSmoke(d.img_no_smoke || false);
     setImgFocusDelivery(d.img_focus_delivery || false);
   }
 
+  function copyToClipboard(text: string, label: string) {
+    if (!text.trim()) {
+      toast.error(`El copy de ${label} está vacío`);
+      return;
+    }
+    navigator.clipboard.writeText(text);
+    toast.success(`📋 ${label} copiado al portapapeles`);
+  }
+
+  // Filtered drafts
+  const filteredDrafts = useMemo(() => {
+    return drafts.filter((d) => {
+      const matchesStatus = filterStatus === 'all' || d.status === filterStatus;
+      const q = searchQuery.toLowerCase().trim();
+      const matchesQuery =
+        !q ||
+        d.title?.toLowerCase().includes(q) ||
+        d.facebook_marketplace_copy?.toLowerCase().includes(q) ||
+        d.whatsapp_copy?.toLowerCase().includes(q) ||
+        d.internal_notes?.toLowerCase().includes(q);
+
+      return matchesStatus && matchesQuery;
+    });
+  }, [drafts, filterStatus, searchQuery]);
+
+  // Statistics
+  const stats = useMemo(() => {
+    return {
+      total: drafts.length,
+      posted: drafts.filter((d) => d.status === 'posted').length,
+      approved: drafts.filter((d) => d.status === 'approved').length,
+      draft: drafts.filter((d) => d.status === 'draft').length,
+    };
+  }, [drafts]);
+
   return (
     <div className="p-4 md:p-8 max-w-7xl mx-auto text-white">
-      {/* Header */}
+      {/* Top Brand Banner & Metrics */}
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center pb-6 border-b border-zinc-800 gap-4">
         <div>
           <div className="text-xs tracking-widest text-[#DC143C] font-bold uppercase mb-1">
-            Meta Compliance & Content Hub
+            Gestión Editorial & Tracking de Redes
           </div>
-          <h1 className="text-3xl font-black tracking-tight">Copy Management</h1>
+          <h1 className="text-3xl font-black tracking-tight">Copy Content Manager</h1>
           <p className="text-sm text-zinc-400 mt-1">
-            Diseña, valida y blinda tus copies para WhatsApp y Facebook Marketplace. Guarda uno o ambos según necesites.
+            Organiza, valida compliance, programa fechas y mide el resultado de tus publicaciones en WhatsApp y Facebook Marketplace.
           </p>
         </div>
         <button
-          onClick={() => { setActiveDraft(null); clearForm(); }}
-          className="bg-[#DC143C] hover:bg-red-700 text-white font-semibold px-4 py-2 rounded-lg text-sm transition-all shadow-lg shadow-red-900/20"
+          onClick={clearForm}
+          className="bg-[#DC143C] hover:bg-red-700 text-white font-semibold px-4 py-2.5 rounded-xl text-sm transition-all shadow-lg shadow-red-900/20 flex items-center gap-2"
         >
-          + Nuevo Borrador
+          <span>+</span> Nuevo Registro de Copy
         </button>
       </div>
 
-      {/* SQL Migration Alert if tables not yet detected */}
+      {/* KPI Stats Bar */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3.5 my-6">
+        <div className="bg-zinc-900/80 border border-zinc-800 p-4 rounded-xl">
+          <span className="text-[11px] uppercase font-bold text-zinc-400">Total Registros</span>
+          <p className="text-2xl font-black text-white mt-1">{stats.total}</p>
+        </div>
+        <div className="bg-zinc-900/80 border border-zinc-800 p-4 rounded-xl">
+          <span className="text-[11px] uppercase font-bold text-emerald-400">🚀 Publicados</span>
+          <p className="text-2xl font-black text-emerald-400 mt-1">{stats.posted}</p>
+        </div>
+        <div className="bg-zinc-900/80 border border-zinc-800 p-4 rounded-xl">
+          <span className="text-[11px] uppercase font-bold text-blue-400">🟢 Listos para Lanzar</span>
+          <p className="text-2xl font-black text-blue-400 mt-1">{stats.approved}</p>
+        </div>
+        <div className="bg-zinc-900/80 border border-zinc-800 p-4 rounded-xl">
+          <span className="text-[11px] uppercase font-bold text-amber-400">🟡 En Borrador</span>
+          <p className="text-2xl font-black text-amber-400 mt-1">{stats.draft}</p>
+        </div>
+      </div>
+
+      {/* Database Notice */}
       {dbError && (
-        <div className="mt-6 p-4 rounded-xl bg-amber-950/40 border border-amber-600/50 text-amber-200 text-sm flex items-start gap-3">
+        <div className="mb-6 p-4 rounded-xl bg-amber-950/40 border border-amber-600/50 text-amber-200 text-sm flex items-start gap-3">
           <span className="text-xl">⚠️</span>
           <div>
-            <p className="font-semibold">Tablas o permisos pendientes en Supabase</p>
+            <p className="font-semibold">Aviso de Base de Datos</p>
             <p className="text-xs text-amber-300/80 mt-0.5">
-              Si ves un error de Row-Level Security (RLS), ejecuta el script actualizado de permisos en el SQL Editor de tu panel de Supabase.
+              Si acabas de añadir nuevas columnas, verifica haber corrido el script en el SQL Editor de Supabase.
             </p>
           </div>
         </div>
       )}
 
       {/* Main Grid */}
-      <div className="mt-8 grid grid-cols-1 lg:grid-cols-12 gap-8">
-        {/* Left column: List of drafts */}
-        <div className="lg:col-span-4 bg-zinc-900/60 border border-zinc-800 rounded-2xl p-5 backdrop-blur-sm">
-          <div className="flex justify-between items-center mb-4">
-            <h2 className="text-sm font-bold uppercase tracking-wider text-zinc-400">Historial de Copies</h2>
-            <span className="text-xs bg-zinc-800 text-zinc-400 px-2 py-0.5 rounded-full">{drafts.length}</span>
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
+        {/* Left Column: Explorer & Filters */}
+        <div className="lg:col-span-4 bg-zinc-900/60 border border-zinc-800 rounded-2xl p-5 backdrop-blur-sm flex flex-col h-fit max-h-[820px]">
+          {/* Search bar */}
+          <div className="mb-3">
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="🔍 Buscar por título o texto..."
+              className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-3.5 py-2 text-xs text-white placeholder-zinc-500 focus:outline-none focus:border-[#DC143C]"
+            />
           </div>
 
-          {loading ? (
-            <div className="text-center py-12 text-zinc-500 text-sm">Cargando borradores...</div>
-          ) : drafts.length === 0 ? (
-            <div className="text-center py-12 text-zinc-500 text-sm">
-              <p>No hay borradores guardados aún.</p>
-              <p className="text-xs text-zinc-600 mt-1">Escribe en el editor de la derecha para crear uno.</p>
-            </div>
-          ) : (
-            <div className="space-y-3 max-h-[600px] overflow-y-auto pr-1">
-              {drafts.map((d) => (
+          {/* Filter Pills */}
+          <div className="flex gap-1.5 overflow-x-auto pb-3 mb-3 border-b border-zinc-800 text-[11px]">
+            {[
+              { id: 'all', label: 'Todos' },
+              { id: 'posted', label: '🚀 Publicados' },
+              { id: 'approved', label: '🟢 Listos' },
+              { id: 'draft', label: '🟡 Borradores' },
+            ].map((tab) => (
+              <button
+                key={tab.id}
+                onClick={() => setFilterStatus(tab.id)}
+                className={`px-2.5 py-1 rounded-lg font-medium whitespace-nowrap transition-colors ${
+                  filterStatus === tab.id
+                    ? 'bg-zinc-800 text-white border border-zinc-700'
+                    : 'text-zinc-500 hover:text-zinc-300'
+                }`}
+              >
+                {tab.label}
+              </button>
+            ))}
+          </div>
+
+          {/* Items List */}
+          <div className="flex-1 overflow-y-auto space-y-3 pr-1">
+            {loading ? (
+              <div className="text-center py-12 text-zinc-500 text-sm">Cargando base de datos...</div>
+            ) : filteredDrafts.length === 0 ? (
+              <div className="text-center py-12 text-zinc-500 text-sm">
+                <p>No se encontraron registros.</p>
+                <p className="text-xs text-zinc-600 mt-1">Crea uno nuevo a la derecha.</p>
+              </div>
+            ) : (
+              filteredDrafts.map((d) => (
                 <div
                   key={d.id}
                   onClick={() => loadDraft(d)}
@@ -207,71 +332,184 @@ export default function CopyManagementPage() {
                       : 'bg-zinc-950/40 border-zinc-800/80 hover:bg-zinc-800/50 hover:border-zinc-700'
                   }`}
                 >
-                  <div className="flex items-center justify-between">
-                    <h3 className="font-semibold text-sm text-zinc-100 truncate">{d.title}</h3>
-                    <div className="flex gap-1">
-                      {d.whatsapp_copy && <span className="text-[10px] bg-emerald-950 text-emerald-400 border border-emerald-800/50 px-1.5 py-0.2 rounded">WA</span>}
-                      {d.facebook_marketplace_copy && <span className="text-[10px] bg-orange-950 text-orange-400 border border-orange-800/50 px-1.5 py-0.2 rounded">FB</span>}
-                    </div>
+                  <div className="flex items-center justify-between gap-2">
+                    <h3 className="font-semibold text-sm text-zinc-100 truncate flex-1">{d.title}</h3>
+                    <span className={`text-[10px] uppercase font-bold px-2 py-0.5 rounded-full ${
+                      d.status === 'posted'
+                        ? 'bg-emerald-950 text-emerald-400 border border-emerald-800/50'
+                        : d.status === 'approved'
+                        ? 'bg-blue-950 text-blue-400 border border-blue-800/50'
+                        : 'bg-amber-950 text-amber-400 border border-amber-800/50'
+                    }`}>
+                      {d.status === 'posted' ? 'Publicado' : d.status === 'approved' ? 'Listo' : 'Borrador'}
+                    </span>
                   </div>
-                  <p className="text-xs text-zinc-400 line-clamp-2 mt-1">
-                    {d.facebook_marketplace_copy || d.whatsapp_copy || d.draft_copy || 'Sin contenido aún...'}
+
+                  <p className="text-xs text-zinc-400 line-clamp-2 mt-1.5">
+                    {d.facebook_marketplace_copy || d.whatsapp_copy || d.draft_copy || 'Sin contenido de copy todavía...'}
                   </p>
-                  <div className="flex items-center justify-between mt-2 pt-2 border-t border-zinc-800/60 text-[11px] text-zinc-500">
-                    <span>{new Date(d.created_at).toLocaleDateString()}</span>
-                    <span className="capitalize text-zinc-400 font-medium">{d.status || 'draft'}</span>
+
+                  <div className="flex items-center justify-between mt-2.5 pt-2 border-t border-zinc-800/60 text-[11px] text-zinc-500">
+                    <div className="flex items-center gap-1.5">
+                      {d.whatsapp_copy && <span className="text-[10px] bg-emerald-900/40 text-emerald-400 border border-emerald-800/50 px-1 rounded">WA</span>}
+                      {d.facebook_marketplace_copy && <span className="text-[10px] bg-orange-900/40 text-orange-400 border border-orange-800/50 px-1 rounded">FB</span>}
+                    </div>
+                    <span>{d.posting_date ? `📅 ${d.posting_date.substring(0, 10)}` : new Date(d.created_at).toLocaleDateString()}</span>
                   </div>
                 </div>
-              ))}
-            </div>
-          )}
+              ))
+            )}
+          </div>
         </div>
 
-        {/* Right column: Editor */}
+        {/* Right Column: Editor & Management Controls */}
         <div className="lg:col-span-8 bg-zinc-900/60 border border-zinc-800 rounded-2xl p-6 space-y-6 backdrop-blur-sm">
+          {/* Top Bar of Active Record */}
+          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 pb-4 border-b border-zinc-800/80">
+            <div className="flex items-center gap-2">
+              <span className="text-sm font-bold text-zinc-300">
+                {activeDraft ? 'Editando Registro' : 'Nuevo Registro'}
+              </span>
+              {activeDraft && (
+                <span className="text-[11px] text-zinc-500 bg-zinc-800 px-2 py-0.5 rounded">
+                  ID: {activeDraft.id.substring(0, 8)}...
+                </span>
+              )}
+            </div>
+
+            {/* Quick 1-Click Publishing Action */}
+            {activeDraft && (
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setStatus('posted');
+                    setPostingDate(new Date().toISOString().substring(0, 10));
+                    handleSave('posted');
+                  }}
+                  className="bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold px-3 py-1.5 rounded-lg transition shadow-md shadow-emerald-950/40 flex items-center gap-1.5"
+                >
+                  <span>🚀</span> Marcar como Publicado Hoy
+                </button>
+                <button
+                  type="button"
+                  onClick={handleDelete}
+                  disabled={deleting}
+                  className="text-red-400 hover:text-red-300 text-xs px-2.5 py-1.5 rounded-lg border border-red-900/40 hover:bg-red-950/30 transition"
+                >
+                  {deleting ? '...' : 'Eliminar'}
+                </button>
+              </div>
+            )}
+          </div>
+
+          {/* Row 1: Title & Management Tracking Fields */}
+          <div className="grid grid-cols-1 md:grid-cols-12 gap-4">
+            <div className="md:col-span-6">
+              <label className="block text-xs font-bold uppercase tracking-wider text-zinc-400 mb-1.5">
+                Título del Copy / Campaña *
+              </label>
+              <input
+                value={title}
+                onChange={(e) => setTitle(e.target.value)}
+                className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-3.5 py-2 text-sm text-white placeholder-zinc-600 focus:outline-none focus:border-[#DC143C]"
+                placeholder="Ej: Promo Fin de Semana - Delivery Rápido"
+              />
+            </div>
+
+            <div className="md:col-span-3">
+              <label className="block text-xs font-bold uppercase tracking-wider text-zinc-400 mb-1.5">
+                Estado de Gestión
+              </label>
+              <select
+                value={status}
+                onChange={(e) => setStatus(e.target.value)}
+                className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-[#DC143C]"
+              >
+                <option value="draft">🟡 Borrador (Boceto)</option>
+                <option value="approved">🟢 Aprobado / Listo para Publicar</option>
+                <option value="posted">🚀 Publicado (En vivo)</option>
+                <option value="needs_review">⏸️ Pausado / Archivo</option>
+              </select>
+            </div>
+
+            <div className="md:col-span-3">
+              <label className="block text-xs font-bold uppercase tracking-wider text-zinc-400 mb-1.5 flex justify-between">
+                <span>Fecha Publicación</span>
+                <button
+                  type="button"
+                  onClick={() => setPostingDate(new Date().toISOString().substring(0, 10))}
+                  className="text-[10px] text-[#DC143C] hover:underline"
+                >
+                  Hoy
+                </button>
+              </label>
+              <input
+                type="date"
+                value={postingDate}
+                onChange={(e) => setPostingDate(e.target.value)}
+                className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-[#DC143C]"
+              />
+            </div>
+          </div>
+
+          {/* Row 2: Product / Content Idea (draft_copy) */}
           <div>
-            <label className="block text-xs font-bold uppercase tracking-wider text-zinc-400 mb-2">
-              Título del Copy / Campaña (Obligatorio)
+            <label className="block text-xs font-bold uppercase tracking-wider text-zinc-400 mb-1.5">
+              Idea del Producto / Ángulo de Campaña (Borrador Conceptual)
             </label>
             <input
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
-              className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-4 py-2.5 text-sm text-white placeholder-zinc-600 focus:outline-none focus:border-[#DC143C]"
-              placeholder="Ej: Promo Fin de Semana - Delivery Rápido Cancún"
+              value={draftCopy}
+              onChange={(e) => setDraftCopy(e.target.value)}
+              className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-3.5 py-2 text-xs text-zinc-300 placeholder-zinc-600 focus:outline-none focus:border-zinc-700"
+              placeholder="Ej: Destacar entrega en 30 mins a Zona Hotelera sin mencionar pipas explícitamente..."
             />
           </div>
 
+          {/* Row 3: Split Editor (WhatsApp vs Marketplace) */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
             {/* WhatsApp Version */}
-            <div>
-              <div className="flex items-center justify-between mb-2">
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   <span className="w-2.5 h-2.5 rounded-full bg-emerald-500"></span>
                   <label className="text-xs font-bold uppercase tracking-wider text-emerald-400">
-                    WhatsApp (Opcional)
+                    Versión WhatsApp
                   </label>
                 </div>
-                <span className="text-[10px] text-zinc-500">Zona 1-a-1</span>
+                <button
+                  type="button"
+                  onClick={() => copyToClipboard(whatsappCopy, 'WhatsApp')}
+                  className="text-xs bg-emerald-950 hover:bg-emerald-900 text-emerald-300 border border-emerald-800 px-2.5 py-1 rounded-lg transition flex items-center gap-1"
+                >
+                  <span>📋</span> Copiar
+                </button>
               </div>
               <textarea
                 value={whatsappCopy}
                 onChange={(e) => setWhatsappCopy(e.target.value)}
                 className="w-full bg-zinc-950 border border-emerald-900/40 rounded-xl p-3 text-sm text-zinc-100 placeholder-zinc-600 h-44 focus:outline-none focus:border-emerald-500 transition-colors"
-                placeholder="¡Qué onda! Te dejamos la lista de lo que buscas para este fin..."
+                placeholder="¡Hola! Te recordamos que nuestro servicio de delivery está listo para llevarte todo lo que necesitas..."
               />
-              <p className="text-[11px] text-zinc-500 mt-1">Puedes guardar solo este copy si lo deseas.</p>
+              <p className="text-[11px] text-zinc-500">Uso directo en chats o listas de difusión de WhatsApp.</p>
             </div>
 
             {/* FB Marketplace Version */}
-            <div>
-              <div className="flex items-center justify-between mb-2">
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   <span className="w-2.5 h-2.5 rounded-full bg-orange-500 animate-pulse"></span>
                   <label className="text-xs font-bold uppercase tracking-wider text-orange-400">
-                    FB Marketplace (Opcional)
+                    Versión FB Marketplace
                   </label>
                 </div>
-                <span className="text-[10px] text-orange-400/80 font-medium">⚠️ Alta Seguridad</span>
+                <button
+                  type="button"
+                  onClick={() => copyToClipboard(fbMarketplaceCopy, 'Marketplace')}
+                  className="text-xs bg-orange-950 hover:bg-orange-900 text-orange-300 border border-orange-800 px-2.5 py-1 rounded-lg transition flex items-center gap-1"
+                >
+                  <span>📋</span> Copiar
+                </button>
               </div>
               <textarea
                 value={fbMarketplaceCopy}
@@ -281,11 +519,11 @@ export default function CopyManagementPage() {
                     ? 'border-orange-500/50 focus:border-orange-500'
                     : 'border-red-600 bg-red-950/20 focus:border-red-500'
                 }`}
-                placeholder="Somos Distrito, tu servicio local de entregas rápidas..."
+                placeholder="Somos Distrito, tu servicio local de entregas rápidas. Conoce el catálogo completo en nuestra web..."
               />
 
-              {/* Validation Feedback */}
-              <div className="mt-2 space-y-1 text-xs">
+              {/* Compliance Scanner Feedback */}
+              <div className="space-y-1 text-xs">
                 {!compliance.isValid && (
                   <p className="text-red-400 font-semibold bg-red-950/40 border border-red-800/40 rounded-lg p-2">
                     {compliance.errors}
@@ -306,7 +544,7 @@ export default function CopyManagementPage() {
           </div>
 
           {/* Quick Snippets */}
-          <div className="bg-zinc-950/50 border border-zinc-800/80 rounded-xl p-4">
+          <div className="bg-zinc-950/50 border border-zinc-800/80 rounded-xl p-3.5">
             <p className="text-xs font-bold uppercase tracking-wider text-zinc-400 mb-2">
               Frases Seguras Aprobadas (1 Clic para Insertar en Marketplace):
             </p>
@@ -335,9 +573,9 @@ export default function CopyManagementPage() {
             </div>
           </div>
 
-          {/* Mandatory Image Compliance Checklist — ONLY required if Marketplace copy is used */}
+          {/* Mandatory Image Compliance Checklist (Only if Marketplace is used) */}
           {isMarketplaceActive && (
-            <div className="bg-zinc-950/60 border border-zinc-800 rounded-xl p-4 space-y-2.5 animate-fadeIn">
+            <div className="bg-zinc-950/60 border border-zinc-800 rounded-xl p-4 space-y-2.5">
               <div className="flex items-center justify-between mb-1">
                 <h3 className="text-xs font-bold uppercase tracking-wider text-zinc-300">
                   Checklist Obligatorio de Imagen (Para Facebook Marketplace)
@@ -381,9 +619,47 @@ export default function CopyManagementPage() {
             </div>
           )}
 
-          {/* Submit button */}
+          {/* Row 4: Internal Notes, Outcome & Consistency Tracking */}
+          <div className="bg-zinc-950/60 border border-zinc-800 rounded-xl p-4 space-y-2">
+            <div className="flex items-center justify-between">
+              <label className="block text-xs font-bold uppercase tracking-wider text-zinc-300">
+                🗒️ Notas Internas, Métricas & Resultado (Outcome Tracking)
+              </label>
+              <span className="text-[10px] text-zinc-500">Para verificar consistencia y efectividad</span>
+            </div>
+            <textarea
+              value={internalNotes}
+              onChange={(e) => setInternalNotes(e.target.value)}
+              className="w-full bg-zinc-900 border border-zinc-800 rounded-xl p-3 text-xs text-zinc-200 placeholder-zinc-600 h-24 focus:outline-none focus:border-zinc-700"
+              placeholder="Anota los resultados aquí: ej. Generó 6 chats por Marketplace, 2 pedidos cerrados de $450 c/u. Publicado domingo 4 PM. Cero advertencias de Meta."
+            />
+          </div>
+
+          {/* Row 5: Revision History (Consistency Audit) */}
+          {activeDraft?.copy_revisions && activeDraft.copy_revisions.length > 0 && (
+            <div className="bg-zinc-950/40 border border-zinc-800/80 rounded-xl p-4 space-y-2">
+              <h4 className="text-xs font-bold uppercase tracking-wider text-zinc-400">
+                🔄 Historial de Revisiones ({activeDraft.copy_revisions.length} cambios registrados)
+              </h4>
+              <div className="space-y-2 max-h-36 overflow-y-auto pr-1">
+                {activeDraft.copy_revisions.map((rev: any, idx: number) => (
+                  <div key={rev.id || idx} className="text-xs bg-zinc-900 p-2.5 rounded-lg border border-zinc-800/80">
+                    <div className="text-[10px] text-zinc-500 mb-1 flex justify-between">
+                      <span>Versión #{activeDraft.copy_revisions.length - idx}</span>
+                      <span>{new Date(rev.created_at).toLocaleString()}</span>
+                    </div>
+                    <p className="text-zinc-300 line-clamp-2 italic">
+                      &quot;{rev.facebook_marketplace_copy}&quot;
+                    </p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Submit Action */}
           <button
-            onClick={handleSave}
+            onClick={() => handleSave()}
             disabled={!canSave || saving}
             className={`w-full py-3.5 rounded-xl font-bold text-sm tracking-wide transition-all shadow-lg ${
               canSave && !saving
@@ -392,15 +668,15 @@ export default function CopyManagementPage() {
             }`}
           >
             {saving
-              ? 'Guardando...'
+              ? 'Guardando cambios...'
               : canSave
-              ? (activeDraft ? 'Actualizar Copy' : 'Guardar Copy')
+              ? (activeDraft ? 'Actualizar Registro de Copy' : 'Guardar Nuevo Registro de Copy')
               : !hasAtLeastOneCopy
               ? 'Escribe al menos un copy (WhatsApp o Marketplace) para guardar'
               : isMarketplaceActive && !imagesValid
-              ? 'Verifica los 3 puntos del checklist de imagen para guardar'
+              ? 'Completa el checklist de imagen para Marketplace'
               : !compliance.isValid
-              ? 'Elimina las palabras prohibidas detectadas para guardar'
+              ? 'Elimina las palabras prohibidas detectadas'
               : 'Asigna un título para guardar'}
           </button>
         </div>

@@ -9,7 +9,7 @@ export async function GET(req: NextRequest) {
 
   const { data, error } = await supabaseAdmin
     .from('copy_drafts')
-    .select('*')
+    .select('*, copy_revisions(*)')
     .order('created_at', { ascending: false });
 
   if (error) {
@@ -26,14 +26,14 @@ export async function POST(req: NextRequest) {
 
   try {
     const body = await req.json();
-    const { id, ...payload } = body;
+    const { id, copy_revisions, ...payload } = body;
 
     if (id) {
       const { data, error } = await supabaseAdmin
         .from('copy_drafts')
         .update(payload)
         .eq('id', id)
-        .select()
+        .select('*, copy_revisions(*)')
         .single();
 
       if (error) {
@@ -52,7 +52,7 @@ export async function POST(req: NextRequest) {
       const { data, error } = await supabaseAdmin
         .from('copy_drafts')
         .insert([payload])
-        .select()
+        .select('*, copy_revisions(*)')
         .single();
 
       if (error) {
@@ -71,4 +71,28 @@ export async function POST(req: NextRequest) {
   } catch (err: any) {
     return NextResponse.json({ error: err.message || 'Error procesando solicitud' }, { status: 500 });
   }
+}
+
+export async function DELETE(req: NextRequest) {
+  if (!await isValidAdminRequest(req)) {
+    return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
+  }
+
+  const { searchParams } = new URL(req.url);
+  const id = searchParams.get('id');
+
+  if (!id) {
+    return NextResponse.json({ error: 'ID requerido' }, { status: 400 });
+  }
+
+  const { error } = await supabaseAdmin
+    .from('copy_drafts')
+    .delete()
+    .eq('id', id);
+
+  if (error) {
+    return NextResponse.json({ error: error.message }, { status: 500 });
+  }
+
+  return NextResponse.json({ success: true });
 }
