@@ -5,6 +5,14 @@ import { supabase } from '@/lib/supabase';
 import { scanCopy } from '@/lib/complianceScanner';
 import toast from 'react-hot-toast';
 
+export type PublicationLogEntry = {
+  id: string;
+  channel: 'whatsapp_group' | 'whatsapp_broadcast' | 'marketplace' | 'facebook_group';
+  target: string; // e.g. "Grupo Cancún Centro", "Difusión Clientes"
+  posted_at: string; // ISO date
+  notes?: string; // outcome / results
+};
+
 export default function CopyManagementPage() {
   const [drafts, setDrafts] = useState<any[]>([]);
   const [activeDraft, setActiveDraft] = useState<any | null>(null);
@@ -19,7 +27,14 @@ export default function CopyManagementPage() {
   const [status, setStatus] = useState<string>('draft');
   const [postingDate, setPostingDate] = useState<string>('');
   const [internalNotes, setInternalNotes] = useState('');
+  const [publishingLog, setPublishingLog] = useState<PublicationLogEntry[]>([]);
   
+  // Quick Log modal / form state
+  const [showLogModal, setShowLogModal] = useState(false);
+  const [logChannel, setLogChannel] = useState<'whatsapp_group' | 'whatsapp_broadcast' | 'marketplace' | 'facebook_group'>('whatsapp_group');
+  const [logTarget, setLogTarget] = useState('');
+  const [logNotes, setLogNotes] = useState('');
+
   // Image checklist
   const [imgNoGlass, setImgNoGlass] = useState(false);
   const [imgNoSmoke, setImgNoSmoke] = useState(false);
@@ -76,12 +91,13 @@ export default function CopyManagementPage() {
   const marketplaceValid = !isMarketplaceActive || (compliance.isValid && imagesValid);
   const canSave = title.trim().length > 0 && hasAtLeastOneCopy && marketplaceValid;
 
-  async function handleSave(forcedStatus?: string) {
-    if (!canSave && !forcedStatus) return;
+  async function handleSave(customPayload?: Partial<any>) {
+    if (!canSave && !customPayload) return;
     setSaving(true);
     
-    const finalStatus = forcedStatus || status;
-    const finalPostingDate = forcedStatus === 'posted' && !postingDate ? new Date().toISOString() : (postingDate ? new Date(postingDate).toISOString() : null);
+    const finalStatus = customPayload?.status || status;
+    const finalLog = customPayload?.publishing_log || publishingLog;
+    const finalPostingDate = customPayload?.posting_date || (postingDate ? new Date(postingDate).toISOString() : null);
 
     const payload = {
       ...(activeDraft?.id ? { id: activeDraft.id } : {}),
@@ -92,9 +108,11 @@ export default function CopyManagementPage() {
       status: finalStatus,
       posting_date: finalPostingDate,
       internal_notes: internalNotes,
+      publishing_log: finalLog,
       img_no_glass: imgNoGlass,
       img_no_smoke: imgNoSmoke,
       img_focus_delivery: imgFocusDelivery,
+      ...customPayload,
     };
 
     try {
@@ -106,7 +124,7 @@ export default function CopyManagementPage() {
 
       if (res.ok) {
         const json = await res.json();
-        toast.success(activeDraft?.id ? '✓ Guardado y actualizado' : '✓ Creado con éxito');
+        toast.success(activeDraft?.id ? '✓ Guardado y sincronizado' : '✓ Creado con éxito');
         if (json.draft) {
           loadDraft(json.draft);
         } else {
@@ -136,6 +154,47 @@ export default function CopyManagementPage() {
     }
   }
 
+  // Register a publication event (repost to WA group, marketplace, etc.)
+  async function handleAddPublication() {
+    if (!logTarget.trim()) {
+      toast.error('Especifica el grupo o destino del envío');
+      return;
+    }
+
+    const newEntry: PublicationLogEntry = {
+      id: Date.now().toString(),
+      channel: logChannel,
+      target: logTarget.trim(),
+      posted_at: new Date().toISOString(),
+      notes: logNotes.trim(),
+    };
+
+    const updatedLog = [newEntry, ...publishingLog];
+    setPublishingLog(updatedLog);
+    setStatus('posted');
+    setPostingDate(new Date().toISOString().substring(0, 10));
+
+    setShowLogModal(false);
+    setLogTarget('');
+    setLogNotes('');
+
+    toast.success('🚀 Envío registrado en el historial');
+    
+    // Auto-save with the updated publication log
+    await handleSave({
+      publishing_log: updatedLog,
+      status: 'posted',
+      posting_date: new Date().toISOString(),
+    });
+  }
+
+  async function handleDeletePublication(entryId: string) {
+    const updated = publishingLog.filter((p) => p.id !== entryId);
+    setPublishingLog(updated);
+    toast.success('Registro de envío removido');
+    await handleSave({ publishing_log: updated });
+  }
+
   async function handleDelete() {
     if (!activeDraft?.id) return;
     if (!confirm(`¿Eliminar definitivamente el borrador "${activeDraft.title}"?`)) return;
@@ -145,7 +204,6 @@ export default function CopyManagementPage() {
       const res = await fetch(`/api/admin/copy?id=${activeDraft.id}`, { method: 'DELETE' });
       if (res.ok) {
         toast.success('Borrador eliminado');
-        setActiveDraft(null);
         clearForm();
         fetchDrafts();
       } else {
@@ -167,6 +225,7 @@ export default function CopyManagementPage() {
     setStatus('draft');
     setPostingDate('');
     setInternalNotes('');
+    setPublishingLog([]);
     setImgNoGlass(false);
     setImgNoSmoke(false);
     setImgFocusDelivery(false);
@@ -184,6 +243,15 @@ export default function CopyManagementPage() {
     setImgNoGlass(d.img_no_glass || false);
     setImgNoSmoke(d.img_no_smoke || false);
     setImgFocusDelivery(d.img_focus_delivery || false);
+
+    // Parse publishing log safely
+    try {
+      let log = d.publishing_log;
+      if (typeof log === 'string') log = JSON.parse(log);
+      setPublishingLog(Array.isArray(log) ? log : []);
+    } catch {
+      setPublishingLog([]);
+    }
   }
 
   function copyToClipboard(text: string, label: string) {
@@ -213,17 +281,34 @@ export default function CopyManagementPage() {
 
   // Statistics
   const stats = useMemo(() => {
+    let totalPublications = 0;
+    drafts.forEach((d) => {
+      try {
+        let pLog = d.publishing_log;
+        if (typeof pLog === 'string') pLog = JSON.parse(pLog);
+        if (Array.isArray(pLog)) totalPublications += pLog.length;
+      } catch {}
+    });
+
     return {
       total: drafts.length,
       posted: drafts.filter((d) => d.status === 'posted').length,
       approved: drafts.filter((d) => d.status === 'approved').length,
       draft: drafts.filter((d) => d.status === 'draft').length,
+      totalPublications,
     };
   }, [drafts]);
 
+  const channelBadges = {
+    whatsapp_group: { label: '📱 WhatsApp Grupo', color: 'bg-emerald-950 text-emerald-300 border-emerald-800' },
+    whatsapp_broadcast: { label: '💬 WhatsApp Difusión', color: 'bg-teal-950 text-teal-300 border-teal-800' },
+    marketplace: { label: '🛒 FB Marketplace', color: 'bg-orange-950 text-orange-300 border-orange-800' },
+    facebook_group: { label: '👥 FB Grupo', color: 'bg-blue-950 text-blue-300 border-blue-800' },
+  };
+
   return (
     <div className="p-4 md:p-8 max-w-7xl mx-auto text-white">
-      {/* Top Brand Banner & Metrics */}
+      {/* Top Brand Banner */}
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center pb-6 border-b border-zinc-800 gap-4">
         <div>
           <div className="text-xs tracking-widest text-[#DC143C] font-bold uppercase mb-1">
@@ -231,7 +316,7 @@ export default function CopyManagementPage() {
           </div>
           <h1 className="text-3xl font-black tracking-tight">Copy Content Manager</h1>
           <p className="text-sm text-zinc-400 mt-1">
-            Organiza, valida compliance, programa fechas y mide el resultado de tus publicaciones en WhatsApp y Facebook Marketplace.
+            Guarda tus copies maestros, valida compliance y registra cada vez que los reenvías a Grupos de WhatsApp o Marketplace.
           </p>
         </div>
         <button
@@ -245,15 +330,15 @@ export default function CopyManagementPage() {
       {/* KPI Stats Bar */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3.5 my-6">
         <div className="bg-zinc-900/80 border border-zinc-800 p-4 rounded-xl">
-          <span className="text-[11px] uppercase font-bold text-zinc-400">Total Registros</span>
+          <span className="text-[11px] uppercase font-bold text-zinc-400">Copies Maestros</span>
           <p className="text-2xl font-black text-white mt-1">{stats.total}</p>
         </div>
         <div className="bg-zinc-900/80 border border-zinc-800 p-4 rounded-xl">
-          <span className="text-[11px] uppercase font-bold text-emerald-400">🚀 Publicados</span>
-          <p className="text-2xl font-black text-emerald-400 mt-1">{stats.posted}</p>
+          <span className="text-[11px] uppercase font-bold text-emerald-400">🚀 Total Re-envíos Registrados</span>
+          <p className="text-2xl font-black text-emerald-400 mt-1">{stats.totalPublications}</p>
         </div>
         <div className="bg-zinc-900/80 border border-zinc-800 p-4 rounded-xl">
-          <span className="text-[11px] uppercase font-bold text-blue-400">🟢 Listos para Lanzar</span>
+          <span className="text-[11px] uppercase font-bold text-blue-400">🟢 Listos para Difundir</span>
           <p className="text-2xl font-black text-blue-400 mt-1">{stats.approved}</p>
         </div>
         <div className="bg-zinc-900/80 border border-zinc-800 p-4 rounded-xl">
@@ -262,7 +347,7 @@ export default function CopyManagementPage() {
         </div>
       </div>
 
-      {/* Database Notice */}
+      {/* Database Notice if applicable */}
       {dbError && (
         <div className="mb-6 p-4 rounded-xl bg-amber-950/40 border border-amber-600/50 text-amber-200 text-sm flex items-start gap-3">
           <span className="text-xl">⚠️</span>
@@ -285,7 +370,7 @@ export default function CopyManagementPage() {
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="🔍 Buscar por título o texto..."
+              placeholder="🔍 Buscar por título, grupo o copy..."
               className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-3.5 py-2 text-xs text-white placeholder-zinc-500 focus:outline-none focus:border-[#DC143C]"
             />
           </div>
@@ -322,42 +407,56 @@ export default function CopyManagementPage() {
                 <p className="text-xs text-zinc-600 mt-1">Crea uno nuevo a la derecha.</p>
               </div>
             ) : (
-              filteredDrafts.map((d) => (
-                <div
-                  key={d.id}
-                  onClick={() => loadDraft(d)}
-                  className={`p-3.5 rounded-xl border cursor-pointer transition-all ${
-                    activeDraft?.id === d.id
-                      ? 'bg-zinc-800/90 border-[#DC143C] shadow-md shadow-red-950/20'
-                      : 'bg-zinc-950/40 border-zinc-800/80 hover:bg-zinc-800/50 hover:border-zinc-700'
-                  }`}
-                >
-                  <div className="flex items-center justify-between gap-2">
-                    <h3 className="font-semibold text-sm text-zinc-100 truncate flex-1">{d.title}</h3>
-                    <span className={`text-[10px] uppercase font-bold px-2 py-0.5 rounded-full ${
-                      d.status === 'posted'
-                        ? 'bg-emerald-950 text-emerald-400 border border-emerald-800/50'
-                        : d.status === 'approved'
-                        ? 'bg-blue-950 text-blue-400 border border-blue-800/50'
-                        : 'bg-amber-950 text-amber-400 border border-amber-800/50'
-                    }`}>
-                      {d.status === 'posted' ? 'Publicado' : d.status === 'approved' ? 'Listo' : 'Borrador'}
-                    </span>
-                  </div>
+              filteredDrafts.map((d) => {
+                let pCount = 0;
+                try {
+                  let pLog = d.publishing_log;
+                  if (typeof pLog === 'string') pLog = JSON.parse(pLog);
+                  if (Array.isArray(pLog)) pCount = pLog.length;
+                } catch {}
 
-                  <p className="text-xs text-zinc-400 line-clamp-2 mt-1.5">
-                    {d.facebook_marketplace_copy || d.whatsapp_copy || d.draft_copy || 'Sin contenido de copy todavía...'}
-                  </p>
-
-                  <div className="flex items-center justify-between mt-2.5 pt-2 border-t border-zinc-800/60 text-[11px] text-zinc-500">
-                    <div className="flex items-center gap-1.5">
-                      {d.whatsapp_copy && <span className="text-[10px] bg-emerald-900/40 text-emerald-400 border border-emerald-800/50 px-1 rounded">WA</span>}
-                      {d.facebook_marketplace_copy && <span className="text-[10px] bg-orange-900/40 text-orange-400 border border-orange-800/50 px-1 rounded">FB</span>}
+                return (
+                  <div
+                    key={d.id}
+                    onClick={() => loadDraft(d)}
+                    className={`p-3.5 rounded-xl border cursor-pointer transition-all ${
+                      activeDraft?.id === d.id
+                        ? 'bg-zinc-800/90 border-[#DC143C] shadow-md shadow-red-950/20'
+                        : 'bg-zinc-950/40 border-zinc-800/80 hover:bg-zinc-800/50 hover:border-zinc-700'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between gap-2">
+                      <h3 className="font-semibold text-sm text-zinc-100 truncate flex-1">{d.title}</h3>
+                      <span className={`text-[10px] uppercase font-bold px-2 py-0.5 rounded-full ${
+                        d.status === 'posted'
+                          ? 'bg-emerald-950 text-emerald-400 border border-emerald-800/50'
+                          : d.status === 'approved'
+                          ? 'bg-blue-950 text-blue-400 border border-blue-800/50'
+                          : 'bg-amber-950 text-amber-400 border border-amber-800/50'
+                      }`}>
+                        {d.status === 'posted' ? 'Publicado' : d.status === 'approved' ? 'Listo' : 'Borrador'}
+                      </span>
                     </div>
-                    <span>{d.posting_date ? `📅 ${d.posting_date.substring(0, 10)}` : new Date(d.created_at).toLocaleDateString()}</span>
+
+                    <p className="text-xs text-zinc-400 line-clamp-2 mt-1.5">
+                      {d.whatsapp_copy || d.facebook_marketplace_copy || d.draft_copy || 'Sin contenido aún...'}
+                    </p>
+
+                    <div className="flex items-center justify-between mt-2.5 pt-2 border-t border-zinc-800/60 text-[11px] text-zinc-500">
+                      <div className="flex items-center gap-1.5">
+                        {d.whatsapp_copy && <span className="text-[10px] bg-emerald-900/40 text-emerald-400 border border-emerald-800/50 px-1 rounded">WA</span>}
+                        {d.facebook_marketplace_copy && <span className="text-[10px] bg-orange-900/40 text-orange-400 border border-orange-800/50 px-1 rounded">FB</span>}
+                        {pCount > 0 && (
+                          <span className="text-[10px] bg-purple-950 text-purple-300 border border-purple-800/50 px-1.5 rounded-full font-bold">
+                            {pCount}x
+                          </span>
+                        )}
+                      </div>
+                      <span>{d.posting_date ? `📅 ${d.posting_date.substring(0, 10)}` : new Date(d.created_at).toLocaleDateString()}</span>
+                    </div>
                   </div>
-                </div>
-              ))
+                );
+              })
             )}
           </div>
         </div>
@@ -368,7 +467,7 @@ export default function CopyManagementPage() {
           <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 pb-4 border-b border-zinc-800/80">
             <div className="flex items-center gap-2">
               <span className="text-sm font-bold text-zinc-300">
-                {activeDraft ? 'Editando Registro' : 'Nuevo Registro'}
+                {activeDraft ? 'Editando Copy Maestro' : 'Nuevo Copy Maestro'}
               </span>
               {activeDraft && (
                 <span className="text-[11px] text-zinc-500 bg-zinc-800 px-2 py-0.5 rounded">
@@ -377,19 +476,15 @@ export default function CopyManagementPage() {
               )}
             </div>
 
-            {/* Quick 1-Click Publishing Action */}
+            {/* Quick Actions */}
             {activeDraft && (
               <div className="flex items-center gap-2">
                 <button
                   type="button"
-                  onClick={() => {
-                    setStatus('posted');
-                    setPostingDate(new Date().toISOString().substring(0, 10));
-                    handleSave('posted');
-                  }}
+                  onClick={() => setShowLogModal(true)}
                   className="bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold px-3 py-1.5 rounded-lg transition shadow-md shadow-emerald-950/40 flex items-center gap-1.5"
                 >
-                  <span>🚀</span> Marcar como Publicado Hoy
+                  <span>🚀</span> + Registrar Envío / Re-publicación
                 </button>
                 <button
                   type="button"
@@ -403,7 +498,7 @@ export default function CopyManagementPage() {
             )}
           </div>
 
-          {/* Row 1: Title & Management Tracking Fields */}
+          {/* Row 1: Title & Status */}
           <div className="grid grid-cols-1 md:grid-cols-12 gap-4">
             <div className="md:col-span-6">
               <label className="block text-xs font-bold uppercase tracking-wider text-zinc-400 mb-1.5">
@@ -413,13 +508,13 @@ export default function CopyManagementPage() {
                 value={title}
                 onChange={(e) => setTitle(e.target.value)}
                 className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-3.5 py-2 text-sm text-white placeholder-zinc-600 focus:outline-none focus:border-[#DC143C]"
-                placeholder="Ej: Promo Fin de Semana - Delivery Rápido"
+                placeholder="Ej: Promo Fin de Semana - Grupos WhatsApp Cancún"
               />
             </div>
 
             <div className="md:col-span-3">
               <label className="block text-xs font-bold uppercase tracking-wider text-zinc-400 mb-1.5">
-                Estado de Gestión
+                Estado del Copy
               </label>
               <select
                 value={status}
@@ -427,15 +522,15 @@ export default function CopyManagementPage() {
                 className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-[#DC143C]"
               >
                 <option value="draft">🟡 Borrador (Boceto)</option>
-                <option value="approved">🟢 Aprobado / Listo para Publicar</option>
-                <option value="posted">🚀 Publicado (En vivo)</option>
+                <option value="approved">🟢 Aprobado / Listo para Usar</option>
+                <option value="posted">🚀 En Difusión / Publicado</option>
                 <option value="needs_review">⏸️ Pausado / Archivo</option>
               </select>
             </div>
 
             <div className="md:col-span-3">
               <label className="block text-xs font-bold uppercase tracking-wider text-zinc-400 mb-1.5 flex justify-between">
-                <span>Fecha Publicación</span>
+                <span>Último Envío</span>
                 <button
                   type="button"
                   onClick={() => setPostingDate(new Date().toISOString().substring(0, 10))}
@@ -453,16 +548,16 @@ export default function CopyManagementPage() {
             </div>
           </div>
 
-          {/* Row 2: Product / Content Idea (draft_copy) */}
+          {/* Row 2: Original Idea / Product Anchor */}
           <div>
             <label className="block text-xs font-bold uppercase tracking-wider text-zinc-400 mb-1.5">
-              Idea del Producto / Ángulo de Campaña (Borrador Conceptual)
+              Idea del Producto o Servicio (Ángulo Maestro)
             </label>
             <input
               value={draftCopy}
               onChange={(e) => setDraftCopy(e.target.value)}
               className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-3.5 py-2 text-xs text-zinc-300 placeholder-zinc-600 focus:outline-none focus:border-zinc-700"
-              placeholder="Ej: Destacar entrega en 30 mins a Zona Hotelera sin mencionar pipas explícitamente..."
+              placeholder="Ej: Destacar entrega express en 30 minutos a domicilio..."
             />
           </div>
 
@@ -474,24 +569,40 @@ export default function CopyManagementPage() {
                 <div className="flex items-center gap-2">
                   <span className="w-2.5 h-2.5 rounded-full bg-emerald-500"></span>
                   <label className="text-xs font-bold uppercase tracking-wider text-emerald-400">
-                    Versión WhatsApp
+                    Versión WhatsApp (Grupos & Difusión)
                   </label>
                 </div>
-                <button
-                  type="button"
-                  onClick={() => copyToClipboard(whatsappCopy, 'WhatsApp')}
-                  className="text-xs bg-emerald-950 hover:bg-emerald-900 text-emerald-300 border border-emerald-800 px-2.5 py-1 rounded-lg transition flex items-center gap-1"
-                >
-                  <span>📋</span> Copiar
-                </button>
+                <div className="flex items-center gap-1.5">
+                  <button
+                    type="button"
+                    onClick={() => copyToClipboard(whatsappCopy, 'WhatsApp')}
+                    className="text-xs bg-emerald-950 hover:bg-emerald-900 text-emerald-300 border border-emerald-800 px-2.5 py-1 rounded-lg transition flex items-center gap-1"
+                  >
+                    <span>📋</span> Copiar
+                  </button>
+                  {activeDraft && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        copyToClipboard(whatsappCopy, 'WhatsApp');
+                        setLogChannel('whatsapp_group');
+                        setShowLogModal(true);
+                      }}
+                      className="text-[11px] bg-zinc-800 hover:bg-zinc-700 text-zinc-300 border border-zinc-700 px-2 py-1 rounded-lg transition"
+                      title="Copiar y registrar envío a grupo"
+                    >
+                      Copiar + Registrar
+                    </button>
+                  )}
+                </div>
               </div>
               <textarea
                 value={whatsappCopy}
                 onChange={(e) => setWhatsappCopy(e.target.value)}
                 className="w-full bg-zinc-950 border border-emerald-900/40 rounded-xl p-3 text-sm text-zinc-100 placeholder-zinc-600 h-44 focus:outline-none focus:border-emerald-500 transition-colors"
-                placeholder="¡Hola! Te recordamos que nuestro servicio de delivery está listo para llevarte todo lo que necesitas..."
+                placeholder="¡Qué onda grupo! Les recordamos que nuestro servicio de delivery está activo para llevarles lo que necesiten..."
               />
-              <p className="text-[11px] text-zinc-500">Uso directo en chats o listas de difusión de WhatsApp.</p>
+              <p className="text-[11px] text-zinc-500">Este texto lo puedes reutilizar cuantas veces quieras en diferentes grupos de WhatsApp.</p>
             </div>
 
             {/* FB Marketplace Version */}
@@ -500,16 +611,32 @@ export default function CopyManagementPage() {
                 <div className="flex items-center gap-2">
                   <span className="w-2.5 h-2.5 rounded-full bg-orange-500 animate-pulse"></span>
                   <label className="text-xs font-bold uppercase tracking-wider text-orange-400">
-                    Versión FB Marketplace
+                    Versión FB Marketplace (Compliance)
                   </label>
                 </div>
-                <button
-                  type="button"
-                  onClick={() => copyToClipboard(fbMarketplaceCopy, 'Marketplace')}
-                  className="text-xs bg-orange-950 hover:bg-orange-900 text-orange-300 border border-orange-800 px-2.5 py-1 rounded-lg transition flex items-center gap-1"
-                >
-                  <span>📋</span> Copiar
-                </button>
+                <div className="flex items-center gap-1.5">
+                  <button
+                    type="button"
+                    onClick={() => copyToClipboard(fbMarketplaceCopy, 'Marketplace')}
+                    className="text-xs bg-orange-950 hover:bg-orange-900 text-orange-300 border border-orange-800 px-2.5 py-1 rounded-lg transition flex items-center gap-1"
+                  >
+                    <span>📋</span> Copiar
+                  </button>
+                  {activeDraft && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        copyToClipboard(fbMarketplaceCopy, 'Marketplace');
+                        setLogChannel('marketplace');
+                        setShowLogModal(true);
+                      }}
+                      className="text-[11px] bg-zinc-800 hover:bg-zinc-700 text-zinc-300 border border-zinc-700 px-2 py-1 rounded-lg transition"
+                      title="Copiar y registrar publicación en Marketplace"
+                    >
+                      Copiar + Registrar
+                    </button>
+                  )}
+                </div>
               </div>
               <textarea
                 value={fbMarketplaceCopy}
@@ -619,33 +746,116 @@ export default function CopyManagementPage() {
             </div>
           )}
 
-          {/* Row 4: Internal Notes, Outcome & Consistency Tracking */}
+          {/* 🚀 Dedicated Publishing / Repost Log (Historial de Envíos y Re-publicaciones) */}
+          <div className="bg-zinc-950/80 border border-zinc-800 rounded-xl p-5 space-y-4">
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
+              <div>
+                <div className="flex items-center gap-2">
+                  <h3 className="text-xs font-bold uppercase tracking-wider text-emerald-400">
+                    🚀 Registro de Publicaciones & Re-envíos ({publishingLog.length})
+                  </h3>
+                  <span className="text-[10px] bg-zinc-800 text-zinc-400 px-2 py-0.5 rounded-full">
+                    Tracking de Reuso
+                  </span>
+                </div>
+                <p className="text-[11px] text-zinc-400 mt-0.5">
+                  Registra cada vez que reenvías este copy a grupos de WhatsApp, Marketplace o canales locales.
+                </p>
+              </div>
+
+              {activeDraft ? (
+                <button
+                  type="button"
+                  onClick={() => setShowLogModal(true)}
+                  className="bg-emerald-600/90 hover:bg-emerald-500 text-white text-xs font-bold px-3 py-1.5 rounded-lg transition flex items-center gap-1 shadow-sm"
+                >
+                  <span>+</span> Registrar Envío
+                </button>
+              ) : (
+                <span className="text-[11px] text-zinc-500 italic">Guarda el copy primero para registrar envíos</span>
+              )}
+            </div>
+
+            {/* List of Publications */}
+            {publishingLog.length === 0 ? (
+              <div className="text-center py-6 text-zinc-500 text-xs bg-zinc-900/40 rounded-xl border border-zinc-800/60">
+                <p>Aún no has registrado ningún envío para este copy.</p>
+                <p className="text-[11px] text-zinc-600 mt-0.5">
+                  Usa &quot;+ Registrar Envío&quot; cada vez que lo mandes a un grupo de WhatsApp o lo publiques en Marketplace.
+                </p>
+              </div>
+            ) : (
+              <div className="space-y-2.5 max-h-56 overflow-y-auto pr-1">
+                {publishingLog.map((log) => {
+                  const badge = channelBadges[log.channel] || channelBadges.whatsapp_group;
+                  return (
+                    <div
+                      key={log.id}
+                      className="p-3 bg-zinc-900 border border-zinc-800 rounded-xl flex items-start justify-between gap-3 text-xs"
+                    >
+                      <div className="space-y-1">
+                        <div className="flex items-center gap-2">
+                          <span className={`px-2 py-0.5 rounded-md border text-[10px] font-bold ${badge.color}`}>
+                            {badge.label}
+                          </span>
+                          <span className="font-semibold text-zinc-200">
+                            {log.target}
+                          </span>
+                          <span className="text-[11px] text-zinc-500">
+                            • {new Date(log.posted_at).toLocaleString()}
+                          </span>
+                        </div>
+                        {log.notes && (
+                          <p className="text-zinc-400 text-[11px] italic pl-1">
+                            &quot;{log.notes}&quot;
+                          </p>
+                        )}
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => handleDeletePublication(log.id)}
+                        className="text-zinc-600 hover:text-red-400 text-[11px] p-1 transition"
+                        title="Eliminar este registro de envío"
+                      >
+                        ✕
+                      </button>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+
+          {/* Internal Notes & Strategy Learnings */}
           <div className="bg-zinc-950/60 border border-zinc-800 rounded-xl p-4 space-y-2">
             <div className="flex items-center justify-between">
               <label className="block text-xs font-bold uppercase tracking-wider text-zinc-300">
-                🗒️ Notas Internas, Métricas & Resultado (Outcome Tracking)
+                🗒️ Notas Internas & Aprendizajes de Estrategia
               </label>
-              <span className="text-[10px] text-zinc-500">Para verificar consistencia y efectividad</span>
+              <span className="text-[10px] text-zinc-500">Notas generales del copy</span>
             </div>
             <textarea
               value={internalNotes}
               onChange={(e) => setInternalNotes(e.target.value)}
-              className="w-full bg-zinc-900 border border-zinc-800 rounded-xl p-3 text-xs text-zinc-200 placeholder-zinc-600 h-24 focus:outline-none focus:border-zinc-700"
-              placeholder="Anota los resultados aquí: ej. Generó 6 chats por Marketplace, 2 pedidos cerrados de $450 c/u. Publicado domingo 4 PM. Cero advertencias de Meta."
+              className="w-full bg-zinc-900 border border-zinc-800 rounded-xl p-3 text-xs text-zinc-200 placeholder-zinc-600 h-20 focus:outline-none focus:border-zinc-700"
+              placeholder="Notas generales: ej. Este copy convierte mejor cuando se acompaña con la foto del delivery en moto."
             />
           </div>
 
-          {/* Row 5: Revision History (Consistency Audit) */}
+          {/* Text Revision History (ONLY for real text changes) */}
           {activeDraft?.copy_revisions && activeDraft.copy_revisions.length > 0 && (
             <div className="bg-zinc-950/40 border border-zinc-800/80 rounded-xl p-4 space-y-2">
               <h4 className="text-xs font-bold uppercase tracking-wider text-zinc-400">
-                🔄 Historial de Revisiones ({activeDraft.copy_revisions.length} cambios registrados)
+                🔄 Historial de Revisiones de Texto ({activeDraft.copy_revisions.length} cambios de redacción)
               </h4>
-              <div className="space-y-2 max-h-36 overflow-y-auto pr-1">
+              <p className="text-[11px] text-zinc-500">
+                Se registra automáticamente sólo cuando modificas las palabras del texto de Marketplace.
+              </p>
+              <div className="space-y-2 max-h-32 overflow-y-auto pr-1">
                 {activeDraft.copy_revisions.map((rev: any, idx: number) => (
                   <div key={rev.id || idx} className="text-xs bg-zinc-900 p-2.5 rounded-lg border border-zinc-800/80">
                     <div className="text-[10px] text-zinc-500 mb-1 flex justify-between">
-                      <span>Versión #{activeDraft.copy_revisions.length - idx}</span>
+                      <span>Versión de Texto #{activeDraft.copy_revisions.length - idx}</span>
                       <span>{new Date(rev.created_at).toLocaleString()}</span>
                     </div>
                     <p className="text-zinc-300 line-clamp-2 italic">
@@ -670,7 +880,7 @@ export default function CopyManagementPage() {
             {saving
               ? 'Guardando cambios...'
               : canSave
-              ? (activeDraft ? 'Actualizar Registro de Copy' : 'Guardar Nuevo Registro de Copy')
+              ? (activeDraft ? 'Actualizar Copy Maestro' : 'Guardar Nuevo Copy Maestro')
               : !hasAtLeastOneCopy
               ? 'Escribe al menos un copy (WhatsApp o Marketplace) para guardar'
               : isMarketplaceActive && !imagesValid
@@ -681,6 +891,83 @@ export default function CopyManagementPage() {
           </button>
         </div>
       </div>
+
+      {/* Modal: Registrar Publicación / Re-envío */}
+      {showLogModal && (
+        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-zinc-900 border border-zinc-800 rounded-2xl max-w-md w-full p-6 space-y-4 shadow-2xl">
+            <div className="flex justify-between items-center pb-2 border-b border-zinc-800">
+              <h3 className="font-bold text-sm uppercase tracking-wider text-white">
+                🚀 Registrar Envío / Re-publicación
+              </h3>
+              <button
+                type="button"
+                onClick={() => setShowLogModal(false)}
+                className="text-zinc-500 hover:text-white text-sm"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold uppercase tracking-wider text-zinc-400 mb-1.5">
+                Canal de Publicación
+              </label>
+              <select
+                value={logChannel}
+                onChange={(e: any) => setLogChannel(e.target.value)}
+                className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-[#DC143C]"
+              >
+                <option value="whatsapp_group">📱 Grupo de WhatsApp</option>
+                <option value="whatsapp_broadcast">💬 WhatsApp Lista de Difusión</option>
+                <option value="marketplace">🛒 Facebook Marketplace</option>
+                <option value="facebook_group">👥 Grupo de Facebook</option>
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold uppercase tracking-wider text-zinc-400 mb-1.5">
+                Nombre del Grupo o Ubicación *
+              </label>
+              <input
+                value={logTarget}
+                onChange={(e) => setLogTarget(e.target.value)}
+                placeholder="Ej: Grupo Fumadores Cancún 96 / Marketplace Cancún Centro"
+                className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-3.5 py-2 text-xs text-white placeholder-zinc-600 focus:outline-none focus:border-[#DC143C]"
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold uppercase tracking-wider text-zinc-400 mb-1.5">
+                Notas / Resultado Inmediato (Opcional)
+              </label>
+              <textarea
+                value={logNotes}
+                onChange={(e) => setLogNotes(e.target.value)}
+                placeholder="Ej: Enviado domingo 5 PM. 3 personas pidieron catálogo."
+                className="w-full bg-zinc-950 border border-zinc-800 rounded-xl p-2.5 text-xs text-zinc-200 placeholder-zinc-600 h-20 focus:outline-none focus:border-zinc-700"
+              />
+            </div>
+
+            <div className="flex justify-end gap-2 pt-2 border-t border-zinc-800">
+              <button
+                type="button"
+                onClick={() => setShowLogModal(false)}
+                className="px-3.5 py-2 rounded-xl text-xs font-semibold text-zinc-400 hover:text-white transition"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={handleAddPublication}
+                className="bg-emerald-600 hover:bg-emerald-500 text-white px-4 py-2 rounded-xl text-xs font-bold transition shadow-lg shadow-emerald-950/40"
+              >
+                Guardar Envío
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

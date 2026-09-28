@@ -29,34 +29,81 @@ export async function POST(req: NextRequest) {
     const { id, copy_revisions, ...payload } = body;
 
     if (id) {
-      const { data, error } = await supabaseAdmin
+      // 1. Check existing record to see if marketplace text actually changed
+      const { data: existing } = await supabaseAdmin
+        .from('copy_drafts')
+        .select('facebook_marketplace_copy')
+        .eq('id', id)
+        .single();
+
+      let data: any = null;
+      let updateError: any = null;
+
+      // Try update with payload
+      const res = await supabaseAdmin
         .from('copy_drafts')
         .update(payload)
         .eq('id', id)
         .select('*, copy_revisions(*)')
         .single();
 
-      if (error) {
-        return NextResponse.json({ error: error.message }, { status: 500 });
+      data = res.data;
+      updateError = res.error;
+
+      // If error is about missing publishing_log column in DB, fallback gracefully
+      if (updateError && updateError.message?.includes('publishing_log')) {
+        const { publishing_log, ...cleanPayload } = payload;
+        const retryRes = await supabaseAdmin
+          .from('copy_drafts')
+          .update(cleanPayload)
+          .eq('id', id)
+          .select('*, copy_revisions(*)')
+          .single();
+        data = retryRes.data;
+        updateError = retryRes.error;
       }
 
-      if (payload.facebook_marketplace_copy) {
+      if (updateError) {
+        return NextResponse.json({ error: updateError.message }, { status: 500 });
+      }
+
+      // ONLY record a revision if the text actually changed!
+      const newCopy = (payload.facebook_marketplace_copy || '').trim();
+      const oldCopy = (existing?.facebook_marketplace_copy || '').trim();
+      if (newCopy && newCopy !== oldCopy) {
         await supabaseAdmin.from('copy_revisions').insert({
           draft_id: id,
-          facebook_marketplace_copy: payload.facebook_marketplace_copy
+          facebook_marketplace_copy: newCopy
         });
       }
 
       return NextResponse.json({ draft: data });
     } else {
-      const { data, error } = await supabaseAdmin
+      let data: any = null;
+      let insertError: any = null;
+
+      const res = await supabaseAdmin
         .from('copy_drafts')
         .insert([payload])
         .select('*, copy_revisions(*)')
         .single();
 
-      if (error) {
-        return NextResponse.json({ error: error.message }, { status: 500 });
+      data = res.data;
+      insertError = res.error;
+
+      if (insertError && insertError.message?.includes('publishing_log')) {
+        const { publishing_log, ...cleanPayload } = payload;
+        const retryRes = await supabaseAdmin
+          .from('copy_drafts')
+          .insert([cleanPayload])
+          .select('*, copy_revisions(*)')
+          .single();
+        data = retryRes.data;
+        insertError = retryRes.error;
+      }
+
+      if (insertError) {
+        return NextResponse.json({ error: insertError.message }, { status: 500 });
       }
 
       if (data && payload.facebook_marketplace_copy) {

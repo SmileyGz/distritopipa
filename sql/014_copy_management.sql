@@ -17,11 +17,16 @@ CREATE TABLE copy_drafts (
     img_no_smoke BOOLEAN DEFAULT false,
     img_focus_delivery BOOLEAN DEFAULT false,
     
-    -- Meta
+    -- Meta & Publication Tracking
     internal_notes TEXT,
+    publishing_log JSONB DEFAULT '[]'::jsonb,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
+
+-- Upgrade existing tables if already created
+ALTER TABLE copy_drafts ADD COLUMN IF NOT EXISTS publishing_log JSONB DEFAULT '[]'::jsonb;
+
 
 -- Table: copy_revisions
 CREATE TABLE copy_revisions (
