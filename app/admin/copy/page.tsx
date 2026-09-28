@@ -28,6 +28,16 @@ export default function CopyManagementPage() {
   async function fetchDrafts() {
     setLoading(true);
     try {
+      // First try the server API route (bypasses RLS)
+      const res = await fetch('/api/admin/copy');
+      if (res.ok) {
+        const json = await res.json();
+        setDrafts(json.drafts || []);
+        setDbError(null);
+        return;
+      }
+      
+      // Fallback to client Supabase
       const { data, error } = await supabase
         .from('copy_drafts')
         .select('*')
@@ -40,58 +50,75 @@ export default function CopyManagementPage() {
         setDbError(null);
       }
     } catch (err: any) {
-      setDbError(err.message || 'Error conectando a Supabase');
+      setDbError(err.message || 'Error conectando con la base de datos');
     } finally {
       setLoading(false);
     }
   }
 
+  // Compliance rules
+  const isMarketplaceActive = fbMarketplaceCopy.trim().length > 0;
+  const isWhatsappActive = whatsappCopy.trim().length > 0;
+  const isDraftActive = draftCopy.trim().length > 0;
+  const hasAtLeastOneCopy = isMarketplaceActive || isWhatsappActive || isDraftActive;
+
   const compliance = scanCopy(fbMarketplaceCopy);
   const imagesValid = imgNoGlass && imgNoSmoke && imgFocusDelivery;
-  const canSave = compliance.isValid && imagesValid && title.trim().length > 0;
+  
+  // Can save if title exists AND at least one copy exists.
+  // If Marketplace copy is present, it MUST comply with blacklist & checklist.
+  // If only WhatsApp is present, the image checklist is optional!
+  const marketplaceValid = !isMarketplaceActive || (compliance.isValid && imagesValid);
+  const canSave = title.trim().length > 0 && hasAtLeastOneCopy && marketplaceValid;
 
   async function handleSave() {
     if (!canSave) return;
     setSaving(true);
     
     const payload = {
-      title,
+      ...(activeDraft?.id ? { id: activeDraft.id } : {}),
+      title: title.trim(),
       draft_copy: draftCopy,
       whatsapp_copy: whatsappCopy,
       facebook_marketplace_copy: fbMarketplaceCopy,
       img_no_glass: imgNoGlass,
       img_no_smoke: imgNoSmoke,
       img_focus_delivery: imgFocusDelivery,
+      status: 'approved',
     };
 
     try {
+      // 1. Try saving via server-side API (service_role bypasses RLS)
+      const res = await fetch('/api/admin/copy', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+
+      if (res.ok) {
+        toast.success(activeDraft?.id ? '✓ Copy actualizado con éxito' : '✓ Copy guardado con éxito');
+        setActiveDraft(null);
+        clearForm();
+        fetchDrafts();
+        return;
+      }
+
+      // 2. Fallback to direct Supabase client if API route not yet available
       if (activeDraft?.id) {
         const { error } = await supabase.from('copy_drafts').update(payload).eq('id', activeDraft.id);
         if (error) throw error;
-
-        await supabase.from('copy_revisions').insert({
-          draft_id: activeDraft.id,
-          facebook_marketplace_copy: fbMarketplaceCopy
-        });
-        toast.success('Copy actualizado con éxito');
+        toast.success('✓ Copy actualizado con éxito');
       } else {
-        const { data, error } = await supabase.from('copy_drafts').insert([payload]).select().single();
+        const { error } = await supabase.from('copy_drafts').insert([payload]);
         if (error) throw error;
-
-        if (data) {
-          await supabase.from('copy_revisions').insert({
-            draft_id: data.id,
-            facebook_marketplace_copy: fbMarketplaceCopy
-          });
-        }
-        toast.success('Nuevo copy guardado con éxito');
+        toast.success('✓ Copy guardado con éxito');
       }
-      
+
       setActiveDraft(null);
       clearForm();
       fetchDrafts();
     } catch (err: any) {
-      toast.error('Error al guardar: ' + (err.message || 'Verifica la migración SQL en Supabase'));
+      toast.error('Error al guardar: ' + (err.message || 'Verifica la conexión a Supabase'));
     } finally {
       setSaving(false);
     }
@@ -128,7 +155,7 @@ export default function CopyManagementPage() {
           </div>
           <h1 className="text-3xl font-black tracking-tight">Copy Management</h1>
           <p className="text-sm text-zinc-400 mt-1">
-            Diseña, valida y blinda tus copies para WhatsApp y Facebook Marketplace sin riesgo de baneo.
+            Diseña, valida y blinda tus copies para WhatsApp y Facebook Marketplace. Guarda uno o ambos según necesites.
           </p>
         </div>
         <button
@@ -144,9 +171,9 @@ export default function CopyManagementPage() {
         <div className="mt-6 p-4 rounded-xl bg-amber-950/40 border border-amber-600/50 text-amber-200 text-sm flex items-start gap-3">
           <span className="text-xl">⚠️</span>
           <div>
-            <p className="font-semibold">Tablas no detectadas en Supabase</p>
+            <p className="font-semibold">Tablas o permisos pendientes en Supabase</p>
             <p className="text-xs text-amber-300/80 mt-0.5">
-              Recuerda ejecutar el script <code className="bg-black/50 px-1 py-0.5 rounded text-amber-100">sql/014_copy_management.sql</code> en el SQL Editor de tu panel de Supabase para activar la persistencia.
+              Si ves un error de Row-Level Security (RLS), ejecuta el script actualizado de permisos en el SQL Editor de tu panel de Supabase.
             </p>
           </div>
         </div>
@@ -165,8 +192,8 @@ export default function CopyManagementPage() {
             <div className="text-center py-12 text-zinc-500 text-sm">Cargando borradores...</div>
           ) : drafts.length === 0 ? (
             <div className="text-center py-12 text-zinc-500 text-sm">
-              <p>No hay borradores guardados.</p>
-              <p className="text-xs text-zinc-600 mt-1">Crea uno en el editor de la derecha.</p>
+              <p>No hay borradores guardados aún.</p>
+              <p className="text-xs text-zinc-600 mt-1">Escribe en el editor de la derecha para crear uno.</p>
             </div>
           ) : (
             <div className="space-y-3 max-h-[600px] overflow-y-auto pr-1">
@@ -180,9 +207,15 @@ export default function CopyManagementPage() {
                       : 'bg-zinc-950/40 border-zinc-800/80 hover:bg-zinc-800/50 hover:border-zinc-700'
                   }`}
                 >
-                  <h3 className="font-semibold text-sm text-zinc-100 truncate">{d.title}</h3>
+                  <div className="flex items-center justify-between">
+                    <h3 className="font-semibold text-sm text-zinc-100 truncate">{d.title}</h3>
+                    <div className="flex gap-1">
+                      {d.whatsapp_copy && <span className="text-[10px] bg-emerald-950 text-emerald-400 border border-emerald-800/50 px-1.5 py-0.2 rounded">WA</span>}
+                      {d.facebook_marketplace_copy && <span className="text-[10px] bg-orange-950 text-orange-400 border border-orange-800/50 px-1.5 py-0.2 rounded">FB</span>}
+                    </div>
+                  </div>
                   <p className="text-xs text-zinc-400 line-clamp-2 mt-1">
-                    {d.facebook_marketplace_copy || d.whatsapp_copy || 'Sin contenido aún...'}
+                    {d.facebook_marketplace_copy || d.whatsapp_copy || d.draft_copy || 'Sin contenido aún...'}
                   </p>
                   <div className="flex items-center justify-between mt-2 pt-2 border-t border-zinc-800/60 text-[11px] text-zinc-500">
                     <span>{new Date(d.created_at).toLocaleDateString()}</span>
@@ -198,7 +231,7 @@ export default function CopyManagementPage() {
         <div className="lg:col-span-8 bg-zinc-900/60 border border-zinc-800 rounded-2xl p-6 space-y-6 backdrop-blur-sm">
           <div>
             <label className="block text-xs font-bold uppercase tracking-wider text-zinc-400 mb-2">
-              Título del Copy / Campaña
+              Título del Copy / Campaña (Obligatorio)
             </label>
             <input
               value={title}
@@ -211,11 +244,14 @@ export default function CopyManagementPage() {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
             {/* WhatsApp Version */}
             <div>
-              <div className="flex items-center gap-2 mb-2">
-                <span className="w-2.5 h-2.5 rounded-full bg-emerald-500"></span>
-                <label className="text-xs font-bold uppercase tracking-wider text-emerald-400">
-                  WhatsApp (Zona Segura 1-a-1)
-                </label>
+              <div className="flex items-center justify-between mb-2">
+                <div className="flex items-center gap-2">
+                  <span className="w-2.5 h-2.5 rounded-full bg-emerald-500"></span>
+                  <label className="text-xs font-bold uppercase tracking-wider text-emerald-400">
+                    WhatsApp (Opcional)
+                  </label>
+                </div>
+                <span className="text-[10px] text-zinc-500">Zona 1-a-1</span>
               </div>
               <textarea
                 value={whatsappCopy}
@@ -223,16 +259,19 @@ export default function CopyManagementPage() {
                 className="w-full bg-zinc-950 border border-emerald-900/40 rounded-xl p-3 text-sm text-zinc-100 placeholder-zinc-600 h-44 focus:outline-none focus:border-emerald-500 transition-colors"
                 placeholder="¡Qué onda! Te dejamos la lista de lo que buscas para este fin..."
               />
-              <p className="text-[11px] text-zinc-500 mt-1">Usa lenguaje natural y directo. No hay filtro estricto de bots.</p>
+              <p className="text-[11px] text-zinc-500 mt-1">Puedes guardar solo este copy si lo deseas.</p>
             </div>
 
             {/* FB Marketplace Version */}
             <div>
-              <div className="flex items-center gap-2 mb-2">
-                <span className="w-2.5 h-2.5 rounded-full bg-orange-500 animate-pulse"></span>
-                <label className="text-xs font-bold uppercase tracking-wider text-orange-400">
-                  FB Marketplace ⚠️ (Zona Máxima Seguridad)
-                </label>
+              <div className="flex items-center justify-between mb-2">
+                <div className="flex items-center gap-2">
+                  <span className="w-2.5 h-2.5 rounded-full bg-orange-500 animate-pulse"></span>
+                  <label className="text-xs font-bold uppercase tracking-wider text-orange-400">
+                    FB Marketplace (Opcional)
+                  </label>
+                </div>
+                <span className="text-[10px] text-orange-400/80 font-medium">⚠️ Alta Seguridad</span>
               </div>
               <textarea
                 value={fbMarketplaceCopy}
@@ -257,7 +296,7 @@ export default function CopyManagementPage() {
                     {compliance.warnings}
                   </p>
                 )}
-                {compliance.ctaMissing && (
+                {compliance.ctaMissing && isMarketplaceActive && (
                   <p className="text-cyan-400 font-medium bg-cyan-950/30 border border-cyan-800/30 rounded-lg p-2">
                     {compliance.ctaMissing}
                   </p>
@@ -296,49 +335,51 @@ export default function CopyManagementPage() {
             </div>
           </div>
 
-          {/* Mandatory Image Compliance Checklist */}
-          <div className="bg-zinc-950/60 border border-zinc-800 rounded-xl p-4 space-y-2.5">
-            <div className="flex items-center justify-between mb-1">
-              <h3 className="text-xs font-bold uppercase tracking-wider text-zinc-300">
-                Checklist Obligatorio de Imagen (Para desbloquear guardado)
-              </h3>
-              <span className={`text-[11px] font-bold px-2 py-0.5 rounded-full ${
-                imagesValid ? 'bg-emerald-950 text-emerald-400 border border-emerald-800' : 'bg-zinc-800 text-zinc-500'
-              }`}>
-                {imagesValid ? '✓ Verificado' : 'Pendiente'}
-              </span>
+          {/* Mandatory Image Compliance Checklist — ONLY required if Marketplace copy is used */}
+          {isMarketplaceActive && (
+            <div className="bg-zinc-950/60 border border-zinc-800 rounded-xl p-4 space-y-2.5 animate-fadeIn">
+              <div className="flex items-center justify-between mb-1">
+                <h3 className="text-xs font-bold uppercase tracking-wider text-zinc-300">
+                  Checklist Obligatorio de Imagen (Para Facebook Marketplace)
+                </h3>
+                <span className={`text-[11px] font-bold px-2 py-0.5 rounded-full ${
+                  imagesValid ? 'bg-emerald-950 text-emerald-400 border border-emerald-800' : 'bg-zinc-800 text-zinc-500'
+                }`}>
+                  {imagesValid ? '✓ Verificado' : 'Pendiente'}
+                </span>
+              </div>
+
+              <label className="flex items-center gap-3 cursor-pointer text-xs text-zinc-300 hover:text-white transition">
+                <input
+                  type="checkbox"
+                  checked={imgNoGlass}
+                  onChange={(e) => setImgNoGlass(e.target.checked)}
+                  className="w-4 h-4 rounded bg-zinc-900 border-zinc-700 text-[#DC143C] focus:ring-0"
+                />
+                <span>La imagen <b>NO</b> muestra artículos de cristal, pipas o parafernalia explícita.</span>
+              </label>
+
+              <label className="flex items-center gap-3 cursor-pointer text-xs text-zinc-300 hover:text-white transition">
+                <input
+                  type="checkbox"
+                  checked={imgNoSmoke}
+                  onChange={(e) => setImgNoSmoke(e.target.checked)}
+                  className="w-4 h-4 rounded bg-zinc-900 border-zinc-700 text-[#DC143C] focus:ring-0"
+                />
+                <span>La imagen <b>NO</b> contiene humo ni efectos de humo.</span>
+              </label>
+
+              <label className="flex items-center gap-3 cursor-pointer text-xs text-zinc-300 hover:text-white transition">
+                <input
+                  type="checkbox"
+                  checked={imgFocusDelivery}
+                  onChange={(e) => setImgFocusDelivery(e.target.checked)}
+                  className="w-4 h-4 rounded bg-zinc-900 border-zinc-700 text-[#DC143C] focus:ring-0"
+                />
+                <span>La imagen se enfoca estrictamente en el <b>Servicio de Delivery</b> o vibra urbana/local.</span>
+              </label>
             </div>
-
-            <label className="flex items-center gap-3 cursor-pointer text-xs text-zinc-300 hover:text-white transition">
-              <input
-                type="checkbox"
-                checked={imgNoGlass}
-                onChange={(e) => setImgNoGlass(e.target.checked)}
-                className="w-4 h-4 rounded bg-zinc-900 border-zinc-700 text-[#DC143C] focus:ring-0"
-              />
-              <span>La imagen <b>NO</b> muestra artículos de cristal, pipas o parafernalia explícita.</span>
-            </label>
-
-            <label className="flex items-center gap-3 cursor-pointer text-xs text-zinc-300 hover:text-white transition">
-              <input
-                type="checkbox"
-                checked={imgNoSmoke}
-                onChange={(e) => setImgNoSmoke(e.target.checked)}
-                className="w-4 h-4 rounded bg-zinc-900 border-zinc-700 text-[#DC143C] focus:ring-0"
-              />
-              <span>La imagen <b>NO</b> contiene humo ni efectos de humo.</span>
-            </label>
-
-            <label className="flex items-center gap-3 cursor-pointer text-xs text-zinc-300 hover:text-white transition">
-              <input
-                type="checkbox"
-                checked={imgFocusDelivery}
-                onChange={(e) => setImgFocusDelivery(e.target.checked)}
-                className="w-4 h-4 rounded bg-zinc-900 border-zinc-700 text-[#DC143C] focus:ring-0"
-              />
-              <span>La imagen se enfoca estrictamente en el <b>Servicio de Delivery</b> o vibra urbana/local.</span>
-            </label>
-          </div>
+          )}
 
           {/* Submit button */}
           <button
@@ -353,8 +394,14 @@ export default function CopyManagementPage() {
             {saving
               ? 'Guardando...'
               : canSave
-              ? (activeDraft ? 'Actualizar Copy Blindado' : 'Guardar Copy Blindado')
-              : 'Completa el título, elimina palabras prohibidas y marca el checklist para guardar'}
+              ? (activeDraft ? 'Actualizar Copy' : 'Guardar Copy')
+              : !hasAtLeastOneCopy
+              ? 'Escribe al menos un copy (WhatsApp o Marketplace) para guardar'
+              : isMarketplaceActive && !imagesValid
+              ? 'Verifica los 3 puntos del checklist de imagen para guardar'
+              : !compliance.isValid
+              ? 'Elimina las palabras prohibidas detectadas para guardar'
+              : 'Asigna un título para guardar'}
           </button>
         </div>
       </div>

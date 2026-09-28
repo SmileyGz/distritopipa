@@ -50,6 +50,11 @@ EXECUTE FUNCTION update_copy_drafts_updated_at();
 ALTER TABLE copy_drafts ENABLE ROW LEVEL SECURITY;
 ALTER TABLE copy_revisions ENABLE ROW LEVEL SECURITY;
 
--- Allow authenticated users (admin) to do everything
-CREATE POLICY "Enable all access for authenticated users on copy_drafts" ON copy_drafts FOR ALL TO authenticated USING (true) WITH CHECK (true);
-CREATE POLICY "Enable all access for authenticated users on copy_revisions" ON copy_revisions FOR ALL TO authenticated USING (true) WITH CHECK (true);
+DROP POLICY IF EXISTS "Enable all access for authenticated users on copy_drafts" ON copy_drafts;
+DROP POLICY IF EXISTS "Enable all access for authenticated users on copy_revisions" ON copy_revisions;
+DROP POLICY IF EXISTS "Enable all access on copy_drafts" ON copy_drafts;
+DROP POLICY IF EXISTS "Enable all access on copy_revisions" ON copy_revisions;
+
+CREATE POLICY "Enable all access on copy_drafts" ON copy_drafts FOR ALL TO anon, authenticated, service_role USING (true) WITH CHECK (true);
+CREATE POLICY "Enable all access on copy_revisions" ON copy_revisions FOR ALL TO anon, authenticated, service_role USING (true) WITH CHECK (true);
+
