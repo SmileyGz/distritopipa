@@ -277,21 +277,21 @@ export default function CopyManagementPage() {
                 onClick={() => setFbMarketplaceCopy((prev) => prev + (prev ? ' ' : '') + 'Lo que necesitas para relajarte.')}
                 className="bg-zinc-800 hover:bg-zinc-700 text-zinc-300 px-3 py-1.5 rounded-lg border border-zinc-700 transition"
               >
-                + "Lo que necesitas para relajarte"
+                + &quot;Lo que necesitas para relajarte&quot;
               </button>
               <button
                 type="button"
                 onClick={() => setFbMarketplaceCopy((prev) => prev + (prev ? ' ' : '') + 'Conoce el catálogo completo en nuestra web: distritopipa.com')}
                 className="bg-zinc-800 hover:bg-zinc-700 text-zinc-300 px-3 py-1.5 rounded-lg border border-zinc-700 transition"
               >
-                + "CTA Web: distritopipa.com"
+                + &quot;CTA Web: distritopipa.com&quot;
               </button>
               <button
                 type="button"
                 onClick={() => setFbMarketplaceCopy((prev) => prev + (prev ? ' ' : '') + 'Servicio a domicilio rápido en Cancún.')}
                 className="bg-zinc-800 hover:bg-zinc-700 text-zinc-300 px-3 py-1.5 rounded-lg border border-zinc-700 transition"
               >
-                + "Delivery rápido Cancún"
+                + &quot;Delivery rápido Cancún&quot;
               </button>
             </div>
           </div>
