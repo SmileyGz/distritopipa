@@ -277,7 +277,21 @@ export default function CopyManagementPage() {
       return;
     }
     navigator.clipboard.writeText(text);
-    toast.success(`📋 ${label} copiado al portapapeles`);
+    toast.success(`Copiar ${label} al portapapeles`);
+  }
+
+  function formatDisplayDate(dateStr?: string | null) {
+    if (!dateStr) return '';
+    // Format YYYY-MM-DD cleanly without timezone offset shift
+    const parts = dateStr.substring(0, 10).split('-');
+    if (parts.length === 3 && parts[0].length === 4) {
+      const [year, month, day] = parts;
+      return `${day}/${month}/${year}`;
+    }
+    const d = new Date(dateStr);
+    return isNaN(d.getTime())
+      ? dateStr
+      : d.toLocaleDateString('es-MX', { day: '2-digit', month: '2-digit', year: 'numeric' });
   }
 
   // Sorted revisions: NEWEST at the top
@@ -477,7 +491,7 @@ export default function CopyManagementPage() {
                           </span>
                         )}
                       </div>
-                      <span>{d.posting_date ? `📅 ${d.posting_date.substring(0, 10)}` : new Date(d.created_at).toLocaleDateString()}</span>
+                      <span>{formatDisplayDate(d.posting_date || d.created_at)}</span>
                     </div>
                   </div>
                 );
@@ -714,7 +728,7 @@ export default function CopyManagementPage() {
                             {badge.label}
                           </span>
                           <span className="text-[11px] text-zinc-400">
-                            {new Date(log.posted_at).toLocaleString()}
+                            {new Date(log.posted_at).toLocaleString('es-MX', { dateStyle: 'short', timeStyle: 'short' })}
                           </span>
                         </div>
                         {log.notes && (
@@ -798,7 +812,7 @@ export default function CopyManagementPage() {
                             Versión #{versionNumber} {isLatest ? '(Más reciente)' : versionNumber === 1 ? '(Original)' : ''}
                           </span>
                           <span className="text-zinc-500">
-                            {new Date(rev.created_at).toLocaleString()}
+                            {new Date(rev.created_at).toLocaleString('es-MX', { dateStyle: 'short', timeStyle: 'short' })}
                           </span>
                         </div>
 
