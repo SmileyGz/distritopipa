@@ -8,7 +8,7 @@ import toast from 'react-hot-toast';
 export type PublicationLogEntry = {
   id: string;
   channel: 'whatsapp_group' | 'whatsapp_broadcast' | 'marketplace' | 'facebook_group';
-  target: string; // e.g. "Grupo Cancún Centro", "Difusión Clientes"
+  target: string; // e.g. "Grupos de WhatsApp", "Difusión"
   posted_at: string; // ISO date
   notes?: string; // outcome / results
 };
@@ -33,7 +33,6 @@ export default function CopyManagementPage() {
   // Quick Log modal / form state
   const [showLogModal, setShowLogModal] = useState(false);
   const [logChannel, setLogChannel] = useState<'whatsapp_group' | 'whatsapp_broadcast' | 'marketplace' | 'facebook_group'>('whatsapp_group');
-  const [logTarget, setLogTarget] = useState('');
   const [logNotes, setLogNotes] = useState('');
 
   // Filter & Search
@@ -144,19 +143,21 @@ export default function CopyManagementPage() {
     }
   }
 
-  // Register a publication event (repost to WA group, marketplace, etc.)
-  async function handleAddPublication() {
-    if (!logTarget.trim()) {
-      toast.error('Especifica el grupo o destino del envío');
-      return;
-    }
+  // Register a publication event instantly (1-click, zero blockers)
+  async function handleQuickRegister(channel: PublicationLogEntry['channel'] = 'whatsapp_group', optionalNote = '') {
+    const channelNames: Record<PublicationLogEntry['channel'], string> = {
+      whatsapp_group: 'Grupos de WhatsApp',
+      whatsapp_broadcast: 'Lista de Difusión',
+      marketplace: 'Facebook Marketplace',
+      facebook_group: 'Grupos de Facebook',
+    };
 
     const newEntry: PublicationLogEntry = {
       id: Date.now().toString(),
-      channel: logChannel,
-      target: logTarget.trim(),
+      channel,
+      target: channelNames[channel],
       posted_at: new Date().toISOString(),
-      notes: logNotes.trim(),
+      notes: optionalNote.trim(),
     };
 
     const updatedLog = [newEntry, ...publishingLog];
@@ -165,10 +166,9 @@ export default function CopyManagementPage() {
     setPostingDate(new Date().toISOString().substring(0, 10));
 
     setShowLogModal(false);
-    setLogTarget('');
     setLogNotes('');
 
-    toast.success('🚀 Envío registrado en el historial');
+    toast.success(`🚀 Envío a ${channelNames[channel]} registrado`);
     
     await handleSave({
       publishing_log: updatedLog,
@@ -333,10 +333,10 @@ export default function CopyManagementPage() {
   }, [drafts]);
 
   const channelBadges = {
-    whatsapp_group: { label: '📱 WhatsApp Grupo', color: 'bg-emerald-950 text-emerald-300 border-emerald-800' },
+    whatsapp_group: { label: '📱 WhatsApp Grupos', color: 'bg-emerald-950 text-emerald-300 border-emerald-800' },
     whatsapp_broadcast: { label: '💬 WhatsApp Difusión', color: 'bg-teal-950 text-teal-300 border-teal-800' },
     marketplace: { label: '🛒 FB Marketplace', color: 'bg-orange-950 text-orange-300 border-orange-800' },
-    facebook_group: { label: '👥 FB Grupo', color: 'bg-blue-950 text-blue-300 border-blue-800' },
+    facebook_group: { label: '👥 FB Grupos', color: 'bg-blue-950 text-blue-300 border-blue-800' },
   };
 
   return (
@@ -403,7 +403,7 @@ export default function CopyManagementPage() {
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="🔍 Buscar por título, grupo o copy..."
+              placeholder="🔍 Buscar por título o contenido..."
               className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-3.5 py-2 text-xs text-white placeholder-zinc-500 focus:outline-none focus:border-[#DC143C]"
             />
           </div>
@@ -514,10 +514,19 @@ export default function CopyManagementPage() {
               <div className="flex items-center gap-2">
                 <button
                   type="button"
-                  onClick={() => setShowLogModal(true)}
+                  onClick={() => handleQuickRegister('whatsapp_group')}
                   className="bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold px-3 py-1.5 rounded-lg transition shadow-md shadow-emerald-950/40 flex items-center gap-1.5"
+                  title="Registrar envío a grupos de WhatsApp inmediatamente con 1 clic"
                 >
-                  <span>🚀</span> + Registrar Envío
+                  <span>🚀</span> 1-Clic: Registré Envío a Grupos
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setShowLogModal(true)}
+                  className="bg-zinc-800 hover:bg-zinc-700 text-zinc-300 text-xs px-2.5 py-1.5 rounded-lg border border-zinc-700 transition"
+                  title="Personalizar canal de envío"
+                >
+                  Otro Canal
                 </button>
                 <button
                   type="button"
@@ -618,13 +627,12 @@ export default function CopyManagementPage() {
                       type="button"
                       onClick={() => {
                         copyToClipboard(whatsappCopy, 'WhatsApp');
-                        setLogChannel('whatsapp_group');
-                        setShowLogModal(true);
+                        handleQuickRegister('whatsapp_group');
                       }}
-                      className="text-[11px] bg-zinc-800 hover:bg-zinc-700 text-zinc-300 border border-zinc-700 px-2 py-1 rounded-lg transition"
-                      title="Copiar y registrar envío a grupo"
+                      className="text-[11px] bg-emerald-800/80 hover:bg-emerald-700 text-emerald-100 border border-emerald-600/50 px-2.5 py-1 rounded-lg transition font-semibold"
+                      title="Copia el texto al portapapeles y registra inmediatamente el re-envío"
                     >
-                      Copiar + Registrar
+                      🚀 Copiar + Registrar
                     </button>
                   )}
                 </div>
@@ -632,10 +640,10 @@ export default function CopyManagementPage() {
               <textarea
                 value={whatsappCopy}
                 onChange={(e) => setWhatsappCopy(e.target.value)}
-                className="w-full bg-zinc-950 border border-emerald-900/40 rounded-xl p-3 text-sm text-zinc-100 placeholder-zinc-600 h-48 focus:outline-none focus:border-emerald-500 transition-colors"
+                className="w-full bg-zinc-950 border border-emerald-900/40 rounded-xl p-3 text-sm text-zinc-100 placeholder-zinc-600 h-52 focus:outline-none focus:border-emerald-500 transition-colors"
                 placeholder="¡Qué onda grupo! Les recordamos que nuestro servicio de delivery está activo para llevarles lo que necesiten..."
               />
-              <p className="text-[11px] text-zinc-500">Este texto lo puedes reutilizar cuantas veces quieras en diferentes grupos de WhatsApp.</p>
+              <p className="text-[11px] text-zinc-500">Reutiliza este texto en cuantos grupos quieras. Registra cada envío con 1 solo clic.</p>
             </div>
 
             {/* FB Marketplace Version */}
@@ -660,13 +668,12 @@ export default function CopyManagementPage() {
                       type="button"
                       onClick={() => {
                         copyToClipboard(fbMarketplaceCopy, 'Marketplace');
-                        setLogChannel('marketplace');
-                        setShowLogModal(true);
+                        handleQuickRegister('marketplace');
                       }}
-                      className="text-[11px] bg-zinc-800 hover:bg-zinc-700 text-zinc-300 border border-zinc-700 px-2 py-1 rounded-lg transition"
-                      title="Copiar y registrar publicación en Marketplace"
+                      className="text-[11px] bg-orange-900/80 hover:bg-orange-800 text-orange-100 border border-orange-700/50 px-2.5 py-1 rounded-lg transition font-semibold"
+                      title="Copia el texto y registra la publicación en Marketplace"
                     >
-                      Copiar + Registrar
+                      🚀 Copiar + Registrar
                     </button>
                   )}
                 </div>
@@ -674,7 +681,7 @@ export default function CopyManagementPage() {
               <textarea
                 value={fbMarketplaceCopy}
                 onChange={(e) => setFbMarketplaceCopy(e.target.value)}
-                className={`w-full bg-zinc-950 rounded-xl p-3 text-sm text-zinc-100 placeholder-zinc-600 h-48 focus:outline-none transition-colors border ${
+                className={`w-full bg-zinc-950 rounded-xl p-3 text-sm text-zinc-100 placeholder-zinc-600 h-52 focus:outline-none transition-colors border ${
                   compliance.isValid
                     ? 'border-orange-500/50 focus:border-orange-500'
                     : 'border-red-600 bg-red-950/20 focus:border-red-500'
@@ -716,20 +723,27 @@ export default function CopyManagementPage() {
                   </span>
                 </div>
                 <p className="text-[11px] text-zinc-400 mt-0.5">
-                  Registra cada vez que reenvías este copy a grupos de WhatsApp, Marketplace o canales locales.
+                  Cada vez que mandas este copy a grupos de WhatsApp o Marketplace queda registrado aquí con 1 solo clic.
                 </p>
               </div>
 
-              {activeDraft ? (
-                <button
-                  type="button"
-                  onClick={() => setShowLogModal(true)}
-                  className="bg-emerald-600/90 hover:bg-emerald-500 text-white text-xs font-bold px-3 py-1.5 rounded-lg transition flex items-center gap-1 shadow-sm"
-                >
-                  <span>+</span> Registrar Envío
-                </button>
-              ) : (
-                <span className="text-[11px] text-zinc-500 italic">Guarda el copy primero para registrar envíos</span>
+              {activeDraft && (
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => handleQuickRegister('whatsapp_group')}
+                    className="bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold px-3 py-1.5 rounded-lg transition flex items-center gap-1 shadow-sm"
+                  >
+                    <span>+</span> Registrar Envío WhatsApp
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setShowLogModal(true)}
+                    className="bg-zinc-800 hover:bg-zinc-700 text-zinc-300 text-xs px-2.5 py-1.5 rounded-lg border border-zinc-700 transition"
+                  >
+                    Añadir con Nota
+                  </button>
+                </div>
               )}
             </div>
 
@@ -738,11 +752,11 @@ export default function CopyManagementPage() {
               <div className="text-center py-6 text-zinc-500 text-xs bg-zinc-900/40 rounded-xl border border-zinc-800/60">
                 <p>Aún no has registrado ningún envío para este copy.</p>
                 <p className="text-[11px] text-zinc-600 mt-0.5">
-                  Usa &quot;+ Registrar Envío&quot; cada vez que lo mandes a un grupo de WhatsApp o lo publiques en Marketplace.
+                  Haz clic en &quot;🚀 Copiar + Registrar&quot; para empezar a contar tus difusiones a grupos.
                 </p>
               </div>
             ) : (
-              <div className="space-y-2.5 max-h-56 overflow-y-auto pr-1">
+              <div className="space-y-2 max-h-56 overflow-y-auto pr-1">
                 {publishingLog.map((log) => {
                   const badge = channelBadges[log.channel] || channelBadges.whatsapp_group;
                   return (
@@ -755,23 +769,20 @@ export default function CopyManagementPage() {
                           <span className={`px-2 py-0.5 rounded-md border text-[10px] font-bold ${badge.color}`}>
                             {badge.label}
                           </span>
-                          <span className="font-semibold text-zinc-200">
-                            {log.target}
-                          </span>
-                          <span className="text-[11px] text-zinc-500">
-                            • {new Date(log.posted_at).toLocaleString()}
+                          <span className="text-[11px] text-zinc-400">
+                            {new Date(log.posted_at).toLocaleString()}
                           </span>
                         </div>
                         {log.notes && (
-                          <p className="text-zinc-400 text-[11px] italic pl-1">
-                            &quot;{log.notes}&quot;
+                          <p className="text-zinc-300 text-[11px] pl-1">
+                            Nota: &quot;{log.notes}&quot;
                           </p>
                         )}
                       </div>
                       <button
                         type="button"
                         onClick={() => handleDeletePublication(log.id)}
-                        className="text-zinc-600 hover:text-red-400 text-[11px] p-1 transition"
+                        className="text-zinc-600 hover:text-red-400 text-xs p-1 transition"
                         title="Eliminar este registro de envío"
                       >
                         ✕
@@ -900,13 +911,13 @@ export default function CopyManagementPage() {
         </div>
       </div>
 
-      {/* Modal: Registrar Publicación / Re-envío */}
+      {/* Modal: Registrar Publicación / Re-envío (Completamente Opcional, 0 campos obligatorios) */}
       {showLogModal && (
         <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
           <div className="bg-zinc-900 border border-zinc-800 rounded-2xl max-w-md w-full p-6 space-y-4 shadow-2xl">
             <div className="flex justify-between items-center pb-2 border-b border-zinc-800">
               <h3 className="font-bold text-sm uppercase tracking-wider text-white">
-                🚀 Registrar Envío / Re-publicación
+                🚀 Registrar Envío
               </h3>
               <button
                 type="button"
@@ -919,40 +930,28 @@ export default function CopyManagementPage() {
 
             <div>
               <label className="block text-xs font-bold uppercase tracking-wider text-zinc-400 mb-1.5">
-                Canal de Publicación
+                Canal
               </label>
               <select
                 value={logChannel}
                 onChange={(e: any) => setLogChannel(e.target.value)}
                 className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-[#DC143C]"
               >
-                <option value="whatsapp_group">📱 Grupo de WhatsApp</option>
+                <option value="whatsapp_group">📱 Grupos de WhatsApp</option>
                 <option value="whatsapp_broadcast">💬 WhatsApp Lista de Difusión</option>
                 <option value="marketplace">🛒 Facebook Marketplace</option>
-                <option value="facebook_group">👥 Grupo de Facebook</option>
+                <option value="facebook_group">👥 Grupos de Facebook</option>
               </select>
             </div>
 
             <div>
               <label className="block text-xs font-bold uppercase tracking-wider text-zinc-400 mb-1.5">
-                Nombre del Grupo o Ubicación *
-              </label>
-              <input
-                value={logTarget}
-                onChange={(e) => setLogTarget(e.target.value)}
-                placeholder="Ej: Grupo Fumadores Cancún 96 / Marketplace Cancún Centro"
-                className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-3.5 py-2 text-xs text-white placeholder-zinc-600 focus:outline-none focus:border-[#DC143C]"
-              />
-            </div>
-
-            <div>
-              <label className="block text-xs font-bold uppercase tracking-wider text-zinc-400 mb-1.5">
-                Notas / Resultado Inmediato (Opcional)
+                Nota o Resultado (Totalmente Opcional)
               </label>
               <textarea
                 value={logNotes}
                 onChange={(e) => setLogNotes(e.target.value)}
-                placeholder="Ej: Enviado domingo 5 PM. 3 personas pidieron catálogo."
+                placeholder="Opcional: ej. Enviado a 15 grupos de Cancún..."
                 className="w-full bg-zinc-950 border border-zinc-800 rounded-xl p-2.5 text-xs text-zinc-200 placeholder-zinc-600 h-20 focus:outline-none focus:border-zinc-700"
               />
             </div>
@@ -967,7 +966,7 @@ export default function CopyManagementPage() {
               </button>
               <button
                 type="button"
-                onClick={handleAddPublication}
+                onClick={() => handleQuickRegister(logChannel, logNotes)}
                 className="bg-emerald-600 hover:bg-emerald-500 text-white px-4 py-2 rounded-xl text-xs font-bold transition shadow-lg shadow-emerald-950/40"
               >
                 Guardar Envío
