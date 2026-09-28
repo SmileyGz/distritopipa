@@ -16,6 +16,7 @@ const NAV = [
   { href: '/admin/clients',   label: 'Clientes',    icon: '👑' },
   { href: '/admin/community', label: 'Comunidad',   icon: '💬' },
   { href: '/admin/blog',      label: 'Blog (CMS)',  icon: '📝' },
+  { href: '/admin/copy',      label: 'Copy Content', icon: '📢' },
   { href: '/admin/analytics', label: 'Analytics',   icon: '📊' },
 ]
 
