@@ -36,11 +36,6 @@ export default function CopyManagementPage() {
   const [logTarget, setLogTarget] = useState('');
   const [logNotes, setLogNotes] = useState('');
 
-  // Image checklist
-  const [imgNoGlass, setImgNoGlass] = useState(false);
-  const [imgNoSmoke, setImgNoSmoke] = useState(false);
-  const [imgFocusDelivery, setImgFocusDelivery] = useState(false);
-  
   // Filter & Search
   const [filterStatus, setFilterStatus] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState('');
@@ -87,10 +82,7 @@ export default function CopyManagementPage() {
   const hasAtLeastOneCopy = isMarketplaceActive || isWhatsappActive || isDraftActive;
 
   const compliance = scanCopy(fbMarketplaceCopy);
-  const imagesValid = imgNoGlass && imgNoSmoke && imgFocusDelivery;
-  
-  const marketplaceValid = !isMarketplaceActive || (compliance.isValid && imagesValid);
-  const canSave = title.trim().length > 0 && hasAtLeastOneCopy && marketplaceValid;
+  const canSave = title.trim().length > 0 && hasAtLeastOneCopy && compliance.isValid;
 
   async function handleSave(customPayload?: Partial<any>) {
     if (!canSave && !customPayload) return;
@@ -110,9 +102,6 @@ export default function CopyManagementPage() {
       posting_date: finalPostingDate,
       internal_notes: internalNotes,
       publishing_log: finalLog,
-      img_no_glass: imgNoGlass,
-      img_no_smoke: imgNoSmoke,
-      img_focus_delivery: imgFocusDelivery,
       ...customPayload,
     };
 
@@ -267,9 +256,6 @@ export default function CopyManagementPage() {
     setInternalNotes('');
     setPublishingLog([]);
     setRevisions([]);
-    setImgNoGlass(false);
-    setImgNoSmoke(false);
-    setImgFocusDelivery(false);
   }
 
   function loadDraft(d: any) {
@@ -281,9 +267,6 @@ export default function CopyManagementPage() {
     setStatus(d.status || 'draft');
     setPostingDate(d.posting_date ? d.posting_date.substring(0, 10) : '');
     setInternalNotes(d.internal_notes || '');
-    setImgNoGlass(d.img_no_glass || false);
-    setImgNoSmoke(d.img_no_smoke || false);
-    setImgFocusDelivery(d.img_focus_delivery || false);
     setRevisions(d.copy_revisions || []);
 
     // Parse publishing log safely
@@ -649,7 +632,7 @@ export default function CopyManagementPage() {
               <textarea
                 value={whatsappCopy}
                 onChange={(e) => setWhatsappCopy(e.target.value)}
-                className="w-full bg-zinc-950 border border-emerald-900/40 rounded-xl p-3 text-sm text-zinc-100 placeholder-zinc-600 h-44 focus:outline-none focus:border-emerald-500 transition-colors"
+                className="w-full bg-zinc-950 border border-emerald-900/40 rounded-xl p-3 text-sm text-zinc-100 placeholder-zinc-600 h-48 focus:outline-none focus:border-emerald-500 transition-colors"
                 placeholder="¡Qué onda grupo! Les recordamos que nuestro servicio de delivery está activo para llevarles lo que necesiten..."
               />
               <p className="text-[11px] text-zinc-500">Este texto lo puedes reutilizar cuantas veces quieras en diferentes grupos de WhatsApp.</p>
@@ -691,7 +674,7 @@ export default function CopyManagementPage() {
               <textarea
                 value={fbMarketplaceCopy}
                 onChange={(e) => setFbMarketplaceCopy(e.target.value)}
-                className={`w-full bg-zinc-950 rounded-xl p-3 text-sm text-zinc-100 placeholder-zinc-600 h-44 focus:outline-none transition-colors border ${
+                className={`w-full bg-zinc-950 rounded-xl p-3 text-sm text-zinc-100 placeholder-zinc-600 h-48 focus:outline-none transition-colors border ${
                   compliance.isValid
                     ? 'border-orange-500/50 focus:border-orange-500'
                     : 'border-red-600 bg-red-950/20 focus:border-red-500'
@@ -719,82 +702,6 @@ export default function CopyManagementPage() {
               </div>
             </div>
           </div>
-
-          {/* Quick Snippets */}
-          <div className="bg-zinc-950/50 border border-zinc-800/80 rounded-xl p-3.5">
-            <p className="text-xs font-bold uppercase tracking-wider text-zinc-400 mb-2">
-              Frases Seguras Aprobadas (1 Clic para Insertar en Marketplace):
-            </p>
-            <div className="flex flex-wrap gap-2 text-xs">
-              <button
-                type="button"
-                onClick={() => setFbMarketplaceCopy((prev) => prev + (prev ? ' ' : '') + 'Lo que necesitas para relajarte.')}
-                className="bg-zinc-800 hover:bg-zinc-700 text-zinc-300 px-3 py-1.5 rounded-lg border border-zinc-700 transition"
-              >
-                + &quot;Lo que necesitas para relajarte&quot;
-              </button>
-              <button
-                type="button"
-                onClick={() => setFbMarketplaceCopy((prev) => prev + (prev ? ' ' : '') + 'Conoce el catálogo completo en nuestra web: distritopipa.com')}
-                className="bg-zinc-800 hover:bg-zinc-700 text-zinc-300 px-3 py-1.5 rounded-lg border border-zinc-700 transition"
-              >
-                + &quot;CTA Web: distritopipa.com&quot;
-              </button>
-              <button
-                type="button"
-                onClick={() => setFbMarketplaceCopy((prev) => prev + (prev ? ' ' : '') + 'Servicio a domicilio rápido en Cancún.')}
-                className="bg-zinc-800 hover:bg-zinc-700 text-zinc-300 px-3 py-1.5 rounded-lg border border-zinc-700 transition"
-              >
-                + &quot;Delivery rápido Cancún&quot;
-              </button>
-            </div>
-          </div>
-
-          {/* Mandatory Image Compliance Checklist (Only if Marketplace is used) */}
-          {isMarketplaceActive && (
-            <div className="bg-zinc-950/60 border border-zinc-800 rounded-xl p-4 space-y-2.5">
-              <div className="flex items-center justify-between mb-1">
-                <h3 className="text-xs font-bold uppercase tracking-wider text-zinc-300">
-                  Checklist Obligatorio de Imagen (Para Facebook Marketplace)
-                </h3>
-                <span className={`text-[11px] font-bold px-2 py-0.5 rounded-full ${
-                  imagesValid ? 'bg-emerald-950 text-emerald-400 border border-emerald-800' : 'bg-zinc-800 text-zinc-500'
-                }`}>
-                  {imagesValid ? '✓ Verificado' : 'Pendiente'}
-                </span>
-              </div>
-
-              <label className="flex items-center gap-3 cursor-pointer text-xs text-zinc-300 hover:text-white transition">
-                <input
-                  type="checkbox"
-                  checked={imgNoGlass}
-                  onChange={(e) => setImgNoGlass(e.target.checked)}
-                  className="w-4 h-4 rounded bg-zinc-900 border-zinc-700 text-[#DC143C] focus:ring-0"
-                />
-                <span>La imagen <b>NO</b> muestra artículos de cristal, pipas o parafernalia explícita.</span>
-              </label>
-
-              <label className="flex items-center gap-3 cursor-pointer text-xs text-zinc-300 hover:text-white transition">
-                <input
-                  type="checkbox"
-                  checked={imgNoSmoke}
-                  onChange={(e) => setImgNoSmoke(e.target.checked)}
-                  className="w-4 h-4 rounded bg-zinc-900 border-zinc-700 text-[#DC143C] focus:ring-0"
-                />
-                <span>La imagen <b>NO</b> contiene humo ni efectos de humo.</span>
-              </label>
-
-              <label className="flex items-center gap-3 cursor-pointer text-xs text-zinc-300 hover:text-white transition">
-                <input
-                  type="checkbox"
-                  checked={imgFocusDelivery}
-                  onChange={(e) => setImgFocusDelivery(e.target.checked)}
-                  className="w-4 h-4 rounded bg-zinc-900 border-zinc-700 text-[#DC143C] focus:ring-0"
-                />
-                <span>La imagen se enfoca estrictamente en el <b>Servicio de Delivery</b> o vibra urbana/local.</span>
-              </label>
-            </div>
-          )}
 
           {/* 🚀 Dedicated Publishing / Repost Log (Historial de Envíos y Re-publicaciones) */}
           <div className="bg-zinc-950/80 border border-zinc-800 rounded-xl p-5 space-y-4">
@@ -986,8 +893,6 @@ export default function CopyManagementPage() {
               ? (activeDraft ? 'Actualizar Copy Maestro' : 'Guardar Nuevo Copy Maestro')
               : !hasAtLeastOneCopy
               ? 'Escribe al menos un copy (WhatsApp o Marketplace) para guardar'
-              : isMarketplaceActive && !imagesValid
-              ? 'Completa el checklist de imagen para Marketplace'
               : !compliance.isValid
               ? 'Elimina las palabras prohibidas detectadas'
               : 'Asigna un título para guardar'}
