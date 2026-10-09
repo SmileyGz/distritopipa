@@ -14,79 +14,241 @@ const CLABE = BANK_CONFIG.formattedClabe
 function formatMXN(n: number) { return `$${(n || 0).toLocaleString('es-MX', {minimumFractionDigits:0})} MXN` }
 
 function formatItems(items: OrderForMessage['items']): string {
-  return (items || []).map(i => {
-    const bundle = i.bundle_qty ? ` (pack ${i.bundle_qty}x)` : ''
-    const color  = i.color ? ` — ${i.color}` : ''
-    const price  = i.bundle_price ?? i.unit_price * i.qty
-    return `  • ${i.qty}x ${i.name}${color}${bundle} — ${formatMXN(price)}`
+  if (!items || items.length === 0) return '  - Artículos'
+  return items.map(i => {
+    const bundle = i.bundle_qty ? ` (Pack ${i.bundle_qty}x)` : ''
+    const color  = i.color ? ` (${i.color})` : ''
+    const price  = i.bundle_price ?? (i.unit_price * (i.qty || 1))
+    return `  - ${i.qty || 1}x ${i.name}${color}${bundle} — ${formatMXN(price)}`
   }).join('\n')
 }
 
-function formatDeliveryLabel(o: OrderForMessage): string {
-  if (o.delivery_mode==='pickup') return 'Recoger en Región 96 (Coppel / Soriana Nichupté)'
-  if (o.delivery_mode==='punto_medio') return 'Punto medio / Plaza'
-  const zone = o.delivery_zone==='zone2' ? '6–10 km' : '1–6 km'
-  const night = o.is_night ? ' (nocturno después de 8pm)' : ''
-  return `Envío a domicilio ${zone}${night}`
-}
+export function buildConfirmationText(o: OrderForMessage): string {
+  const shortName = o.customer_name ? o.customer_name.trim().split(' ')[0] : 'amigo'
 
-function depositMsg(o: OrderForMessage): string {
-  const resta = (o.total_mxn || 0) - (o.anticipo_mxn || 0)
-  return `✅ *¡Confirmamos tu pedido, ${o.customer_name}!*\n\n🧾 *Pedido ${o.order_number}*\n${formatItems(o.items)}\n\n📦 *Subtotal:* ${formatMXN(o.subtotal_mxn)}\n🚗 *Envío:* ${formatMXN(o.delivery_fee)}\n💰 *TOTAL:* ${formatMXN(o.total_mxn)}\n\n━━━━━━━━━━━━━━━━━━━\n📍 *Entrega:* ${formatDeliveryLabel(o)}${o.delivery_address?'\n📌 Dirección: '+o.delivery_address:''}\n\n━━━━━━━━━━━━━━━━━━━\n💳 *Anticipo requerido: ${formatMXN(o.anticipo_mxn)}*\n\nTransfiere a esta CLABE:\n\`${CLABE}\`\n\n📝 *Referencia:* ${o.order_number}\n\n⚠️ Una vez recibido el anticipo, preparamos tu pedido.\nEl resto (${formatMXN(resta)}) lo pagas al momento de la entrega en efectivo.\n\n━━━━━━━━━━━━━━━━━━━\n_Accesorios de uso personal · Producto legal · No incluye sustancias_\n_Distrito Pipa — Cancún 🌴_`
-}
+  // ── 1. RECOLECCIÓN EN TIENDA / MOSTRADOR (Región 96) ──
+  if (o.delivery_mode === 'pickup') {
+    if (o.payment_mode === 'full_prepay') {
+      return `¡Hola ${shortName}! Confirmamos tu pedido en Distrito Pipa Cancún 🌴
 
-function pickupCashMsg(o: OrderForMessage): string {
-  return `✅ *¡Pedido separado para ti, ${o.customer_name}!*\n\n🧾 *Pedido ${o.order_number}*\n${formatItems(o.items)}\n\n💰 *TOTAL A PAGAR:* ${formatMXN(o.total_mxn)}\n💵 *Pago:* Efectivo al recoger\n\n━━━━━━━━━━━━━━━━━━━\n📍 *Punto de recogida:*\nRegión 96, Cancún\n(Cerca de Coppel y Soriana Nichupté)\n\n📅 Coordina tu horario respondiendo este mensaje.\n\n━━━━━━━━━━━━━━━━━━━\n_Accesorios de uso personal · Producto legal · No incluye sustancias_\n_Distrito Pipa — Cancún 🌴_`
-}
+*Pedido ${o.order_number}*
+${formatItems(o.items)}
 
-function fullPrepayMsg(o: OrderForMessage): string {
-  return `✅ *¡Pedido confirmado, ${o.customer_name}!*\n\n🧾 *Pedido ${o.order_number}*\n${formatItems(o.items)}\n\n📦 *Subtotal:* ${formatMXN(o.subtotal_mxn)}\n🚗 *Envío:* ${formatMXN(o.delivery_fee)}\n💰 *TOTAL:* ${formatMXN(o.total_mxn)}\n\n━━━━━━━━━━━━━━━━━━━\n📍 *Entrega:* ${formatDeliveryLabel(o)}${o.delivery_address?'\n📌 Dirección: '+o.delivery_address:''}\n\n━━━━━━━━━━━━━━━━━━━\n💳 *Pago completo: ${formatMXN(o.total_mxn)}*\n\nTransfiere a esta CLABE:\n\`${CLABE}\`\n\n📝 *Referencia:* ${o.order_number}\n\n⚠️ En cuanto confirmemos tu transferencia, preparamos y enviamos tu pedido.\n\n━━━━━━━━━━━━━━━━━━━\n_Accesorios de uso personal · Producto legal · No incluye sustancias_\n_Distrito Pipa — Cancún 🌴_`
+*Total:* ${formatMXN(o.total_mxn)} (Liquidado 100%)
+*Punto de recolección:* Región 96, Cancún (cerca de Soriana Nichupté y Coppel)
+
+Tus piezas ya están listas y separadas para ti.
+Respóndenos a este mensaje con tu horario estimado para coordinar tu entrega personal.
+
+_Distrito Pipa Cancún · Accesorios de uso personal_`
+    }
+
+    if (o.payment_mode === 'deposit') {
+      const resta = Math.max(0, (o.total_mxn || 0) - (o.anticipo_mxn || 0))
+      return `¡Hola ${shortName}! Confirmamos tu pedido en Distrito Pipa Cancún 🌴
+
+*Pedido ${o.order_number}*
+${formatItems(o.items)}
+
+*Total:* ${formatMXN(o.total_mxn)}
+*Punto de recolección:* Región 96, Cancún (cerca de Soriana Nichupté y Coppel)
+
+*Anticipo requerido:* ${formatMXN(o.anticipo_mxn)}
+Transfiere a esta CLABE:
+\`${CLABE}\`
+Referencia: ${o.order_number}
+
+En cuanto confirmemos tu anticipo, separamos tus piezas. El saldo restante (${formatMXN(resta)}) lo liquidas al recoger en efectivo.
+Respóndenos con tu horario estimado para coordinar.
+
+_Distrito Pipa Cancún · Accesorios de uso personal_`
+    }
+
+    // Default pickup: Efectivo al recoger
+    return `¡Hola ${shortName}! Apartamos tus piezas en Distrito Pipa Cancún 🌴
+
+*Pedido ${o.order_number}*
+${formatItems(o.items)}
+
+*Total a pagar:* ${formatMXN(o.total_mxn)}
+*Forma de pago:* Efectivo al recoger
+
+*Punto de recolección:*
+Región 96, Cancún (cerca de Soriana Nichupté y Coppel)
+
+Tus piezas ya están separadas para ti.
+Respóndenos a este mensaje con tu horario estimado para esperarte y entregártelas.
+
+_Distrito Pipa Cancún · Accesorios de uso personal_`
+  }
+
+  // ── 2. PUNTO MEDIO ACORDADO ──
+  if (o.delivery_mode === 'punto_medio') {
+    const addressLine = o.delivery_address ? `\n*Punto acordado:* ${o.delivery_address}` : '\n*Punto de encuentro:* Punto medio en Cancún a coordinar'
+    if (o.payment_mode === 'full_prepay') {
+      return `¡Hola ${shortName}! Confirmamos tu pedido en Distrito Pipa Cancún 🌴
+
+*Pedido ${o.order_number}*
+${formatItems(o.items)}
+
+*Total:* ${formatMXN(o.total_mxn)} (Liquidado 100%)${addressLine}
+
+Tus piezas ya están listas. Respóndenos para coordinar el horario y spot exacto del encuentro.
+
+_Distrito Pipa Cancún · Accesorios de uso personal_`
+    }
+
+    if (o.payment_mode === 'pickup_cash') {
+      return `¡Hola ${shortName}! Confirmamos tu pedido en Distrito Pipa Cancún 🌴
+
+*Pedido ${o.order_number}*
+${formatItems(o.items)}
+
+*Total a pagar:* ${formatMXN(o.total_mxn)}
+*Forma de pago:* Efectivo al momento del encuentro${addressLine}
+
+Tus piezas ya están separadas. Respóndenos para afinar la hora y spot exacto del encuentro.
+
+_Distrito Pipa Cancún · Accesorios de uso personal_`
+    }
+
+    const resta = Math.max(0, (o.total_mxn || 0) - (o.anticipo_mxn || 0))
+    return `¡Hola ${shortName}! Confirmamos tu pedido en Distrito Pipa Cancún 🌴
+
+*Pedido ${o.order_number}*
+${formatItems(o.items)}
+
+*Total:* ${formatMXN(o.total_mxn)}${addressLine}
+
+*Anticipo para apartado:* ${formatMXN(o.anticipo_mxn)}
+Transfiere a esta CLABE:
+\`${CLABE}\`
+Referencia: ${o.order_number}
+
+En cuanto confirmemos tu anticipo, afinamos la hora y punto de entrega. El saldo (${formatMXN(resta)}) lo liquidas al recibir en efectivo.
+
+_Distrito Pipa Cancún · Accesorios de uso personal_`
+  }
+
+  // ── 3. ENVÍO A DOMICILIO (Delivery) ──
+  const zoneText = o.delivery_zone === 'zone2' ? 'Zona 2 (6–10 km)' : 'Zona 1 (1–6 km)'
+  const nightText = o.is_night ? ' [Nocturno +8pm]' : ''
+  const addressLine = o.delivery_address ? `\n*Dirección de entrega:* ${o.delivery_address}` : ''
+
+  if (o.payment_mode === 'full_prepay') {
+    return `¡Hola ${shortName}! Confirmamos tu pedido en Distrito Pipa Cancún 🌴
+
+*Pedido ${o.order_number}*
+${formatItems(o.items)}
+
+Subtotal: ${formatMXN(o.subtotal_mxn)}
+Envío: ${formatMXN(o.delivery_fee)} (${zoneText}${nightText})
+*Total pagado:* ${formatMXN(o.total_mxn)} (Liquidado 100%)${addressLine}
+
+Tus piezas están listas. En breve te avisamos cuando el repartidor salga en ruta hacia tu ubicación.
+
+_Distrito Pipa Cancún · Accesorios de uso personal_`
+  }
+
+  if (o.payment_mode === 'pickup_cash') {
+    return `¡Hola ${shortName}! Confirmamos tu pedido en Distrito Pipa Cancún 🌴
+
+*Pedido ${o.order_number}*
+${formatItems(o.items)}
+
+Subtotal: ${formatMXN(o.subtotal_mxn)}
+Envío: ${formatMXN(o.delivery_fee)} (${zoneText}${nightText})
+*Total a pagar:* ${formatMXN(o.total_mxn)}
+*Forma de pago:* Efectivo al recibir con el repartidor${addressLine}
+
+Ya estamos preparando tu paquete. En breve te avisamos en cuanto el repartidor esté en camino a tu domicilio.
+
+_Distrito Pipa Cancún · Accesorios de uso personal_`
+  }
+
+  // Default delivery: payment_mode === 'deposit'
+  const resta = Math.max(0, (o.total_mxn || 0) - (o.anticipo_mxn || 0))
+  return `¡Hola ${shortName}! Confirmamos tu pedido en Distrito Pipa Cancún 🌴
+
+*Pedido ${o.order_number}*
+${formatItems(o.items)}
+
+Subtotal: ${formatMXN(o.subtotal_mxn)}
+Envío: ${formatMXN(o.delivery_fee)} (${zoneText}${nightText})
+*Total:* ${formatMXN(o.total_mxn)}${addressLine}
+
+*Anticipo para envío:* ${formatMXN(o.anticipo_mxn)}
+Transfiere a esta CLABE:
+\`${CLABE}\`
+Referencia: ${o.order_number}
+
+En cuanto recibamos tu comprobante de anticipo, preparamos tu pedido y sale a ruta.
+El saldo restante (${formatMXN(resta)}) lo liquidas en efectivo con el repartidor al recibir.
+
+_Distrito Pipa Cancún · Accesorios de uso personal_`
 }
 
 export function buildConfirmationUrl(o: OrderForMessage): string {
-  let msg: string
-  switch(o.payment_mode) {
-    case 'pickup_cash':  msg = pickupCashMsg(o); break
-    case 'full_prepay':  msg = fullPrepayMsg(o); break
-    default:             msg = depositMsg(o)
-  }
-  const phone = (o.customer_phone || '').replace(/\D/g,'')
+  const msg = buildConfirmationText(o)
+  const phone = (o.customer_phone || '').replace(/\D/g, '')
   const full = phone.startsWith('52') ? phone : `52${phone}`
-  return `https://wa.me/${full}?text=${encodeURIComponent(msg)}`
-}
-
-export function buildConfirmationText(o: OrderForMessage): string {
-  switch(o.payment_mode) {
-    case 'pickup_cash':  return pickupCashMsg(o)
-    case 'full_prepay':  return fullPrepayMsg(o)
-    default:             return depositMsg(o)
-  }
+  return `https://api.whatsapp.com/send?phone=${full}&text=${encodeURIComponent(msg)}`
 }
 
 export function buildCancellationText(o: OrderForMessage): string {
-  return `¡Hola ${o.customer_name}! 👋\n\nTe avisamos de Distrito Pipa que, como no registramos el anticipo de tu pedido *${o.order_number}*, tuvimos que liberar las piezas de tu apartado para que vuelvan a estar disponibles en catálogo.\n\nEntendemos que a veces se complican los tiempos o cambian los planes, ¡cero broncas! 🤝\n\nSi realizaste tu transferencia hace un momento o deseas rearmar tu pedido más adelante, solo respóndenos por aquí y con gusto te atendemos.\n\n━━━━━━━━━━━━━━━━━━━\n_Distrito Pipa — Cancún 🌴_`
+  const shortName = o.customer_name ? o.customer_name.trim().split(' ')[0] : 'amigo'
+  return `¡Hola ${shortName}! 👋
+
+Te avisamos de Distrito Pipa que, como no registramos el anticipo de tu pedido *${o.order_number}*, tuvimos que liberar las piezas de tu apartado para que vuelvan a estar disponibles en catálogo.
+
+Entendemos que a veces se complican los tiempos o cambian los planes, ¡cero broncas! 🤝
+
+Si realizaste tu transferencia hace un momento o deseas rearmar tu pedido más adelante, solo respóndenos por aquí y con gusto te atendemos.
+
+_Distrito Pipa Cancún · Accesorios de uso personal_`
 }
 
 export function buildCancellationUrl(o: OrderForMessage): string {
   const phone = (o.customer_phone || '').replace(/\D/g, '')
   const full = phone.startsWith('52') ? phone : `52${phone}`
   const msg = buildCancellationText(o)
-  return `https://wa.me/${full}?text=${encodeURIComponent(msg)}`
+  return `https://api.whatsapp.com/send?phone=${full}&text=${encodeURIComponent(msg)}`
 }
 
 export function buildDeliveredText(o: OrderForMessage): string {
-  const shortName = o.customer_name ? o.customer_name.split(' ')[0] : 'amigo'
+  const shortName = o.customer_name ? o.customer_name.trim().split(' ')[0] : 'amigo'
   if (o.delivery_mode === 'pickup') {
-    return `🎉 *¡Entrega confirmada, ${shortName}!* ✌️\n\n🧾 *Pedido ${o.order_number}*\n${formatItems(o.items)}\n\n✅ Confirmamos la entrega de tu pedido en nuestro punto de encuentro (Región 96, Cancún).\nTu pedido quedó *100% liquidado*.\n\nMuchísimas gracias por tu confianza en Distrito Pipa Cancún 🌴. Cualquier duda sobre el cuidado o uso de tus piezas, escríbenos por aquí con toda confianza.\n\n━━━━━━━━━━━━━━━━━━━\n_Distrito Pipa — Cancún 🌴_`
+    return `¡Entrega confirmada, ${shortName}! ✌️
+
+*Pedido ${o.order_number}*
+${formatItems(o.items)}
+
+Confirmamos la entrega de tu pedido en nuestro punto de encuentro (Región 96, Cancún).
+Tu pedido quedó *100% liquidado*.
+
+Muchísimas gracias por tu confianza en Distrito Pipa Cancún 🌴. Cualquier duda sobre el cuidado o uso de tus piezas, escríbenos por aquí con toda confianza.
+
+_Distrito Pipa Cancún · Accesorios de uso personal_`
   }
-  return `🎉 *¡Pedido entregado con éxito, ${shortName}!* 🛵💨\n\n🧾 *Pedido ${o.order_number}*\n${formatItems(o.items)}\n\n✅ Confirmamos la entrega de tu pedido en ${o.delivery_address || 'tu domicilio'}.\nTu pedido quedó *100% liquidado*.\n\nMuchísimas gracias por tu compra y por apoyar el comercio local con Distrito Pipa Cancún 🌴. ¡Que disfrutes tus piezas!\n\nSi necesitas algo más o tienes cualquier duda, estamos a la orden por aquí.\n\n━━━━━━━━━━━━━━━━━━━\n_Distrito Pipa — Cancún 🌴_`
+  return `¡Pedido entregado con éxito, ${shortName}! 🛵💨
+
+*Pedido ${o.order_number}*
+${formatItems(o.items)}
+
+Confirmamos la entrega de tu pedido en ${o.delivery_address || 'tu domicilio'}.
+Tu pedido quedó *100% liquidado*.
+
+Muchísimas gracias por tu compra y por apoyar el comercio local con Distrito Pipa Cancún 🌴. ¡Que disfrutes tus piezas!
+Si necesitas algo más o tienes cualquier duda, estamos a la orden por aquí.
+
+_Distrito Pipa Cancún · Accesorios de uso personal_`
 }
 
 export function buildDeliveredUrl(o: OrderForMessage): string {
   const phone = (o.customer_phone || '').replace(/\D/g, '')
   const full = phone.startsWith('52') ? phone : `52${phone}`
   const msg = buildDeliveredText(o)
-  return `https://wa.me/${full}?text=${encodeURIComponent(msg)}`
+  return `https://api.whatsapp.com/send?phone=${full}&text=${encodeURIComponent(msg)}`
 }
 
 export const STATUS_LABELS: Record<string,{label:string;color:string}> = {

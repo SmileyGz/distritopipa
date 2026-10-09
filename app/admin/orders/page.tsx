@@ -1077,16 +1077,27 @@ export default function AdminOrdersPage() {
                   </div>
                 </div>
 
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                  <a
-                    className="btn-whatsapp"
-                    href={buildConfirmationUrl(toMessageOrder(createdOrderSuccess))}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    style={{ padding: '12px', justifyContent: 'center', fontSize: '14px', fontWeight: 700 }}
-                  >
-                    💬 Enviar Confirmación por WhatsApp →
-                  </a>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                  <div style={{ display: 'flex', gap: '8px' }}>
+                    <a
+                      className="btn-whatsapp"
+                      href={buildConfirmationUrl(toMessageOrder(createdOrderSuccess))}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      style={{ flex: 1, padding: '12px', justifyContent: 'center', fontSize: '14px', fontWeight: 700 }}
+                    >
+                      💬 Abrir WhatsApp →
+                    </a>
+                    <button
+                      type="button"
+                      className="btn-outline"
+                      style={{ padding: '12px 14px', fontSize: '13px', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '6px' }}
+                      onClick={() => copyToClipboard(buildConfirmationText(toMessageOrder(createdOrderSuccess)), 'Mensaje de WhatsApp')}
+                      title="Copiar texto del mensaje para pegar en WhatsApp"
+                    >
+                      📋 Copiar Texto
+                    </button>
+                  </div>
                   <div style={{ display: 'flex', gap: '10px' }}>
                     <button
                       type="button"
@@ -1379,8 +1390,12 @@ export default function AdminOrdersPage() {
                               if (val === 'full_prepay') setAnticipoPaid(true)
                             }}
                           >
-                            <option value="deposit">📱 Anticipo $50 transferencia + Saldo contra-entrega</option>
-                            <option value="pickup_cash">💵 Efectivo al recoger / entregar</option>
+                            <option value="deposit">
+                              {delivMode === 'pickup' ? '📱 Anticipo $50 transferencia + Saldo al recoger' : '📱 Anticipo $50 transferencia + Saldo al recibir'}
+                            </option>
+                            <option value="pickup_cash">
+                              {delivMode === 'pickup' ? '💵 Efectivo al recoger en mostrador (Región 96)' : '💵 100% Efectivo al recibir con repartidor (sin anticipo)'}
+                            </option>
                             <option value="full_prepay">💳 Pago 100% anticipado (Transferencia / SPEI)</option>
                           </select>
                         </div>
