@@ -51,7 +51,7 @@ interface Order {
   anticipo_mxn: number
   anticipo_paid: boolean
   full_paid: boolean
-  delivery_mode: 'pickup' | 'delivery' | 'punto_medio'
+  delivery_mode: 'pickup' | 'delivery'
   delivery_zone?: string
   is_night?: boolean
   payment_mode: 'deposit' | 'pickup_cash' | 'full_prepay'
@@ -226,7 +226,7 @@ export default function AdminOrdersPage() {
   const [custName, setCustName] = useState('')
   const [custPhone, setCustPhone] = useState('')
   const [custEmail, setCustEmail] = useState('')
-  const [delivMode, setDelivMode] = useState<'pickup' | 'delivery' | 'punto_medio'>('delivery')
+  const [delivMode, setDelivMode] = useState<'pickup' | 'delivery'>('delivery')
   const [delivZone, setDelivZone] = useState<'zone1' | 'zone2'>('zone1')
   const [isNight, setIsNight] = useState(false)
   const [delivAddress, setDelivAddress] = useState('')
@@ -1286,14 +1286,12 @@ export default function AdminOrdersPage() {
                           <label className="form-label">Modalidad de Entrega</label>
                           <select
                             className="form-select"
-                            value={delivMode === 'pickup' ? 'pickup' : (delivMode === 'punto_medio' ? 'punto_medio' : delivZone)}
+                            value={delivMode === 'pickup' ? 'pickup' : delivZone}
                             onChange={e => {
                               const val = e.target.value
                               if (val === 'pickup') {
                                 setDelivMode('pickup')
                                 if (payMode === 'deposit') setPayMode('pickup_cash')
-                              } else if (val === 'punto_medio') {
-                                setDelivMode('punto_medio')
                               } else if (val === 'zone1') {
                                 setDelivMode('delivery')
                                 setDelivZone('zone1')
@@ -1308,7 +1306,6 @@ export default function AdminOrdersPage() {
                             <option value="pickup">📍 Recolección Región 96 ($0 MXN)</option>
                             <option value="zone1">🚗 Domicilio Zona 1 (1–6 km: $50 / $80 noche)</option>
                             <option value="zone2">🚗 Domicilio Zona 2 (6–10 km: $80 / $100 noche)</option>
-                            <option value="punto_medio">🏢 Punto Medio Cancún ($0 MXN)</option>
                           </select>
                         </div>
 
@@ -1593,7 +1590,7 @@ export default function AdminOrdersPage() {
         >
           <span className="stat-label">📍 Pick Up Región 96</span>
           <span className="stat-val" style={{ color: '#a78bfa' }}>{counts.pickup}</span>
-          <span className="stat-sub">Pickup y punto medio</span>
+          <span className="stat-sub">Región 96</span>
         </div>
 
         <div className="stat-card">

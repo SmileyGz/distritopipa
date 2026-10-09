@@ -2,7 +2,7 @@ export interface OrderForMessage {
   order_number: string; customer_name: string; customer_phone: string
   items: Array<{name:string;qty:number;unit_price:number;color?:string;bundle_qty?:number;bundle_price?:number}>
   subtotal_mxn: number; delivery_fee: number; total_mxn: number; anticipo_mxn: number
-  delivery_mode: 'pickup'|'delivery'|'punto_medio'; delivery_zone?: string
+  delivery_mode: 'pickup'|'delivery'; delivery_zone?: string
   is_night?: boolean; payment_mode: 'deposit'|'pickup_cash'|'full_prepay'
   delivery_address?: string; scheduled_at?: string
 }
@@ -82,55 +82,7 @@ Respóndenos a este mensaje con tu horario estimado para esperarte y entregárte
 _Distrito Pipa Cancún · Accesorios de uso personal_`
   }
 
-  // ── 2. PUNTO MEDIO ACORDADO ──
-  if (o.delivery_mode === 'punto_medio') {
-    const addressLine = o.delivery_address ? `\n*Punto acordado:* ${o.delivery_address}` : '\n*Punto de encuentro:* Punto medio en Cancún a coordinar'
-    if (o.payment_mode === 'full_prepay') {
-      return `¡Hola ${shortName}! Confirmamos tu pedido en Distrito Pipa Cancún 🌴
-
-*Pedido ${o.order_number}*
-${formatItems(o.items)}
-
-*Total:* ${formatMXN(o.total_mxn)} (Liquidado 100%)${addressLine}
-
-Tus piezas ya están listas. Respóndenos para coordinar el horario y spot exacto del encuentro.
-
-_Distrito Pipa Cancún · Accesorios de uso personal_`
-    }
-
-    if (o.payment_mode === 'pickup_cash') {
-      return `¡Hola ${shortName}! Confirmamos tu pedido en Distrito Pipa Cancún 🌴
-
-*Pedido ${o.order_number}*
-${formatItems(o.items)}
-
-*Total a pagar:* ${formatMXN(o.total_mxn)}
-*Forma de pago:* Efectivo al momento del encuentro${addressLine}
-
-Tus piezas ya están separadas. Respóndenos para afinar la hora y spot exacto del encuentro.
-
-_Distrito Pipa Cancún · Accesorios de uso personal_`
-    }
-
-    const resta = Math.max(0, (o.total_mxn || 0) - (o.anticipo_mxn || 0))
-    return `¡Hola ${shortName}! Confirmamos tu pedido en Distrito Pipa Cancún 🌴
-
-*Pedido ${o.order_number}*
-${formatItems(o.items)}
-
-*Total:* ${formatMXN(o.total_mxn)}${addressLine}
-
-*Anticipo para apartado:* ${formatMXN(o.anticipo_mxn)}
-Transfiere a esta CLABE:
-\`${CLABE}\`
-Referencia: ${o.order_number}
-
-En cuanto confirmemos tu anticipo, afinamos la hora y punto de entrega. El saldo (${formatMXN(resta)}) lo liquidas al recibir en efectivo.
-
-_Distrito Pipa Cancún · Accesorios de uso personal_`
-  }
-
-  // ── 3. ENVÍO A DOMICILIO (Delivery) ──
+  // ── 2. ENVÍO A DOMICILIO (Delivery) ──
   const zoneText = o.delivery_zone === 'zone2' ? 'Zona 2 (6–10 km)' : 'Zona 1 (1–6 km)'
   const nightText = o.is_night ? ' [Nocturno +8pm]' : ''
   const addressLine = o.delivery_address ? `\n*Dirección de entrega:* ${o.delivery_address}` : ''
@@ -270,5 +222,4 @@ export const PAYMENT_LABELS: Record<string,string> = {
 export const DELIVERY_LABELS: Record<string,string> = {
   pickup:      '📍 Pickup en Región 96',
   delivery:    '🚗 Envío a domicilio',
-  punto_medio: '🏢 Punto medio',
 }

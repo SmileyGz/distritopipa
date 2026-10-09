@@ -350,7 +350,7 @@ export default function AdminAnalyticsPage() {
 
     delivered.forEach(o => {
       const mode = (o.delivery_mode || '').toLowerCase()
-      if (mode === 'pickup' || mode === 'punto_medio') {
+      if (mode === 'pickup') {
         deliveredPickups++
       } else {
         deliveredDeliveries++
@@ -370,7 +370,7 @@ export default function AdminAnalyticsPage() {
 
     list.forEach(o => {
       const mode = (o.delivery_mode || '').toLowerCase()
-      if (mode === 'pickup' || mode === 'punto_medio') totalPickups++
+      if (mode === 'pickup') totalPickups++
       else totalDeliveries++
 
       if (o.is_night === true) totalNight++

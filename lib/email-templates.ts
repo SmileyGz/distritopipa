@@ -243,7 +243,7 @@ export function renderCancellationEmailHtml({
 export interface DeliveredEmailParams {
   orderNumber: string
   customerName: string
-  deliveryMode: 'pickup' | 'delivery' | 'punto_medio'
+  deliveryMode: 'pickup' | 'delivery'
   deliveryAddress?: string
   items: OrderItem[]
   subtotal: number

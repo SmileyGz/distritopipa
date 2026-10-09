@@ -39,7 +39,7 @@ type OrderBody = {
   order_id?: string
   is_draft?: boolean
   items: CartItem[]
-  delivery_zone: 'pickup' | 'zone1' | 'zone2' | 'punto_medio'
+  delivery_zone: 'pickup' | 'zone1' | 'zone2'
   customer_name: string
   customer_phone: string     // WhatsApp number
   customer_email?: string
