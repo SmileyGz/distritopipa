@@ -64,7 +64,7 @@ interface Order {
   updated_at: string
 }
 
-type FilterKey = 'active' | 'pending' | 'no_deposit' | 'preparing' | 'delivery' | 'pickup' | 'delivered' | 'cancelled' | 'all'
+type FilterKey = 'active' | 'no_deposit' | 'delivery' | 'pickup' | 'delivered' | 'cancelled' | 'all'
 type SortKey = 'recent' | 'total_desc' | 'deposit_pending' | 'delivery_first' | 'pickup_first'
 
 // Status pipeline progression: direct completion to delivered
@@ -805,9 +805,7 @@ export default function AdminOrdersPage() {
   const counts = useMemo(() => ({
     total: orders.length,
     active: orders.filter(o => !['delivered', 'cancelled'].includes(o.status)).length,
-    pending: orders.filter(o => o.status === 'pending').length,
     noDeposit: orders.filter(o => o.payment_mode !== 'pickup_cash' && !o.anticipo_paid && !['delivered', 'cancelled'].includes(o.status)).length,
-    preparing: orders.filter(o => ['confirmed', 'preparing', 'ready'].includes(o.status)).length,
     delivery: orders.filter(o => o.delivery_mode === 'delivery' && !['delivered', 'cancelled'].includes(o.status)).length,
     pickup: orders.filter(o => o.delivery_mode === 'pickup' && !['delivered', 'cancelled'].includes(o.status)).length,
     delivered: orders.filter(o => o.status === 'delivered').length,
@@ -844,14 +842,8 @@ export default function AdminOrdersPage() {
       case 'active':
         list = list.filter(o => !['delivered', 'cancelled'].includes(o.status))
         break
-      case 'pending':
-        list = list.filter(o => o.status === 'pending')
-        break
       case 'no_deposit':
         list = list.filter(o => o.payment_mode !== 'pickup_cash' && !o.anticipo_paid && !['delivered', 'cancelled'].includes(o.status))
-        break
-      case 'preparing':
-        list = list.filter(o => ['confirmed', 'preparing', 'ready'].includes(o.status))
         break
       case 'delivery':
         list = list.filter(o => o.delivery_mode === 'delivery' && !['delivered', 'cancelled'].includes(o.status))
@@ -1377,10 +1369,7 @@ export default function AdminOrdersPage() {
                             value={initialStatus}
                             onChange={e => setInitialStatus(e.target.value)}
                           >
-                            <option value="confirmed">✅ Confirmado / Apartado (Recomendado)</option>
-                            <option value="pending">⏳ Pendiente (Por confirmar)</option>
-                            <option value="preparing">📦 En preparación</option>
-                            <option value="ready">🏁 Listo para entrega</option>
+                            <option value="confirmed">⚡ Activo / Confirmado (Recomendado)</option>
                             <option value="delivered">🎉 Entregado y liquidado</option>
                           </select>
                         </div>
@@ -1534,21 +1523,12 @@ export default function AdminOrdersPage() {
       {/* ── STATS ROW (Brand Board Style) ── */}
       <div className="stats-container">
         <div
-          className={`stat-card clickable ${filter === 'pending' ? 'active-card' : ''}`}
-          onClick={() => setFilter(filter === 'pending' ? 'all' : 'pending')}
-        >
-          <span className="stat-label">⏳ Pendientes</span>
-          <span className="stat-val text-yellow">{counts.pending}</span>
-          <span className="stat-sub">Por confirmar y apartar</span>
-        </div>
-
-        <div
           className={`stat-card clickable ${filter === 'active' ? 'active-card' : ''}`}
           onClick={() => setFilter(filter === 'active' ? 'all' : 'active')}
         >
-          <span className="stat-label">⚡ En Pipeline</span>
+          <span className="stat-label">⚡ Por Entregar</span>
           <span className="stat-val text-blue">{counts.active}</span>
-          <span className="stat-sub">Activos en proceso</span>
+          <span className="stat-sub">Pedidos activos en cola</span>
         </div>
 
         <div
@@ -1557,7 +1537,25 @@ export default function AdminOrdersPage() {
         >
           <span className="stat-label">⚠️ Sin Anticipo ($50)</span>
           <span className="stat-val text-orange">{counts.noDeposit}</span>
-          <span className="stat-sub">Requieren seguimiento</span>
+          <span className="stat-sub">Requieren confirmación</span>
+        </div>
+
+        <div
+          className={`stat-card clickable ${filter === 'delivery' ? 'active-card' : ''}`}
+          onClick={() => setFilter(filter === 'delivery' ? 'all' : 'delivery')}
+        >
+          <span className="stat-label">🛵 Envíos a Domicilio</span>
+          <span className="stat-val text-yellow">{counts.delivery}</span>
+          <span className="stat-sub">Ruta y mensajería</span>
+        </div>
+
+        <div
+          className={`stat-card clickable ${filter === 'pickup' ? 'active-card' : ''}`}
+          onClick={() => setFilter(filter === 'pickup' ? 'all' : 'pickup')}
+        >
+          <span className="stat-label">📍 Pick Up Región 96</span>
+          <span className="stat-val" style={{ color: '#a78bfa' }}>{counts.pickup}</span>
+          <span className="stat-sub">Mostrador y punto medio</span>
         </div>
 
         <div className="stat-card">
@@ -1612,9 +1610,7 @@ export default function AdminOrdersPage() {
       <div className="pills-container">
         {[
           { key: 'active',     label: `⚡ Activos (${counts.active})` },
-          { key: 'pending',    label: `⏳ Pendientes (${counts.pending})` },
           { key: 'no_deposit', label: `⚠️ Sin Anticipo (${counts.noDeposit})` },
-          { key: 'preparing',  label: `📦 En Preparación (${counts.preparing})` },
           { key: 'delivery',   label: `🛵 Envíos (${counts.delivery})` },
           { key: 'pickup',     label: `📍 Pickups (${counts.pickup})` },
           { key: 'delivered',  label: `✅ Entregados (${counts.delivered})` },
