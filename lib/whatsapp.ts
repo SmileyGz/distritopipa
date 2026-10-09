@@ -26,7 +26,7 @@ function formatItems(items: OrderForMessage['items']): string {
 export function buildConfirmationText(o: OrderForMessage): string {
   const shortName = o.customer_name ? o.customer_name.trim().split(' ')[0] : 'amigo'
 
-  // ── 1. RECOLECCIÓN EN TIENDA / MOSTRADOR (Región 96) ──
+  // ── 1. RECOLECCIÓN / PICKUP (Región 96) ──
   if (o.delivery_mode === 'pickup') {
     if (o.payment_mode === 'full_prepay') {
       return `¡Hola ${shortName}! Confirmamos tu pedido en Distrito Pipa Cancún 🌴
@@ -268,7 +268,7 @@ export const PAYMENT_LABELS: Record<string,string> = {
 }
 
 export const DELIVERY_LABELS: Record<string,string> = {
-  pickup:      '📍 Recoger en tienda',
+  pickup:      '📍 Pickup en Región 96',
   delivery:    '🚗 Envío a domicilio',
   punto_medio: '🏢 Punto medio',
 }

@@ -39,7 +39,7 @@ export default function MayoreoPage() {
         <div className="tiers-grid">
           <div className="tier-card">
             <h3 className="tier-name">Plan Starter</h3>
-            <div className="tier-desc">Ideal para probar la rotación en mostrador.</div>
+            <div className="tier-desc">Ideal para probar la rotación en tu negocio.</div>
             <ul className="tier-features">
               <li>Desde 1 Docena (12 pz)</li>
               <li>25% de descuento</li>

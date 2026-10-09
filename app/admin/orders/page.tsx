@@ -1129,7 +1129,7 @@ export default function AdminOrdersPage() {
                       <span>+ Crear Pedido Manual</span>
                       <span style={{ fontSize: '10px', background: 'rgba(220, 20, 60, 0.15)', color: '#DC143C', padding: '2px 6px', borderRadius: '4px', border: '1px solid rgba(220, 20, 60, 0.3)', fontWeight: 700 }}>ADMIN</span>
                     </div>
-                    <div className="preview-sub">Registra pedidos de WhatsApp, llamadas o mostrador Región 96.</div>
+                    <div className="preview-sub">Registra pedidos de WhatsApp, llamadas o pickup en Región 96.</div>
                   </div>
                   <button className="close-btn" onClick={() => setIsCreateOpen(false)}>✕</button>
                 </div>
@@ -1394,7 +1394,7 @@ export default function AdminOrdersPage() {
                               {delivMode === 'pickup' ? '📱 Anticipo $50 transferencia + Saldo al recoger' : '📱 Anticipo $50 transferencia + Saldo al recibir'}
                             </option>
                             <option value="pickup_cash">
-                              {delivMode === 'pickup' ? '💵 Efectivo al recoger en mostrador (Región 96)' : '💵 100% Efectivo al recibir con repartidor (sin anticipo)'}
+                              {delivMode === 'pickup' ? '💵 Efectivo al recoger (Región 96)' : '💵 100% Efectivo al recibir con repartidor (sin anticipo)'}
                             </option>
                             <option value="full_prepay">💳 Pago 100% anticipado (Transferencia / SPEI)</option>
                           </select>
@@ -1593,7 +1593,7 @@ export default function AdminOrdersPage() {
         >
           <span className="stat-label">📍 Pick Up Región 96</span>
           <span className="stat-val" style={{ color: '#a78bfa' }}>{counts.pickup}</span>
-          <span className="stat-sub">Mostrador y punto medio</span>
+          <span className="stat-sub">Pickup y punto medio</span>
         </div>
 
         <div className="stat-card">
