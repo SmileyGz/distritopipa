@@ -9,7 +9,7 @@ export const metadata: Metadata = {
   description: 'Explora nuestro catálogo completo de accesorios de uso personal en Cancún.',
 }
 
-export const revalidate = 60 // Revalidate every 60 seconds
+export const revalidate = 0 // Instant live updates - no stale cache
 
 export default async function MenuPage() {
   let products: Product[] = []

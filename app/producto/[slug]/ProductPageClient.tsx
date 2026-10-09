@@ -182,15 +182,18 @@ export default function ProductPageClient({ product }: Props) {
             {/* CTAs */}
             <div className="cta-group">
               <button
+                disabled={!product.in_stock}
                 onClick={() => {
+                  if (!product.in_stock) return toast.error('Este producto está agotado temporalmente.')
                   if (product.sizes?.length && !selectedSize) return toast.error('Selecciona una talla.')
                   if (product.colors?.length && !selectedColor) return toast.error('Selecciona un color.')
                   useStore.getState().addToCart(product, quantity, selectedSize, selectedColor)
                   toast.success(`Agregado: ${quantity}x ${name}`)
                 }}
-                className="cta-primary"
+                className={`cta-primary ${!product.in_stock ? 'is-disabled' : ''}`}
+                style={!product.in_stock ? { opacity: 0.5, cursor: 'not-allowed', background: '#2a2a2a', borderColor: '#444' } : undefined}
               >
-                🛒 Agregar al carrito
+                {product.in_stock ? '🛒 Agregar al carrito' : '⛔ Producto Agotado'}
               </button>
             </div>
 

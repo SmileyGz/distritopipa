@@ -3,6 +3,7 @@
 // DELETE — remove product and its images from storage
 
 import { NextRequest, NextResponse } from 'next/server'
+import { revalidatePath } from 'next/cache'
 import { supabaseAdmin } from '@/lib/supabase'
 import { isValidAdminRequest } from '@/lib/auth'
 
@@ -20,6 +21,17 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     .single()
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+
+  try {
+    revalidatePath('/catalogo')
+    revalidatePath('/')
+    if (data?.slug) {
+      revalidatePath(`/producto/${data.slug}`)
+    }
+  } catch (revalErr) {
+    console.error('Revalidation error on product patch:', revalErr)
+  }
+
   return NextResponse.json({ product: data })
 }
 
@@ -48,5 +60,13 @@ export async function DELETE(req: NextRequest, { params }: { params: { id: strin
     .eq('id', params.id)
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+
+  try {
+    revalidatePath('/catalogo')
+    revalidatePath('/')
+  } catch (revalErr) {
+    console.error('Revalidation error on product delete:', revalErr)
+  }
+
   return NextResponse.json({ success: true })
 }

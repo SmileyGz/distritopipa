@@ -283,7 +283,12 @@ export default function ProductDetail({ product, onClose }: ProductDetailProps) 
             {/* CTAs */}
             <div className="cta-group">
               <button
+                disabled={!product.in_stock}
                 onClick={() => {
+                  if (!product.in_stock) {
+                    toast.error('Este producto está agotado temporalmente.');
+                    return;
+                  }
                   if (product.sizes?.length && !selectedSize) {
                     toast.error('Por favor, selecciona una talla primero.');
                     return;
@@ -308,9 +313,10 @@ export default function ProductDetail({ product, onClose }: ProductDetailProps) 
                   toast.success(`Agregado: ${quantity}x ${name}`);
                   handleClose();
                 }}
-                className="cta-primary"
+                className={`cta-primary ${!product.in_stock ? 'is-disabled' : ''}`}
+                style={!product.in_stock ? { opacity: 0.5, cursor: 'not-allowed', background: '#2a2a2a', borderColor: '#444' } : undefined}
               >
-                🛒 Agregar al carrito
+                {product.in_stock ? '🛒 Agregar al carrito' : '⛔ Producto Agotado'}
               </button>
 
               <button className="cta-secondary" onClick={handleClose}>

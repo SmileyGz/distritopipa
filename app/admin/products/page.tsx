@@ -226,7 +226,7 @@ export default function AdminProductsPage() {
     setProducts(ps => ps.map(x => (x.id === p.id ? { ...x, in_stock: newVal } : x)))
     const ok = await toggleStock(p.id, newVal)
     if (ok) {
-      toast.success(newVal ? `✓ "${p.name_es}" en stock` : `✗ "${p.name_es}" marcado agotado`)
+      toast.success(newVal ? `🟢 "${p.name_es}" encendido (visible en tienda)` : `⚪ "${p.name_es}" apagado (oculto de la tienda)`)
     } else {
       setProducts(ps => ps.map(x => (x.id === p.id ? { ...x, in_stock: p.in_stock } : x)))
       toast.error('Error al actualizar disponibilidad')
@@ -413,18 +413,18 @@ export default function AdminProductsPage() {
               className={`stat-card green ${statusFilter === 'in_stock' ? 'active' : ''}`}
               onClick={() => setStatusFilter('in_stock')}
             >
-              <span className="stat-label">En Stock</span>
+              <span className="stat-label">En Vivo (ON)</span>
               <span className="stat-val text-green">{stats.inStock}</span>
-              <span className="stat-sub">Disponibles</span>
+              <span className="stat-sub">Visibles en tienda</span>
             </div>
 
             <div
               className={`stat-card red ${statusFilter === 'out_of_stock' ? 'active' : ''}`}
               onClick={() => setStatusFilter('out_of_stock')}
             >
-              <span className="stat-label">Agotados</span>
+              <span className="stat-label">Apagados (OFF)</span>
               <span className="stat-val text-red">{stats.outStock}</span>
-              <span className="stat-sub">Requieren resurtido</span>
+              <span className="stat-sub">Ocultos del catálogo</span>
             </div>
 
             <div
@@ -473,13 +473,13 @@ export default function AdminProductsPage() {
                   className={`pill-btn green ${statusFilter === 'in_stock' ? 'active' : ''}`}
                   onClick={() => setStatusFilter('in_stock')}
                 >
-                  🟢 Stock ({stats.inStock})
+                  🟢 En Vivo ({stats.inStock})
                 </button>
                 <button
                   className={`pill-btn red ${statusFilter === 'out_of_stock' ? 'active' : ''}`}
                   onClick={() => setStatusFilter('out_of_stock')}
                 >
-                  🔴 Agotados ({stats.outStock})
+                  ⚪ Apagados ({stats.outStock})
                 </button>
                 <button
                   className={`pill-btn gold ${statusFilter === 'featured' ? 'active' : ''}`}
@@ -579,9 +579,9 @@ export default function AdminProductsPage() {
                         <button
                           className={`stock-pill-btn ${p.in_stock ? 'in-stock' : 'out-stock'}`}
                           onClick={e => handleToggleStock(p, e)}
-                          title={p.in_stock ? 'En Stock (Clic para marcar agotado)' : 'Agotado (Clic para habilitar stock)'}
+                          title={p.in_stock ? 'En Vivo en tienda (Clic para apagar y ocultar del catálogo)' : 'Apagado (Clic para encender y publicar en tienda)'}
                         >
-                          {p.in_stock ? '✓ EN STOCK' : '✗ AGOTADO'}
+                          {p.in_stock ? '🟢 ON (EN VIVO)' : '⚪ OFF (APAGADO)'}
                         </button>
                       </div>
 
@@ -1053,8 +1053,8 @@ export default function AdminProductsPage() {
 
                 <label className="switch-row">
                   <div>
-                    <strong>En Stock (Disponible para Compra)</strong>
-                    <div className="switch-desc">Si se desmarca, aparecerá como &ldquo;Agotado&rdquo; en la tienda.</div>
+                    <strong>Publicado en Tienda (ON / OFF)</strong>
+                    <div className="switch-desc">Si está apagado (OFF), el producto se oculta por completo del catálogo y no podrá comprarse.</div>
                   </div>
                   <input
                     type="checkbox"

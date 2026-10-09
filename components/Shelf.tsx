@@ -73,9 +73,12 @@ export default function Shelf({ initialProducts = [] }: { initialProducts?: Prod
     return () => { supabase.removeChannel(channel) }
   }, [initialProducts.length]) // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Only display products that are turned ON (in_stock: true)
+  const activeProducts = products.filter(p => p.in_stock)
+
   const displayedProducts = activeCategory === 'all' 
-    ? products 
-    : products.filter(p => p.category === activeCategory)
+    ? activeProducts 
+    : activeProducts.filter(p => p.category === activeCategory)
 
   // ── Search/category tracking ──────────────────────────────
   const logSearchDebounce = useRef<NodeJS.Timeout>()
