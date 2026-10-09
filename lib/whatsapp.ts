@@ -74,6 +74,21 @@ export function buildCancellationUrl(o: OrderForMessage): string {
   return `https://wa.me/${full}?text=${encodeURIComponent(msg)}`
 }
 
+export function buildDeliveredText(o: OrderForMessage): string {
+  const shortName = o.customer_name ? o.customer_name.split(' ')[0] : 'amigo'
+  if (o.delivery_mode === 'pickup') {
+    return `🎉 *¡Entrega confirmada, ${shortName}!* ✌️\n\n🧾 *Pedido ${o.order_number}*\n${formatItems(o.items)}\n\n✅ Confirmamos la entrega de tu pedido en nuestro punto de encuentro (Región 96, Cancún).\nTu pedido quedó *100% liquidado*.\n\nMuchísimas gracias por tu confianza en Distrito Pipa Cancún 🌴. Cualquier duda sobre el cuidado o uso de tus piezas, escríbenos por aquí con toda confianza.\n\n━━━━━━━━━━━━━━━━━━━\n_Distrito Pipa — Cancún 🌴_`
+  }
+  return `🎉 *¡Pedido entregado con éxito, ${shortName}!* 🛵💨\n\n🧾 *Pedido ${o.order_number}*\n${formatItems(o.items)}\n\n✅ Confirmamos la entrega de tu pedido en ${o.delivery_address || 'tu domicilio'}.\nTu pedido quedó *100% liquidado*.\n\nMuchísimas gracias por tu compra y por apoyar el comercio local con Distrito Pipa Cancún 🌴. ¡Que disfrutes tus piezas!\n\nSi necesitas algo más o tienes cualquier duda, estamos a la orden por aquí.\n\n━━━━━━━━━━━━━━━━━━━\n_Distrito Pipa — Cancún 🌴_`
+}
+
+export function buildDeliveredUrl(o: OrderForMessage): string {
+  const phone = (o.customer_phone || '').replace(/\D/g, '')
+  const full = phone.startsWith('52') ? phone : `52${phone}`
+  const msg = buildDeliveredText(o)
+  return `https://wa.me/${full}?text=${encodeURIComponent(msg)}`
+}
+
 export const STATUS_LABELS: Record<string,{label:string;color:string}> = {
   pending:   {label:'Pendiente',  color:'#fbbf24'},
   confirmed: {label:'Confirmado', color:'#60a5fa'},

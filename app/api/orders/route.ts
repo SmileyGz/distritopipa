@@ -36,6 +36,8 @@ type CartItem = {
 }
 
 type OrderBody = {
+  order_id?: string
+  is_draft?: boolean
   items: CartItem[]
   delivery_zone: 'pickup' | 'zone1' | 'zone2' | 'punto_medio'
   customer_name: string
@@ -58,6 +60,8 @@ export async function POST(req: NextRequest) {
   }
 
   const {
+    order_id,
+    is_draft = false,
     items,
     delivery_zone,
     customer_name,
@@ -229,42 +233,86 @@ export async function POST(req: NextRequest) {
   let orderResult: any = null
   let orderError: any = null
 
-  // 1. Try inserting with delivery_notes if notes exist
-  if (rawNotes) {
-    const attemptWithNotes = await supabase
-      .from('orders')
-      .insert({
-        ...baseOrderData,
-        delivery_notes: rawNotes,
-      })
-      .select('id, order_number, created_at')
-      .single()
-
-    orderResult = attemptWithNotes.data
-    orderError = attemptWithNotes.error
+  // If order_id is provided, update the existing pre-captured order
+  if (order_id) {
+    if (rawNotes) {
+      const attemptUpdate = await supabase
+        .from('orders')
+        .update({
+          ...baseOrderData,
+          delivery_notes: rawNotes,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', order_id)
+        .select('id, order_number, created_at')
+        .single()
+      orderResult = attemptUpdate.data
+      orderError = attemptUpdate.error
+    }
+    if (!orderResult) {
+      const attemptFallbackUpdate = await supabase
+        .from('orders')
+        .update({
+          ...baseOrderData,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', order_id)
+        .select('id, order_number, created_at')
+        .single()
+      orderResult = attemptFallbackUpdate.data
+      orderError = attemptFallbackUpdate.error
+    }
   }
 
-  // 2. If no notes OR if insert failed due to delivery_notes not in schema cache, fallback to baseOrderData
-  if (!rawNotes || (orderError && (orderError.message.includes('delivery_notes') || orderError.message.includes('schema cache')))) {
-    if (orderError) {
-      console.warn('Orders table missing delivery_notes column in schema cache. Retrying insert with notes in delivery_address...')
-    }
-    const attemptFallback = await supabase
-      .from('orders')
-      .insert(baseOrderData)
-      .select('id, order_number, created_at')
-      .single()
+  // If not updating or if update didn't yield a record, insert a new order
+  if (!orderResult) {
+    // 1. Try inserting with delivery_notes if notes exist
+    if (rawNotes) {
+      const attemptWithNotes = await supabase
+        .from('orders')
+        .insert({
+          ...baseOrderData,
+          delivery_notes: rawNotes,
+        })
+        .select('id, order_number, created_at')
+        .single()
 
-    orderResult = attemptFallback.data
-    orderError = attemptFallback.error
+      orderResult = attemptWithNotes.data
+      orderError = attemptWithNotes.error
+    }
+
+    // 2. If no notes OR if insert failed due to delivery_notes not in schema cache, fallback to baseOrderData
+    if (!rawNotes || (orderError && (orderError.message.includes('delivery_notes') || orderError.message.includes('schema cache')))) {
+      if (orderError) {
+        console.warn('Orders table missing delivery_notes column in schema cache. Retrying insert with notes in delivery_address...')
+      }
+      const attemptFallback = await supabase
+        .from('orders')
+        .insert(baseOrderData)
+        .select('id, order_number, created_at')
+        .single()
+
+      orderResult = attemptFallback.data
+      orderError = attemptFallback.error
+    }
   }
 
   const order = orderResult
   const error = orderError
 
   if (error || !order) {
-    console.error('Order creation error:', error)
-    return NextResponse.json({ error: 'Error al crear pedido. Intenta de nuevo.', sb_error: error?.message || 'Database insert failed' }, { status: 500 })
+    console.error('Order creation/update error:', error)
+    return NextResponse.json({ error: 'Error al procesar pedido. Intenta de nuevo.', sb_error: error?.message || 'Database insert/update failed' }, { status: 500 })
+  }
+
+  // If this is a pre-capture draft from Step 2, return immediately so the lead is saved in Supabase
+  if (is_draft) {
+    return NextResponse.json({
+      success: true,
+      order_id: order.id,
+      order_number: order.order_number,
+      is_draft: true,
+    })
   }
 
   // --- MercadoPago Integration ---

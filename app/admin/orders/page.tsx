@@ -12,13 +12,15 @@ import {
   buildConfirmationText,
   buildCancellationUrl,
   buildCancellationText,
+  buildDeliveredUrl,
+  buildDeliveredText,
   STATUS_LABELS,
   PAYMENT_LABELS,
   DELIVERY_LABELS,
   type OrderForMessage,
 } from '@/lib/whatsapp'
 import { getVIPStatus, getTierIcon, getTierColor } from '@/lib/clients'
-import { getBrandedEmailHtml, renderOrderSummaryHtml, renderCancellationEmailHtml } from '@/lib/email-templates'
+import { getBrandedEmailHtml, renderOrderSummaryHtml, renderCancellationEmailHtml, renderDeliveredEmailHtml } from '@/lib/email-templates'
 import { BANK_CONFIG } from '@/lib/config'
 import toast from 'react-hot-toast'
 
@@ -65,24 +67,42 @@ interface Order {
 type FilterKey = 'active' | 'pending' | 'no_deposit' | 'preparing' | 'delivery' | 'pickup' | 'delivered' | 'cancelled' | 'all'
 type SortKey = 'recent' | 'total_desc' | 'deposit_pending' | 'delivery_first' | 'pickup_first'
 
-// Status pipeline progression
+// Status pipeline progression: direct completion to delivered
 const NEXT_STATUS: Record<string, string | null> = {
-  pending:   'confirmed',
-  confirmed: 'preparing',
-  preparing: 'ready',
+  pending:   'delivered',
+  confirmed: 'delivered',
+  preparing: 'delivered',
   ready:     'delivered',
   delivered: null,
   cancelled: null,
 }
 
 const NEXT_LABEL: Record<string, string> = {
-  pending:   '✅ Confirmar pedido',
-  confirmed: '📦 Marcar preparando',
-  preparing: '🏁 Marcar listo',
+  pending:   '🎉 Marcar entregado',
+  confirmed: '🎉 Marcar entregado',
+  preparing: '🎉 Marcar entregado',
   ready:     '🎉 Marcar entregado',
 }
 
 // ─── Helpers ──────────────────────────────────────────────────
+
+function canMarkDelivered(order: Order): { allowed: boolean; reason?: string } {
+  if (['delivered', 'cancelled'].includes(order.status)) {
+    return { allowed: false, reason: 'El pedido ya está finalizado' }
+  }
+  // Pickup cash doesn't require upfront deposit
+  if (order.payment_mode === 'pickup_cash') {
+    return { allowed: true }
+  }
+  // If payment mode requires deposit and it hasn't been paid
+  if (!order.anticipo_paid && !order.full_paid) {
+    return {
+      allowed: false,
+      reason: 'Falta confirmar anticipo para poder marcar entregado'
+    }
+  }
+  return { allowed: true }
+}
 
 function buildDispatchDossier(order: Order): string {
   const cleanPhone = (order.customer_phone || '').replace(/\D/g, '')
@@ -505,6 +525,17 @@ export default function AdminOrdersPage() {
     const next = NEXT_STATUS[order.status]
     if (!next) return
 
+    if (next === 'delivered') {
+      const guard = canMarkDelivered(order)
+      if (!guard.allowed) {
+        toast.error(guard.reason || 'Falta confirmar anticipo para entregar', {
+          id: `guard-${order.id}`,
+          icon: '🔒',
+        })
+        return
+      }
+    }
+
     setUpdating(order.id)
     const success = await performUpdate(order.id, { status: next })
 
@@ -514,9 +545,12 @@ export default function AdminOrdersPage() {
       setOrders(os => os.map(o => o.id === order.id ? { ...o, status: next } : o))
       toast.success(`${order.order_number} → ${STATUS_LABELS[next]?.label || next}`)
 
-      // If confirming: automatically open WhatsApp
-      if (order.status === 'pending') {
-        const url = buildConfirmationUrl(toMessageOrder({ ...order, status: next }))
+      // If delivered: send delivery confirmation email (if email present) and open WhatsApp confirmation
+      if (next === 'delivered') {
+        if (order.customer_email) {
+          sendEmailAction(order, 'delivered')
+        }
+        const url = buildDeliveredUrl(toMessageOrder({ ...order, status: next }))
         window.open(url, '_blank')
       }
     }
@@ -566,7 +600,7 @@ export default function AdminOrdersPage() {
     toast.success('Notas guardadas', { id: `notes-${order.id}` })
   }
 
-  async function sendEmailAction(order: Order, type: 'pre_confirm' | 'reminder' | 'confirm' | 'location' | 'cancel', customReason?: string) {
+  async function sendEmailAction(order: Order, type: 'pre_confirm' | 'reminder' | 'confirm' | 'location' | 'cancel' | 'delivered', customReason?: string) {
     if (!order.customer_email) return
     setUpdating(order.id)
     toast.loading('Enviando correo...', { id: 'sending-email' })
@@ -704,6 +738,32 @@ export default function AdminOrdersPage() {
         deliveryFee: order.delivery_fee || 0,
         total: order.total_mxn || 0,
         reason: customReason,
+      })
+    } else if (type === 'delivered') {
+      subject = `¡Tu pedido ${order.order_number} ha sido entregado! 🎉`
+      let items = []
+      try {
+        items = typeof order.items === 'string' ? JSON.parse(order.items) : (order.items || [])
+      } catch (e) {
+        items = []
+      }
+
+      html = renderDeliveredEmailHtml({
+        orderNumber: order.order_number,
+        customerName: order.customer_name,
+        deliveryMode: order.delivery_mode,
+        deliveryAddress: order.delivery_address,
+        items: items.map((item: any) => ({
+          name: item.name,
+          title: item.title,
+          quantity: item.qty || item.quantity || 1,
+          price: item.unit_price || item.price || 0,
+          bundle_price: item.bundle_price,
+          total_price: item.bundle_price ?? ((item.unit_price || item.price || 0) * (item.qty || item.quantity || 1)),
+        })),
+        subtotal: order.subtotal_mxn || 0,
+        deliveryFee: order.delivery_fee || 0,
+        total: order.total_mxn || 0,
       })
     }
 
@@ -866,19 +926,21 @@ export default function AdminOrdersPage() {
             </div>
 
             <div className="preview-body">
-              <pre className="message-text">{buildConfirmationText(toMessageOrder(preview))}</pre>
+              <pre className="message-text">
+                {preview.status === 'delivered' ? buildDeliveredText(toMessageOrder(preview)) : buildConfirmationText(toMessageOrder(preview))}
+              </pre>
             </div>
 
             <div className="preview-footer">
               <button
                 className="btn-ghost"
-                onClick={() => copyToClipboard(buildConfirmationText(toMessageOrder(preview)), 'Mensaje de WhatsApp')}
+                onClick={() => copyToClipboard(preview.status === 'delivered' ? buildDeliveredText(toMessageOrder(preview)) : buildConfirmationText(toMessageOrder(preview)), 'Mensaje de WhatsApp')}
               >
                 📋 Copiar mensaje
               </button>
               <a
                 className="btn-whatsapp"
-                href={buildConfirmationUrl(toMessageOrder(preview))}
+                href={preview.status === 'delivered' ? buildDeliveredUrl(toMessageOrder(preview)) : buildConfirmationUrl(toMessageOrder(preview))}
                 target="_blank"
                 rel="noopener noreferrer"
                 onClick={() => setPreview(null)}
@@ -1585,6 +1647,7 @@ export default function AdminOrdersPage() {
           const isExpanded = expanded === order.id
           const isUpdating = updating === order.id
           const nextStatus = NEXT_STATUS[order.status]
+          const guard = canMarkDelivered(order)
           const needsDeposit = order.payment_mode !== 'pickup_cash' && !order.anticipo_paid && !['delivered', 'cancelled'].includes(order.status)
           const cod = getCashOnDelivery(order)
 
@@ -1711,10 +1774,10 @@ export default function AdminOrdersPage() {
                   {/* WhatsApp Direct */}
                   <a
                     className="btn-wa-quick"
-                    href={buildConfirmationUrl(toMessageOrder(order))}
+                    href={order.status === 'delivered' ? buildDeliveredUrl(toMessageOrder(order)) : buildConfirmationUrl(toMessageOrder(order))}
                     target="_blank"
                     rel="noopener noreferrer"
-                    title="Abrir chat en WhatsApp"
+                    title={order.status === 'delivered' ? "Enviar confirmación de entrega por WhatsApp" : "Abrir chat en WhatsApp"}
                   >
                     💬 WhatsApp
                   </a>
@@ -1722,11 +1785,12 @@ export default function AdminOrdersPage() {
                   {/* Advance pipeline */}
                   {nextStatus && (
                     <button
-                      className="btn-advance-quick"
-                      disabled={isUpdating}
+                      className={`btn-advance-quick ${!guard.allowed ? 'btn-advance-locked' : 'btn-advance-ready'}`}
+                      disabled={isUpdating || !guard.allowed}
+                      title={!guard.allowed ? guard.reason : 'Marcar como entregado y enviar confirmación'}
                       onClick={e => advanceStatus(order, e)}
                     >
-                      {isUpdating ? '...' : NEXT_LABEL[order.status]}
+                      {isUpdating ? '...' : (!guard.allowed ? '🔒 Falta anticipo' : NEXT_LABEL[order.status])}
                     </button>
                   )}
                 </div>
@@ -1979,20 +2043,21 @@ export default function AdminOrdersPage() {
 
                     <a
                       className="btn-footer-wa"
-                      href={buildConfirmationUrl(toMessageOrder(order))}
+                      href={order.status === 'delivered' ? buildDeliveredUrl(toMessageOrder(order)) : buildConfirmationUrl(toMessageOrder(order))}
                       target="_blank"
                       rel="noopener noreferrer"
                     >
-                      💬 Abrir Chat en WhatsApp
+                      {order.status === 'delivered' ? '💬 Confirmación Entrega (WhatsApp)' : '💬 Abrir Chat en WhatsApp'}
                     </a>
 
                     {nextStatus && (
                       <button
-                        className="btn-footer-advance"
-                        disabled={isUpdating}
+                        className={`btn-footer-advance ${!guard.allowed ? 'btn-footer-locked' : 'btn-footer-ready'}`}
+                        disabled={isUpdating || !guard.allowed}
+                        title={!guard.allowed ? guard.reason : 'Marcar como entregado y enviar confirmación'}
                         onClick={e => advanceStatus(order, e)}
                       >
-                        {isUpdating ? '...' : NEXT_LABEL[order.status]}
+                        {isUpdating ? '...' : (!guard.allowed ? '🔒 Falta confirmar anticipo' : NEXT_LABEL[order.status])}
                       </button>
                     )}
 
@@ -2031,6 +2096,11 @@ export default function AdminOrdersPage() {
                         {(order.status === 'ready' && order.delivery_mode === 'pickup') && (
                           <button className="btn-service-email" onClick={() => sendEmailAction(order, 'location')}>
                             Enviar Coordenadas de Pick Up (Reg. 96)
+                          </button>
+                        )}
+                        {order.status === 'delivered' && (
+                          <button className="btn-service-email email-delivered" onClick={() => sendEmailAction(order, 'delivered')}>
+                            Reenviar Correo de Entrega Exitosa 🎉
                           </button>
                         )}
                         {order.status === 'cancelled' && (
@@ -2601,6 +2671,25 @@ export default function AdminOrdersPage() {
           cursor: not-allowed;
         }
 
+        .btn-advance-locked {
+          background: rgba(245, 158, 11, 0.12) !important;
+          color: #fbbf24 !important;
+          border-color: rgba(245, 158, 11, 0.4) !important;
+          opacity: 0.85 !important;
+          cursor: not-allowed !important;
+        }
+
+        .btn-advance-ready {
+          background: #15803d !important;
+          color: #ffffff !important;
+          border-color: #22c55e !important;
+        }
+
+        .btn-advance-ready:hover:not(:disabled) {
+          background: #16a34a !important;
+          box-shadow: 0 0 10px rgba(34, 197, 94, 0.3) !important;
+        }
+
         /* ── EXPANDED CARD DETAIL ── */
         .card-detail {
           padding: 20px 18px;
@@ -3099,6 +3188,30 @@ export default function AdminOrdersPage() {
           background: #e2e8f0;
         }
 
+        .btn-footer-advance:disabled {
+          opacity: 0.5;
+          cursor: not-allowed;
+        }
+
+        .btn-footer-locked {
+          background: rgba(245, 158, 11, 0.15) !important;
+          color: #fbbf24 !important;
+          border: 1px dashed rgba(245, 158, 11, 0.5) !important;
+          opacity: 0.85 !important;
+          cursor: not-allowed !important;
+        }
+
+        .btn-footer-ready {
+          background: #22c55e !important;
+          color: #000000 !important;
+        }
+
+        .btn-footer-ready:hover:not(:disabled) {
+          background: #16a34a !important;
+          color: #ffffff !important;
+          box-shadow: 0 0 12px rgba(34, 197, 94, 0.4) !important;
+        }
+
         .btn-footer-cancel {
           background: transparent;
           color: #f87171;
@@ -3161,6 +3274,15 @@ export default function AdminOrdersPage() {
           background: #2a2a2a;
           border-color: #555;
           color: #fff;
+        }
+
+        .email-delivered {
+          border-color: rgba(34, 197, 94, 0.4) !important;
+          color: #86efac !important;
+        }
+
+        .email-delivered:hover {
+          background: rgba(34, 197, 94, 0.15) !important;
         }
 
         .email-cancel {

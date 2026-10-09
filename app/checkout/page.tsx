@@ -60,6 +60,9 @@ function CheckoutContent() {
   const [paymentFailedNotice, setPaymentFailedNotice] = useState(false)
   const [isProcessingPayment, setIsProcessingPayment] = useState(false)
   const [processingMode, setProcessingMode] = useState<'mercadopago' | 'spei' | 'pickup'>('mercadopago')
+  const [currentOrderId, setCurrentOrderId] = useState<string | null>(null)
+  const [currentOrderNumber, setCurrentOrderNumber] = useState<string | null>(null)
+  const [isPrecapturing, setIsPrecapturing] = useState(false)
   useEffect(() => {
     setMounted(true)
     const currentItems = useStore.getState().items
@@ -122,6 +125,73 @@ function CheckoutContent() {
     setStep(s => Math.min(s + 1, 3))
   }
   
+  const handleStep2Continue = async () => {
+    if (items.length === 0) {
+      toast.error('Tu carrito está vacío')
+      return
+    }
+
+    setIsPrecapturing(true)
+
+    try {
+      const vehicleLabel = arrivalVehicle === 'auto' ? 'Auto' : arrivalVehicle === 'moto' ? 'Moto' : 'A pie'
+      const modeLabel = arrivalVehicle !== 'pie' ? (arrivalMode === 'ventanilla' ? 'En ventanilla' : 'Me bajo') : ''
+      const changeLabel = cashChange === 'exacto' ? 'Trae exacto' : `Cambio de $${cashChange}`
+
+      const fullNotes = fulfillment === 'pickup'
+        ? [
+            pickupTime ? `Horario agendado: ${pickupTime}` : '',
+            `Llegada: ${vehicleLabel}${modeLabel ? ` (${modeLabel})` : ''}`,
+            `Pago: ${changeLabel}`,
+            orderNotes.trim() ? `Notas: ${orderNotes.trim()}` : ''
+          ].filter(Boolean).join(' | ')
+        : (orderNotes.trim() || undefined)
+
+      const payload = {
+        order_id: currentOrderId || undefined,
+        is_draft: true,
+        items: items.map(i => ({
+          product_id: i.product.id,
+          name: i.product.name_es,
+          qty: i.quantity,
+          unit_price: i.product.price_mxn,
+          color: i.color,
+          size: i.size,
+          bundle_price: getDiscountedPriceForItem(i, items)
+        })),
+        delivery_zone: fulfillment === 'pickup' ? 'pickup' : (zone || 'zone1'),
+        customer_name: customerName.trim(),
+        customer_phone: customerPhone.trim(),
+        customer_email: customerEmail.trim() || undefined,
+        delivery_address: fulfillment === 'pickup' ? 'Pickup Local' : address,
+        delivery_notes: fullNotes,
+        is_night: timeOfDay === 'night',
+        payment_preference: paymentPref
+      }
+
+      const res = await fetch('/api/orders', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      })
+
+      if (res.ok) {
+        const data = await res.json()
+        if (data.order_id) {
+          setCurrentOrderId(data.order_id)
+        }
+        if (data.order_number) {
+          setCurrentOrderNumber(data.order_number)
+        }
+      }
+    } catch (err) {
+      console.warn('Pre-capture background warning:', err)
+    } finally {
+      setIsPrecapturing(false)
+      setStep(3)
+    }
+  }
+
   const handleBack = () => setStep(s => Math.max(s - 1, 1))
 
   // Handle return from MercadoPago
@@ -210,6 +280,7 @@ function CheckoutContent() {
             headers: { 'Content-Type': 'application/json' },
             keepalive: true,
             body: JSON.stringify({
+              order_id: currentOrderId || undefined,
               items: items.map(i => ({ 
                 product_id: i.product.id, 
                 name: i.product.name_es, 
@@ -294,6 +365,7 @@ function CheckoutContent() {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
+            order_id: currentOrderId || undefined,
             items: items.map(i => ({ product_id: i.product.id, name: i.product.name_es, qty: i.quantity, unit_price: i.product.price_mxn, color: i.color, size: i.size, bundle_price: getDiscountedPriceForItem(i, items) })),
             delivery_zone: fulfillment === 'pickup' ? 'pickup' : zone,
             customer_name: customerName,
@@ -338,6 +410,7 @@ function CheckoutContent() {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
+            order_id: currentOrderId || undefined,
             items: items.map(i => ({ product_id: i.product.id, name: i.product.name_es, qty: i.quantity, unit_price: i.product.price_mxn, color: i.color, size: i.size, bundle_price: getDiscountedPriceForItem(i, items) })),
             delivery_zone: fulfillment === 'pickup' ? 'pickup' : zone,
             customer_name: customerName,
@@ -575,13 +648,13 @@ function CheckoutContent() {
                     <p className="hint-text">Cualquier detalle que nuestro repartidor deba saber al llegar.</p>
                   </div>
                   <div className="wizard-actions">
-                    <button className="btn-ghost" onClick={handleBack}>Regresar</button>
+                    <button className="btn-ghost" onClick={handleBack} disabled={isPrecapturing}>Regresar</button>
                     <button 
                       className="btn-primary" 
-                      disabled={!addressStreet.trim() || !addressColonia.trim() || !customerName.trim() || customerPhone.length < 10 || !customerEmail.includes('@')} 
-                      onClick={handleNext}
+                      disabled={isPrecapturing || !addressStreet.trim() || !addressColonia.trim() || !customerName.trim() || customerPhone.length < 10 || !customerEmail.includes('@')} 
+                      onClick={handleStep2Continue}
                     >
-                      Continuar
+                      {isPrecapturing ? 'Guardando datos...' : 'Continuar'}
                     </button>
                   </div>
                 </div>
@@ -727,13 +800,13 @@ function CheckoutContent() {
                     />
                   </div>
                   <div className="wizard-actions">
-                    <button className="btn-ghost" onClick={handleBack}>Regresar</button>
+                    <button className="btn-ghost" onClick={handleBack} disabled={isPrecapturing}>Regresar</button>
                     <button 
                       className="btn-primary" 
-                      disabled={!pickupTime || !customerName.trim() || customerPhone.length < 10 || !customerEmail.includes('@')} 
-                      onClick={handleNext}
+                      disabled={isPrecapturing || !pickupTime || !customerName.trim() || customerPhone.length < 10 || !customerEmail.includes('@')} 
+                      onClick={handleStep2Continue}
                     >
-                      Continuar
+                      {isPrecapturing ? 'Guardando datos...' : 'Continuar'}
                     </button>
                   </div>
                 </div>

@@ -239,3 +239,78 @@ export function renderCancellationEmailHtml({
 
   return getBrandedEmailHtml('Liberamos tus piezas', content)
 }
+
+export interface DeliveredEmailParams {
+  orderNumber: string
+  customerName: string
+  deliveryMode: 'pickup' | 'delivery' | 'punto_medio'
+  deliveryAddress?: string
+  items: OrderItem[]
+  subtotal: number
+  deliveryFee: number
+  total: number
+}
+
+export function renderDeliveredEmailHtml({
+  orderNumber,
+  customerName,
+  deliveryMode,
+  deliveryAddress,
+  items,
+  subtotal,
+  deliveryFee,
+  total,
+}: DeliveredEmailParams): string {
+  const shortName = customerName ? customerName.split(' ')[0] : 'amigo'
+
+  const deliveryNotice = deliveryMode === 'pickup'
+    ? `<p>Confirmamos que tu pedido <strong>${orderNumber}</strong> ha sido entregado en nuestro punto de recolección en <strong>Región 96 (Cancún)</strong>. Todo quedó en orden y tu cuenta está <strong>100% liquidada</strong>.</p>`
+    : `<p>Confirmamos que tu pedido <strong>${orderNumber}</strong> fue entregado con éxito en <strong>${deliveryAddress || 'tu domicilio'}</strong>. Todo quedó en orden y tu cuenta está <strong>100% liquidada</strong>.</p>`
+
+  const orderSummaryHtml = renderOrderSummaryHtml({
+    items,
+    subtotal,
+    deliveryFee,
+    total,
+    anticipoPaid: total,
+  })
+
+  const content = `
+    <p>¡Qué onda <strong>${shortName}</strong>! Esperamos que andes excelente.</p>
+    
+    ${deliveryNotice}
+
+    <p>Te dejamos el comprobante final de tu compra:</p>
+
+    ${orderSummaryHtml}
+
+    <div style="margin: 28px 0; background-color: #222222; border-left: 4px solid #4CAF50; padding: 16px 20px; border-radius: 0 8px 8px 0;">
+      <p style="margin: 0; color: #FFFFFF; font-size: 14px; font-weight: 600;">💡 Tip para el cuidado de tus piezas</p>
+      <p style="margin: 6px 0 0 0; color: #AAAAAA; font-size: 13px; line-height: 1.5;">
+        Para mantener tus piezas de pyrex como nuevas, lávalas con agua tibia y un poco de alcohol isopropílico. Evita cambios bruscos de temperatura para proteger la resistencia del cristal.
+      </p>
+    </div>
+
+    <div style="margin: 28px 0; background-color: #222222; border-left: 4px solid #DC143C; padding: 16px 20px; border-radius: 0 8px 8px 0;">
+      <p style="margin: 0; color: #FFFFFF; font-size: 14px; font-weight: 600;">¿Te gustó el servicio? 📸</p>
+      <p style="margin: 6px 0 0 0; color: #AAAAAA; font-size: 13px; line-height: 1.5;">
+        Sube una foto de tus nuevas piezas y etiquétanos en Instagram (<a href="https://www.instagram.com/distritopipa/" target="_blank" rel="noopener noreferrer" style="color: #DC143C; text-decoration: underline;">@distritopipa</a>) o date una vuelta por nuestro <a href="https://www.facebook.com/distritopipacancun/" target="_blank" rel="noopener noreferrer" style="color: #DC143C; text-decoration: underline;">Facebook</a> para enterarte de nuevos drops y dinámicas exclusivas en Cancún.
+      </p>
+    </div>
+
+    <div style="margin: 30px 0; text-align: center;">
+      <a href="https://www.distritopipa.com/catalogo" 
+         style="background-color: #DC143C; color: #FFFFFF; padding: 14px 28px; text-decoration: none; border-radius: 6px; font-weight: bold; display: inline-block; font-size: 15px; letter-spacing: 0.5px;">
+        Ver Catálogo Disponible
+      </a>
+    </div>
+
+    <p style="font-size: 13px; color: #888888; margin-top: 30px; border-top: 1px solid #333333; padding-top: 16px; line-height: 1.5;">
+      <em>Si tienes cualquier duda con tus artículos o requieres atención post-venta, escríbenos directamente por WhatsApp. ¡Estamos siempre a la orden!</em>
+    </p>
+
+    <p style="margin-top: 20px;">¡Gracias por tu preferencia y nos vemos en la próxima entrega! 🌴</p>
+  `
+
+  return getBrandedEmailHtml('¡Pedido Entregado con Éxito! 🎉', content)
+}
