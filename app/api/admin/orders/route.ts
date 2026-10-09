@@ -67,41 +67,66 @@ export async function PATCH(req: NextRequest) {
       return NextResponse.json({ error: 'Faltan datos' }, { status: 400 })
     }
 
-    // Map frontend updates to database schema
-    const dbUpdates: any = {}
-    if (updates.status !== undefined) dbUpdates.status = updates.status
-    if (updates.anticipo_paid !== undefined) dbUpdates.anticipo_status = updates.anticipo_paid ? 'paid' : 'pending'
-    if (updates.admin_notes !== undefined) dbUpdates.admin_notes = updates.admin_notes
-    if (updates.customer_phone !== undefined) {
-      const cleanP = String(updates.customer_phone).trim().replace(/\D/g, '') || String(updates.customer_phone).trim()
-      dbUpdates.customer_phone = cleanP
+    // 1. Fetch current order with linked customer
+    let { data: order } = await supabaseAdmin
+      .from('orders')
+      .select('*, customers(id, first_name, phone, email)')
+      .eq('id', id)
+      .maybeSingle()
+
+    if (!order) {
+      const { data: byNum } = await supabaseAdmin
+        .from('orders')
+        .select('*, customers(id, first_name, phone, email)')
+        .eq('order_number', id)
+        .maybeSingle()
+      order = byNum
     }
-    if (updates.customer_name !== undefined) dbUpdates.customer_name = String(updates.customer_name).trim()
-    if (updates.customer_email !== undefined) dbUpdates.customer_email = String(updates.customer_email).trim() || null
-    if (updates.delivery_address !== undefined) dbUpdates.delivery_address = String(updates.delivery_address).trim()
 
-    const { data: order } = await supabaseAdmin
-      .from('orders')
-      .select('*, customers(id, first_name, phone)')
-      .eq('id', id)
-      .single()
+    if (!order) {
+      return NextResponse.json({ error: 'Pedido no encontrado' }, { status: 404 })
+    }
 
-    const { error } = await supabaseAdmin
-      .from('orders')
-      .update(dbUpdates)
-      .eq('id', id)
+    // 2. Resolve customer record and update customers table
+    let targetCustId = order.customer_id || order.customers?.id
+    const rawPhone = updates.customer_phone !== undefined
+      ? String(updates.customer_phone).trim()
+      : String(order.customers?.phone || order.customer_phone || '').trim()
+    const cleanPhone = rawPhone.replace(/\D/g, '')
 
-    if (error) throw error
+    if (!targetCustId && (cleanPhone || rawPhone)) {
+      const { data: foundCust } = await supabaseAdmin
+        .from('customers')
+        .select('id')
+        .or(`phone.eq.${cleanPhone},phone.eq.${rawPhone}`)
+        .maybeSingle()
+      if (foundCust) {
+        targetCustId = foundCust.id
+      }
+    }
 
-    // Sync updates to linked customer record
-    const targetCustId = order?.customer_id || order?.customers?.id
+    if (!targetCustId && (updates.customer_name || cleanPhone)) {
+      const { data: newCust } = await supabaseAdmin
+        .from('customers')
+        .insert({
+          first_name: String(updates.customer_name || order.customer_name || 'Cliente').trim(),
+          phone: cleanPhone || null,
+          email: updates.customer_email || order.customer_email || null,
+        })
+        .select('id')
+        .maybeSingle()
+      if (newCust) {
+        targetCustId = newCust.id
+      }
+    }
+
     if (targetCustId) {
       const custUpdates: any = {}
-      if (updates.customer_phone !== undefined) {
-        custUpdates.phone = String(updates.customer_phone).trim().replace(/\D/g, '') || String(updates.customer_phone).trim()
-      }
       if (updates.customer_name !== undefined) {
         custUpdates.first_name = String(updates.customer_name).trim()
+      }
+      if (updates.customer_phone !== undefined) {
+        custUpdates.phone = cleanPhone || rawPhone
       }
       if (updates.customer_email !== undefined) {
         custUpdates.email = String(updates.customer_email).trim() || null
@@ -110,8 +135,43 @@ export async function PATCH(req: NextRequest) {
         try {
           await supabaseAdmin.from('customers').update(custUpdates).eq('id', targetCustId)
         } catch (cErr) {
-          console.warn('Could not update customers record from order patch:', cErr)
+          console.warn('Could not update customer record from order patch:', cErr)
         }
+      }
+    }
+
+    // 3. Update orders table with core columns
+    const coreOrderUpdates: any = {}
+    if (updates.status !== undefined) coreOrderUpdates.status = updates.status
+    if (updates.anticipo_paid !== undefined) coreOrderUpdates.anticipo_status = updates.anticipo_paid ? 'paid' : 'pending'
+    if (updates.admin_notes !== undefined) coreOrderUpdates.admin_notes = updates.admin_notes
+    if (updates.delivery_notes !== undefined) coreOrderUpdates.delivery_notes = updates.delivery_notes
+    if (updates.delivery_address !== undefined) coreOrderUpdates.delivery_address = String(updates.delivery_address).trim()
+    if (targetCustId && order.customer_id !== targetCustId) {
+      coreOrderUpdates.customer_id = targetCustId
+    }
+
+    if (Object.keys(coreOrderUpdates).length > 0) {
+      const { error: coreErr } = await supabaseAdmin
+        .from('orders')
+        .update(coreOrderUpdates)
+        .eq('id', order.id)
+      if (coreErr) {
+        console.warn('Error updating core order columns:', coreErr)
+      }
+    }
+
+    // 4. Safely update optional/denormalized columns if they exist on orders
+    const denormUpdates: any = {}
+    if (updates.customer_name !== undefined) denormUpdates.customer_name = String(updates.customer_name).trim()
+    if (updates.customer_phone !== undefined) denormUpdates.customer_phone = cleanPhone || rawPhone
+    if (updates.customer_email !== undefined) denormUpdates.customer_email = String(updates.customer_email).trim() || null
+
+    if (Object.keys(denormUpdates).length > 0) {
+      try {
+        await supabaseAdmin.from('orders').update(denormUpdates).eq('id', order.id)
+      } catch (dErr) {
+        // Safe to ignore if denormalized columns do not exist on orders table
       }
     }
 

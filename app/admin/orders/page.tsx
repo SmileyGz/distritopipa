@@ -211,7 +211,7 @@ export default function AdminOrdersPage() {
   const [cancelModalOrder, setCancelModalOrder] = useState<Order | null>(null)
   const [cancelReason, setCancelReason] = useState<string>('Falta de anticipo (tiempo límite expirado)')
   const [cancelNotifyEmail, setCancelNotifyEmail] = useState<boolean>(true)
-  const [editingOrderField, setEditingOrderField] = useState<'customer_phone' | 'customer_name' | null>(null)
+  const [editingOrderField, setEditingOrderField] = useState<'customer_name' | 'customer_phone' | 'customer_email' | 'delivery_address' | null>(null)
   const [editOrderValue, setEditOrderValue] = useState('')
   const [savingOrderField, setSavingOrderField] = useState(false)
 
@@ -516,20 +516,28 @@ export default function AdminOrdersPage() {
           method: 'PATCH',
           body: JSON.stringify({ id, updates }),
         })
-        return res.ok
-      } catch (e) {
-        return false
+        const data = await res.json().catch(() => ({}))
+        if (!res.ok) {
+          throw new Error(data.error || 'Error al actualizar el pedido')
+        }
+        return true
+      } catch (e: any) {
+        console.error('performUpdate error:', e)
+        throw e
       }
     }
   }
 
-  async function saveOrderCustomerField(orderId: string, field: 'customer_phone' | 'customer_name', value: string) {
+  async function saveOrderCustomerField(
+    orderId: string,
+    field: 'customer_name' | 'customer_phone' | 'customer_email' | 'delivery_address',
+    value: string
+  ) {
     if (savingOrderField) return
     setSavingOrderField(true)
-    const tId = toast.loading('Actualizando...')
+    const tId = toast.loading('Guardando cambios...')
     try {
-      const ok = await performUpdate(orderId, { [field]: value })
-      if (!ok) throw new Error('No se pudo actualizar el pedido')
+      await performUpdate(orderId, { [field]: value })
       setOrders(prev => prev.map(o => (o.id === orderId ? { ...o, [field]: value } : o)))
       if (preview && preview.id === orderId) {
         setPreview(prev => (prev ? { ...prev, [field]: value } : null))
@@ -1924,26 +1932,38 @@ export default function AdminOrdersPage() {
                         <div className="dossier-row">
                           <span className="dossier-label">Cliente</span>
                           {editingOrderField === 'customer_name' ? (
-                            <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+                            <div className="inline-editor-box">
                               <input
+                                type="text"
                                 className="field-input"
-                                style={{ padding: '2px 8px', fontSize: '13px' }}
+                                style={{ width: '180px' }}
                                 value={editOrderValue}
                                 onChange={e => setEditOrderValue(e.target.value)}
+                                onKeyDown={e => {
+                                  if (e.key === 'Enter') {
+                                    e.preventDefault()
+                                    saveOrderCustomerField(order.id, 'customer_name', editOrderValue)
+                                  } else if (e.key === 'Escape') {
+                                    setEditingOrderField(null)
+                                  }
+                                }}
                                 autoFocus
+                                placeholder="Nombre del cliente"
                               />
                               <button
-                                className="btn-primary"
-                                style={{ padding: '2px 8px', fontSize: '12px' }}
+                                type="button"
+                                className="btn-save-inline"
                                 disabled={savingOrderField}
                                 onClick={() => saveOrderCustomerField(order.id, 'customer_name', editOrderValue)}
+                                title="Guardar cambios (Enter)"
                               >
                                 {savingOrderField ? '...' : '✓'}
                               </button>
                               <button
-                                className="btn-secondary"
-                                style={{ padding: '2px 8px', fontSize: '12px' }}
+                                type="button"
+                                className="btn-cancel-inline"
                                 onClick={() => setEditingOrderField(null)}
+                                title="Cancelar (Esc)"
                               >
                                 ✕
                               </button>
@@ -1952,6 +1972,7 @@ export default function AdminOrdersPage() {
                             <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                               <span className="dossier-val bold">{order.customer_name}</span>
                               <button
+                                type="button"
                                 className="btn-tiny-copy"
                                 onClick={() => {
                                   setEditingOrderField('customer_name')
@@ -1968,26 +1989,38 @@ export default function AdminOrdersPage() {
                         <div className="dossier-row">
                           <span className="dossier-label">WhatsApp / Tel</span>
                           {editingOrderField === 'customer_phone' ? (
-                            <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+                            <div className="inline-editor-box">
                               <input
+                                type="tel"
                                 className="field-input"
-                                style={{ padding: '2px 8px', fontSize: '13px' }}
+                                style={{ width: '150px' }}
                                 value={editOrderValue}
                                 onChange={e => setEditOrderValue(e.target.value)}
+                                onKeyDown={e => {
+                                  if (e.key === 'Enter') {
+                                    e.preventDefault()
+                                    saveOrderCustomerField(order.id, 'customer_phone', editOrderValue)
+                                  } else if (e.key === 'Escape') {
+                                    setEditingOrderField(null)
+                                  }
+                                }}
                                 autoFocus
+                                placeholder="10 dígitos"
                               />
                               <button
-                                className="btn-primary"
-                                style={{ padding: '2px 8px', fontSize: '12px' }}
+                                type="button"
+                                className="btn-save-inline"
                                 disabled={savingOrderField}
                                 onClick={() => saveOrderCustomerField(order.id, 'customer_phone', editOrderValue)}
+                                title="Guardar cambios (Enter)"
                               >
                                 {savingOrderField ? '...' : '✓'}
                               </button>
                               <button
-                                className="btn-secondary"
-                                style={{ padding: '2px 8px', fontSize: '12px' }}
+                                type="button"
+                                className="btn-cancel-inline"
                                 onClick={() => setEditingOrderField(null)}
+                                title="Cancelar (Esc)"
                               >
                                 ✕
                               </button>
@@ -2003,12 +2036,14 @@ export default function AdminOrdersPage() {
                                 {order.customer_phone || 'Sin teléfono'}
                               </a>
                               <button
+                                type="button"
                                 className="btn-tiny-copy"
                                 onClick={e => copyToClipboard(phone, 'Teléfono', e)}
                               >
                                 📋 Copiar
                               </button>
                               <button
+                                type="button"
                                 className="btn-tiny-copy"
                                 onClick={() => {
                                   setEditingOrderField('customer_phone')
@@ -2022,22 +2057,77 @@ export default function AdminOrdersPage() {
                           )}
                         </div>
 
-                        {order.customer_email && (
-                          <div className="dossier-row">
-                            <span className="dossier-label">Correo</span>
-                            <div className="dossier-actions-row">
-                              <a href={`mailto:${order.customer_email}`} className="dossier-link">
-                                {order.customer_email}
-                              </a>
+                        <div className="dossier-row">
+                          <span className="dossier-label">Correo</span>
+                          {editingOrderField === 'customer_email' ? (
+                            <div className="inline-editor-box">
+                              <input
+                                type="email"
+                                className="field-input"
+                                style={{ width: '180px' }}
+                                value={editOrderValue}
+                                onChange={e => setEditOrderValue(e.target.value)}
+                                onKeyDown={e => {
+                                  if (e.key === 'Enter') {
+                                    e.preventDefault()
+                                    saveOrderCustomerField(order.id, 'customer_email', editOrderValue)
+                                  } else if (e.key === 'Escape') {
+                                    setEditingOrderField(null)
+                                  }
+                                }}
+                                autoFocus
+                                placeholder="cliente@ejemplo.com"
+                              />
                               <button
-                                className="btn-tiny-copy"
-                                onClick={e => copyToClipboard(order.customer_email || '', 'Correo', e)}
+                                type="button"
+                                className="btn-save-inline"
+                                disabled={savingOrderField}
+                                onClick={() => saveOrderCustomerField(order.id, 'customer_email', editOrderValue)}
+                                title="Guardar cambios (Enter)"
                               >
-                                📋 Copiar
+                                {savingOrderField ? '...' : '✓'}
+                              </button>
+                              <button
+                                type="button"
+                                className="btn-cancel-inline"
+                                onClick={() => setEditingOrderField(null)}
+                                title="Cancelar (Esc)"
+                              >
+                                ✕
                               </button>
                             </div>
-                          </div>
-                        )}
+                          ) : (
+                            <div className="dossier-actions-row">
+                              {order.customer_email ? (
+                                <a href={`mailto:${order.customer_email}`} className="dossier-link">
+                                  {order.customer_email}
+                                </a>
+                              ) : (
+                                <span className="dossier-val" style={{ color: '#888' }}>Sin correo</span>
+                              )}
+                              {order.customer_email && (
+                                <button
+                                  type="button"
+                                  className="btn-tiny-copy"
+                                  onClick={e => copyToClipboard(order.customer_email || '', 'Correo', e)}
+                                >
+                                  📋 Copiar
+                                </button>
+                              )}
+                              <button
+                                type="button"
+                                className="btn-tiny-copy"
+                                onClick={() => {
+                                  setEditingOrderField('customer_email')
+                                  setEditOrderValue(order.customer_email || '')
+                                }}
+                                title="Editar correo"
+                              >
+                                ✏️
+                              </button>
+                            </div>
+                          )}
+                        </div>
 
                         <div className="dossier-row">
                           <span className="dossier-label">Modalidad</span>
@@ -2052,28 +2142,78 @@ export default function AdminOrdersPage() {
                               📍 <strong>Región 96, Cancún</strong> — Soriana Nichupté / Coppel Nichupté.
                             </div>
                           </div>
-                        ) : order.delivery_address && (
+                        ) : (
                           <div className="dossier-row flex-col">
-                            <span className="dossier-label mb-1">Dirección de Entrega</span>
-                            <div className="address-banner">
-                              {order.delivery_address}
+                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                              <span className="dossier-label mb-1">Dirección de Entrega</span>
+                              {editingOrderField !== 'delivery_address' && (
+                                <button
+                                  type="button"
+                                  className="btn-tiny-copy"
+                                  onClick={() => {
+                                    setEditingOrderField('delivery_address')
+                                    setEditOrderValue(order.delivery_address || '')
+                                  }}
+                                  title="Editar dirección"
+                                >
+                                  ✏️ Editar
+                                </button>
+                              )}
                             </div>
-                            <div className="address-links-row">
-                              <button
-                                className="btn-tiny-copy"
-                                onClick={e => copyToClipboard(order.delivery_address || '', 'Dirección', e)}
-                              >
-                                📋 Copiar Dirección
-                              </button>
-                              <a
-                                href={getGoogleMapsUrl(order.delivery_address)}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="btn-tiny-maps"
-                              >
-                                🗺️ Ver en Google Maps ↗
-                              </a>
-                            </div>
+                            {editingOrderField === 'delivery_address' ? (
+                              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginTop: '6px' }}>
+                                <textarea
+                                  className="field-input"
+                                  style={{ width: '100%', minHeight: '60px', resize: 'vertical' }}
+                                  value={editOrderValue}
+                                  onChange={e => setEditOrderValue(e.target.value)}
+                                  placeholder="Calle, número, lote, manzana, referencias..."
+                                  autoFocus
+                                />
+                                <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
+                                  <button
+                                    type="button"
+                                    className="btn-save-inline"
+                                    disabled={savingOrderField}
+                                    onClick={() => saveOrderCustomerField(order.id, 'delivery_address', editOrderValue)}
+                                  >
+                                    {savingOrderField ? 'Guardando...' : '✓ Guardar Dirección'}
+                                  </button>
+                                  <button
+                                    type="button"
+                                    className="btn-cancel-inline"
+                                    onClick={() => setEditingOrderField(null)}
+                                  >
+                                    ✕ Cancelar
+                                  </button>
+                                </div>
+                              </div>
+                            ) : (
+                              <>
+                                <div className="address-banner">
+                                  {order.delivery_address || 'Sin dirección registrada'}
+                                </div>
+                                {order.delivery_address && (
+                                  <div className="address-links-row">
+                                    <button
+                                      type="button"
+                                      className="btn-tiny-copy"
+                                      onClick={e => copyToClipboard(order.delivery_address || '', 'Dirección', e)}
+                                    >
+                                      📋 Copiar Dirección
+                                    </button>
+                                    <a
+                                      href={getGoogleMapsUrl(order.delivery_address)}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      className="btn-tiny-maps"
+                                    >
+                                      🗺️ Ver en Google Maps ↗
+                                    </a>
+                                  </div>
+                                )}
+                              </>
+                            )}
                           </div>
                         )}
 
@@ -3686,6 +3826,62 @@ export default function AdminOrdersPage() {
         .form-input:focus {
           border-color: #DC143C;
         }
+
+        .field-input, input.field-input, textarea.field-input {
+          background: #111111 !important;
+          border: 1px solid #444444 !important;
+          color: #ffffff !important;
+          padding: 6px 10px !important;
+          border-radius: 6px !important;
+          font-size: 13px !important;
+          font-family: inherit !important;
+          outline: none !important;
+          box-sizing: border-box !important;
+          transition: border-color 0.15s ease, box-shadow 0.15s ease;
+        }
+
+        .field-input:focus, input.field-input:focus, textarea.field-input:focus {
+          border-color: #DC143C !important;
+          box-shadow: 0 0 0 2px rgba(220, 20, 60, 0.25) !important;
+        }
+
+        .inline-editor-box {
+          display: flex;
+          align-items: center;
+          gap: 6px;
+        }
+
+        .btn-save-inline {
+          background: #10b981;
+          color: #ffffff;
+          border: none;
+          border-radius: 6px;
+          padding: 5px 9px;
+          font-size: 12px;
+          font-weight: 700;
+          cursor: pointer;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          transition: opacity 0.15s ease;
+        }
+        .btn-save-inline:hover { opacity: 0.9; }
+        .btn-save-inline:disabled { opacity: 0.5; cursor: not-allowed; }
+
+        .btn-cancel-inline {
+          background: #27272a;
+          color: #a1a1aa;
+          border: 1px solid #3f3f46;
+          border-radius: 6px;
+          padding: 5px 8px;
+          font-size: 12px;
+          cursor: pointer;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          transition: background-color 0.15s ease, color 0.15s ease;
+        }
+        .btn-cancel-inline:hover { background: #3f3f46; color: #fff; }
 
         .create-summary-card {
           background: #111;
