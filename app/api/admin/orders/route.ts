@@ -72,10 +72,17 @@ export async function PATCH(req: NextRequest) {
     if (updates.status !== undefined) dbUpdates.status = updates.status
     if (updates.anticipo_paid !== undefined) dbUpdates.anticipo_status = updates.anticipo_paid ? 'paid' : 'pending'
     if (updates.admin_notes !== undefined) dbUpdates.admin_notes = updates.admin_notes
+    if (updates.customer_phone !== undefined) {
+      const cleanP = String(updates.customer_phone).trim().replace(/\D/g, '') || String(updates.customer_phone).trim()
+      dbUpdates.customer_phone = cleanP
+    }
+    if (updates.customer_name !== undefined) dbUpdates.customer_name = String(updates.customer_name).trim()
+    if (updates.customer_email !== undefined) dbUpdates.customer_email = String(updates.customer_email).trim() || null
+    if (updates.delivery_address !== undefined) dbUpdates.delivery_address = String(updates.delivery_address).trim()
 
     const { data: order } = await supabaseAdmin
       .from('orders')
-      .select('*, customers(first_name)')
+      .select('*, customers(id, first_name, phone)')
       .eq('id', id)
       .single()
 
@@ -85,6 +92,28 @@ export async function PATCH(req: NextRequest) {
       .eq('id', id)
 
     if (error) throw error
+
+    // Sync updates to linked customer record
+    const targetCustId = order?.customer_id || order?.customers?.id
+    if (targetCustId) {
+      const custUpdates: any = {}
+      if (updates.customer_phone !== undefined) {
+        custUpdates.phone = String(updates.customer_phone).trim().replace(/\D/g, '') || String(updates.customer_phone).trim()
+      }
+      if (updates.customer_name !== undefined) {
+        custUpdates.first_name = String(updates.customer_name).trim()
+      }
+      if (updates.customer_email !== undefined) {
+        custUpdates.email = String(updates.customer_email).trim() || null
+      }
+      if (Object.keys(custUpdates).length > 0) {
+        try {
+          await supabaseAdmin.from('customers').update(custUpdates).eq('id', targetCustId)
+        } catch (cErr) {
+          console.warn('Could not update customers record from order patch:', cErr)
+        }
+      }
+    }
 
     // Automation logic
     if (order && order.customer_email) {

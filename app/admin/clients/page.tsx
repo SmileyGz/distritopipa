@@ -75,6 +75,7 @@ export default function AdminClientsPage() {
   const [editingField, setEditingField] = useState<'name' | 'phone' | 'email' | 'address' | null>(null)
   const [editValue, setEditValue] = useState('')
   const [notesDraft, setNotesDraft] = useState('')
+  const [savingField, setSavingField] = useState(false)
 
   // Load clients & CRM metadata
   const load = useCallback(async () => {
@@ -330,26 +331,106 @@ export default function AdminClientsPage() {
     await copyToClipboard(text, 'Ficha para Booking')
   }
 
-  // Save CRM fields locally & refresh
-  const saveCrmField = (phone: string, field: 'name' | 'phone' | 'email' | 'address' | 'notes' | 'birthday', value: string) => {
-    const storageKeys: Record<string, string> = {
-      name: 'dp_client_names',
-      phone: 'dp_client_phones',
-      email: 'dp_client_emails',
-      address: 'dp_client_addresses',
-      notes: 'dp_client_notes',
-      birthday: 'dp_client_birthdays',
+  // Save CRM fields to Supabase & local storage, then refresh
+  const saveCrmField = async (
+    phone: string,
+    field: 'name' | 'phone' | 'email' | 'address' | 'notes' | 'birthday',
+    value: string
+  ) => {
+    if (savingField) return
+    setSavingField(true)
+    const tId = toast.loading('Guardando cambios...')
+
+    try {
+      // 1. Update database via PATCH endpoint
+      if (['phone', 'name', 'email', 'address', 'notes'].includes(field)) {
+        const res = await adminFetch('/api/admin/clients', {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            clientId: selectedClient?.id,
+            oldPhone: phone,
+            field,
+            value,
+          }),
+        })
+
+        const json = await res.json()
+        if (!res.ok) {
+          throw new Error(json.error || 'Error al actualizar en la base de datos')
+        }
+
+        // If phone changed, migrate all localStorage keys to the new phone
+        if (field === 'phone') {
+          const cleanNew = (json.newPhone || value).replace(/\D/g, '') || value
+          const allStorageKeys = [
+            'dp_client_names',
+            'dp_client_phones',
+            'dp_client_emails',
+            'dp_client_addresses',
+            'dp_client_notes',
+            'dp_client_birthdays',
+          ]
+          allStorageKeys.forEach(k => {
+            try {
+              const currentData = JSON.parse(localStorage.getItem(k) || '{}')
+              if (currentData[phone] !== undefined) {
+                currentData[cleanNew] = currentData[phone]
+                delete currentData[phone]
+                localStorage.setItem(k, JSON.stringify(currentData))
+              }
+            } catch {}
+          })
+
+          // Update selected client in place with new phone
+          if (selectedClient) {
+            setSelectedClient(prev => prev ? {
+              ...prev,
+              phone: cleanNew,
+              id: json.customerId || prev.id,
+            } : null)
+          }
+        } else if (field === 'name') {
+          if (selectedClient) {
+            setSelectedClient(prev => prev ? { ...prev, name: value } : null)
+          }
+        } else if (field === 'email') {
+          if (selectedClient) {
+            setSelectedClient(prev => prev ? { ...prev, email: value } : null)
+          }
+        } else if (field === 'address') {
+          if (selectedClient) {
+            setSelectedClient(prev => prev ? { ...prev, address: value } : null)
+          }
+        }
+      }
+
+      // 2. Also persist in localStorage for immediate sync
+      const storageKeys: Record<string, string> = {
+        name: 'dp_client_names',
+        phone: 'dp_client_phones',
+        email: 'dp_client_emails',
+        address: 'dp_client_addresses',
+        notes: 'dp_client_notes',
+        birthday: 'dp_client_birthdays',
+      }
+      const targetPhone = field === 'phone' ? (value.replace(/\D/g, '') || value) : phone
+      const key = storageKeys[field]
+      if (key) {
+        const current = JSON.parse(localStorage.getItem(key) || '{}')
+        current[targetPhone] = value
+        localStorage.setItem(key, JSON.stringify(current))
+      }
+
+      toast.success('Cliente actualizado correctamente', { id: tId })
+      setEditingField(null)
+      await load()
+    } catch (err: any) {
+      console.error('Error guardando campo de cliente:', err)
+      toast.error(err.message || 'Error al actualizar', { id: tId })
+    } finally {
+      setSavingField(false)
     }
-    const key = storageKeys[field]
-    if (!key) return
-
-    const current = JSON.parse(localStorage.getItem(key) || '{}')
-    current[phone] = value
-    localStorage.setItem(key, JSON.stringify(current))
-
-    toast.success('Actualizado correctamente')
-    setEditingField(null)
-    load()
   }
 
   // Filter & Sort Pipeline
@@ -720,11 +801,12 @@ export default function AdminClientsPage() {
                     />
                     <button
                       className="btn-primary-sm"
+                      disabled={savingField}
                       onClick={() => saveCrmField(selectedClient.phone, 'name', editValue)}
                     >
-                      Guardar
+                      {savingField ? 'Guardando...' : 'Guardar'}
                     </button>
-                    <button className="btn-ghost-sm" onClick={() => setEditingField(null)}>Cancelar</button>
+                    <button className="btn-ghost-sm" disabled={savingField} onClick={() => setEditingField(null)}>Cancelar</button>
                   </div>
                 ) : (
                   <div className="hero-name-row">
@@ -826,8 +908,10 @@ export default function AdminClientsPage() {
                         onChange={e => setEditValue(e.target.value)}
                         autoFocus
                       />
-                      <button className="btn-primary-sm" onClick={() => saveCrmField(selectedClient.phone, 'phone', editValue)}>Guardar</button>
-                      <button className="btn-ghost-sm" onClick={() => setEditingField(null)}>Cancelar</button>
+                      <button className="btn-primary-sm" disabled={savingField} onClick={() => saveCrmField(selectedClient.phone, 'phone', editValue)}>
+                        {savingField ? 'Guardando...' : 'Guardar'}
+                      </button>
+                      <button className="btn-ghost-sm" disabled={savingField} onClick={() => setEditingField(null)}>Cancelar</button>
                     </div>
                   ) : (
                     <div className="field-content-row">
@@ -853,8 +937,10 @@ export default function AdminClientsPage() {
                         placeholder="cliente@ejemplo.com"
                         autoFocus
                       />
-                      <button className="btn-primary-sm" onClick={() => saveCrmField(selectedClient.phone, 'email', editValue)}>Guardar</button>
-                      <button className="btn-ghost-sm" onClick={() => setEditingField(null)}>Cancelar</button>
+                      <button className="btn-primary-sm" disabled={savingField} onClick={() => saveCrmField(selectedClient.phone, 'email', editValue)}>
+                        {savingField ? 'Guardando...' : 'Guardar'}
+                      </button>
+                      <button className="btn-ghost-sm" disabled={savingField} onClick={() => setEditingField(null)}>Cancelar</button>
                     </div>
                   ) : (
                     <div className="field-content-row">
@@ -884,8 +970,10 @@ export default function AdminClientsPage() {
                         autoFocus
                       />
                       <div className="edit-btn-row">
-                        <button className="btn-primary-sm" onClick={() => saveCrmField(selectedClient.phone, 'address', editValue)}>Guardar</button>
-                        <button className="btn-ghost-sm" onClick={() => setEditingField(null)}>Cancelar</button>
+                        <button className="btn-primary-sm" disabled={savingField} onClick={() => saveCrmField(selectedClient.phone, 'address', editValue)}>
+                          {savingField ? 'Guardando...' : 'Guardar'}
+                        </button>
+                        <button className="btn-ghost-sm" disabled={savingField} onClick={() => setEditingField(null)}>Cancelar</button>
                       </div>
                     </div>
                   ) : (
@@ -910,6 +998,7 @@ export default function AdminClientsPage() {
                     type="date"
                     className="input-date"
                     value={selectedClient.birthday || ''}
+                    disabled={savingField}
                     onChange={e => saveCrmField(selectedClient.phone, 'birthday', e.target.value)}
                   />
                 </div>
@@ -931,6 +1020,11 @@ export default function AdminClientsPage() {
                   const current = JSON.parse(localStorage.getItem('dp_client_notes') || '{}')
                   current[selectedClient.phone] = e.target.value
                   localStorage.setItem('dp_client_notes', JSON.stringify(current))
+                }}
+                onBlur={e => {
+                  if (e.target.value !== (selectedClient.notes || '')) {
+                    saveCrmField(selectedClient.phone, 'notes', e.target.value)
+                  }
                 }}
               />
             </div>

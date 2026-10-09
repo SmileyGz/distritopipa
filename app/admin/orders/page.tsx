@@ -211,6 +211,9 @@ export default function AdminOrdersPage() {
   const [cancelModalOrder, setCancelModalOrder] = useState<Order | null>(null)
   const [cancelReason, setCancelReason] = useState<string>('Falta de anticipo (tiempo límite expirado)')
   const [cancelNotifyEmail, setCancelNotifyEmail] = useState<boolean>(true)
+  const [editingOrderField, setEditingOrderField] = useState<'customer_phone' | 'customer_name' | null>(null)
+  const [editOrderValue, setEditOrderValue] = useState('')
+  const [savingOrderField, setSavingOrderField] = useState(false)
 
   // ── Create Order Modal State ──
   const [isCreateOpen, setIsCreateOpen] = useState(false)
@@ -517,6 +520,26 @@ export default function AdminOrdersPage() {
       } catch (e) {
         return false
       }
+    }
+  }
+
+  async function saveOrderCustomerField(orderId: string, field: 'customer_phone' | 'customer_name', value: string) {
+    if (savingOrderField) return
+    setSavingOrderField(true)
+    const tId = toast.loading('Actualizando...')
+    try {
+      const ok = await performUpdate(orderId, { [field]: value })
+      if (!ok) throw new Error('No se pudo actualizar el pedido')
+      setOrders(prev => prev.map(o => (o.id === orderId ? { ...o, [field]: value } : o)))
+      if (preview && preview.id === orderId) {
+        setPreview(prev => (prev ? { ...prev, [field]: value } : null))
+      }
+      setEditingOrderField(null)
+      toast.success('Dato actualizado correctamente', { id: tId })
+    } catch (e: any) {
+      toast.error(e.message || 'Error al actualizar', { id: tId })
+    } finally {
+      setSavingOrderField(false)
     }
   }
 
@@ -1888,27 +1911,103 @@ export default function AdminOrdersPage() {
                       <div className="dossier-list">
                         <div className="dossier-row">
                           <span className="dossier-label">Cliente</span>
-                          <span className="dossier-val bold">{order.customer_name}</span>
+                          {editingOrderField === 'customer_name' ? (
+                            <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+                              <input
+                                className="field-input"
+                                style={{ padding: '2px 8px', fontSize: '13px' }}
+                                value={editOrderValue}
+                                onChange={e => setEditOrderValue(e.target.value)}
+                                autoFocus
+                              />
+                              <button
+                                className="btn-primary"
+                                style={{ padding: '2px 8px', fontSize: '12px' }}
+                                disabled={savingOrderField}
+                                onClick={() => saveOrderCustomerField(order.id, 'customer_name', editOrderValue)}
+                              >
+                                {savingOrderField ? '...' : '✓'}
+                              </button>
+                              <button
+                                className="btn-secondary"
+                                style={{ padding: '2px 8px', fontSize: '12px' }}
+                                onClick={() => setEditingOrderField(null)}
+                              >
+                                ✕
+                              </button>
+                            </div>
+                          ) : (
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                              <span className="dossier-val bold">{order.customer_name}</span>
+                              <button
+                                className="btn-tiny-copy"
+                                onClick={() => {
+                                  setEditingOrderField('customer_name')
+                                  setEditOrderValue(order.customer_name)
+                                }}
+                                title="Editar nombre de cliente"
+                              >
+                                ✏️
+                              </button>
+                            </div>
+                          )}
                         </div>
 
                         <div className="dossier-row">
                           <span className="dossier-label">WhatsApp / Tel</span>
-                          <div className="dossier-actions-row">
-                            <a
-                              href={`https://wa.me/${phone.startsWith('52') ? phone : `52${phone}`}`}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="dossier-link"
-                            >
-                              {order.customer_phone || 'Sin teléfono'}
-                            </a>
-                            <button
-                              className="btn-tiny-copy"
-                              onClick={e => copyToClipboard(phone, 'Teléfono', e)}
-                            >
-                              📋 Copiar
-                            </button>
-                          </div>
+                          {editingOrderField === 'customer_phone' ? (
+                            <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+                              <input
+                                className="field-input"
+                                style={{ padding: '2px 8px', fontSize: '13px' }}
+                                value={editOrderValue}
+                                onChange={e => setEditOrderValue(e.target.value)}
+                                autoFocus
+                              />
+                              <button
+                                className="btn-primary"
+                                style={{ padding: '2px 8px', fontSize: '12px' }}
+                                disabled={savingOrderField}
+                                onClick={() => saveOrderCustomerField(order.id, 'customer_phone', editOrderValue)}
+                              >
+                                {savingOrderField ? '...' : '✓'}
+                              </button>
+                              <button
+                                className="btn-secondary"
+                                style={{ padding: '2px 8px', fontSize: '12px' }}
+                                onClick={() => setEditingOrderField(null)}
+                              >
+                                ✕
+                              </button>
+                            </div>
+                          ) : (
+                            <div className="dossier-actions-row">
+                              <a
+                                href={`https://wa.me/${phone.startsWith('52') ? phone : `52${phone}`}`}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="dossier-link"
+                              >
+                                {order.customer_phone || 'Sin teléfono'}
+                              </a>
+                              <button
+                                className="btn-tiny-copy"
+                                onClick={e => copyToClipboard(phone, 'Teléfono', e)}
+                              >
+                                📋 Copiar
+                              </button>
+                              <button
+                                className="btn-tiny-copy"
+                                onClick={() => {
+                                  setEditingOrderField('customer_phone')
+                                  setEditOrderValue(order.customer_phone)
+                                }}
+                                title="Editar teléfono"
+                              >
+                                ✏️
+                              </button>
+                            </div>
+                          )}
                         </div>
 
                         {order.customer_email && (
