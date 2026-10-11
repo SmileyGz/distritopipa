@@ -23,33 +23,80 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: error.message }, { status: 500 })
   }
 
+  // For any orphaned orders without linked customer, attempt fallback resolution by email
+  const orphanedEmails = Array.from(
+    new Set(
+      data
+        .filter((o: any) => !o.customers && o.customer_email?.trim())
+        .map((o: any) => o.customer_email.trim().toLowerCase())
+    )
+  )
+
+  const customerByEmailMap = new Map<string, any>()
+  if (orphanedEmails.length > 0) {
+    try {
+      const { data: matchedCusts } = await supabaseAdmin
+        .from('customers')
+        .select('id, first_name, phone, email')
+        .in('email', orphanedEmails)
+
+      if (matchedCusts) {
+        matchedCusts.forEach((c: any) => {
+          if (c.email) customerByEmailMap.set(c.email.trim().toLowerCase(), c)
+        })
+      }
+    } catch (e) {
+      console.error('Error fetching fallback customers by email:', e)
+    }
+  }
+
   // Translate the database schema into the frontend schema expected by the admin dashboard
-  const mappedOrders = data.map((o: any) => ({
-    id: o.id,
-    order_number: o.order_number || o.id.split('-')[0].toUpperCase(),
-    status: o.status === 'new' ? 'pending' : o.status,
-    customer_name: o.customers?.first_name || o.customer_name || 'Desconocido',
-    customer_phone: o.customers?.phone || o.customer_phone || '',
-    customer_email: o.customer_email || o.customers?.email || '',
-    items: o.items || [],
-    subtotal_mxn: o.subtotal || 0,
-    delivery_fee: o.delivery_fee || 0,
-    total_mxn: o.total || 0,
-    anticipo_mxn: o.anticipo_amount || 0,
-    anticipo_paid: o.anticipo_status === 'paid',
-    full_paid: false,
-    delivery_mode: o.fulfillment_type || 'delivery',
-    delivery_zone: o.delivery_zone || '',
-    is_night: !!o.is_night,
-    payment_mode: o.payment_mode || (o.fulfillment_type === 'pickup' ? 'pickup_cash' : 'deposit'),
-    delivery_address: (o.delivery_address || '').replace(/\[Notas:\s*[\s\S]*?\]/, '').trim(),
-    customer_notes: o.delivery_notes || o.customer_notes || (o.delivery_address?.match(/\[Notas:\s*([\s\S]*?)\]/)?.[1]) || '',
-    delivery_notes: o.delivery_notes || o.customer_notes || (o.delivery_address?.match(/\[Notas:\s*([\s\S]*?)\]/)?.[1]) || '',
-    admin_notes: o.admin_notes || '',
-    payment_link: o.payment_link || null,
-    created_at: o.created_at,
-    updated_at: o.updated_at,
-  }))
+  const mappedOrders = data.map((o: any) => {
+    const emailKey = o.customer_email ? o.customer_email.trim().toLowerCase() : ''
+    const resolvedCust = o.customers || (emailKey ? customerByEmailMap.get(emailKey) : null)
+
+    // Backfill order customer_id in database if it was missing but matched
+    if (!o.customer_id && resolvedCust?.id) {
+      Promise.resolve(
+        supabaseAdmin
+          .from('orders')
+          .update({ customer_id: resolvedCust.id })
+          .eq('id', o.id)
+      ).catch(() => {})
+    }
+
+    const custName = resolvedCust?.first_name || o.customer_name || (o.customer_email ? o.customer_email.split('@')[0] : 'Desconocido')
+    const custPhone = resolvedCust?.phone || o.customer_phone || ''
+    const custEmail = o.customer_email || resolvedCust?.email || ''
+
+    return {
+      id: o.id,
+      order_number: o.order_number || o.id.split('-')[0].toUpperCase(),
+      status: o.status === 'new' ? 'pending' : o.status,
+      customer_id: o.customer_id || resolvedCust?.id,
+      customer_name: custName,
+      customer_phone: custPhone,
+      customer_email: custEmail,
+      items: o.items || [],
+      subtotal_mxn: o.subtotal || 0,
+      delivery_fee: o.delivery_fee || 0,
+      total_mxn: o.total || 0,
+      anticipo_mxn: o.anticipo_amount || 0,
+      anticipo_paid: o.anticipo_status === 'paid',
+      full_paid: false,
+      delivery_mode: o.fulfillment_type || 'delivery',
+      delivery_zone: o.delivery_zone || '',
+      is_night: !!o.is_night,
+      payment_mode: o.payment_mode || (o.fulfillment_type === 'pickup' ? 'pickup_cash' : 'deposit'),
+      delivery_address: (o.delivery_address || '').replace(/\[Notas:\s*[\s\S]*?\]/, '').trim(),
+      customer_notes: o.delivery_notes || o.customer_notes || (o.delivery_address?.match(/\[Notas:\s*([\s\S]*?)\]/)?.[1]) || '',
+      delivery_notes: o.delivery_notes || o.customer_notes || (o.delivery_address?.match(/\[Notas:\s*([\s\S]*?)\]/)?.[1]) || '',
+      admin_notes: o.admin_notes || '',
+      payment_link: o.payment_link || null,
+      created_at: o.created_at,
+      updated_at: o.updated_at,
+    }
+  })
 
   return NextResponse.json({ orders: mappedOrders })
 }
