@@ -170,34 +170,49 @@ export async function POST(req: NextRequest) {
     anticipo = total
   }
 
-  // Upsert customer (create or find by phone)
-  let customer = null
+  // Upsert customer (create or find by phone or email)
+  let customer: any = null
+  const cleanPhone = customer_phone.trim().replace(/\D/g, '') || customer_phone.trim()
   try {
-    const { data: existing } = await supabase
+    const { data: existingByPhone } = await supabase
       .from('customers')
       .select('id, current_tier_id')
-      .eq('phone', customer_phone)
-      .single()
+      .or(`phone.eq.${cleanPhone},phone.eq.${customer_phone.trim()}`)
+      .maybeSingle()
 
-    if (existing) {
-      customer = existing
-      // Opt: update their latest name and email if available
-      const updates: Record<string, any> = { first_name: customer_name }
-      if (customer_email) updates.email = customer_email
-      await supabase.from('customers').update(updates).eq('id', existing.id)
-    } else {
+    if (existingByPhone) {
+      customer = existingByPhone
+      const updates: Record<string, any> = { first_name: customer_name.trim() }
+      if (customer_email?.trim()) updates.email = customer_email.trim()
+      await supabase.from('customers').update(updates).eq('id', existingByPhone.id)
+    } else if (customer_email?.trim()) {
+      const { data: existingByEmail } = await supabase
+        .from('customers')
+        .select('id, current_tier_id')
+        .eq('email', customer_email.trim())
+        .maybeSingle()
+
+      if (existingByEmail) {
+        customer = existingByEmail
+        const updates: Record<string, any> = { first_name: customer_name.trim(), phone: cleanPhone }
+        await supabase.from('customers').update(updates).eq('id', existingByEmail.id)
+      }
+    }
+
+    if (!customer) {
       const { data: newCust, error: insErr } = await supabase
         .from('customers')
         .insert({
-          phone: customer_phone,
-          first_name: customer_name,
-          email: customer_email,
+          phone: cleanPhone,
+          first_name: customer_name.trim(),
+          email: customer_email?.trim() || null,
         })
         .select('id, current_tier_id')
-        .single()
-      
-      if (insErr) throw insErr
-      customer = newCust
+        .maybeSingle()
+
+      if (!insErr && newCust) {
+        customer = newCust
+      }
     }
   } catch (err) {
     console.error('Customer lookup/insert error:', err)
@@ -474,7 +489,16 @@ export async function POST(req: NextRequest) {
         ? 'Apartado de Pedido' 
         : (payment_preference === 'total' ? 'Confirmación de Pedido' : 'Instrucciones de Anticipo')
     const html = getBrandedEmailHtml(headerTitle, content)
-    await sendEmail({ to: customer_email, subject, html }).catch(console.error)
+    try {
+      const emailResult: any = await sendEmail({ to: customer_email.trim(), subject, html })
+      if (emailResult?.error) {
+        console.error(`[Order ${order.order_number}] Pre-confirmation email failed to send to ${customer_email}:`, emailResult.error)
+      } else {
+        console.log(`[Order ${order.order_number}] Pre-confirmation email successfully sent to ${customer_email}`)
+      }
+    } catch (mailErr) {
+      console.error(`[Order ${order.order_number}] Pre-confirmation email exception:`, mailErr)
+    }
   }
 
   // Return everything the frontend needs to show the payment instructions
