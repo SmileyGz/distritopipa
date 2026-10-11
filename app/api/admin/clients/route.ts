@@ -63,6 +63,39 @@ export async function DELETE(req: NextRequest) {
   }
 }
 
+export async function GET(req: NextRequest) {
+  if (!await isValidAdminRequest(req)) {
+    return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
+  }
+
+  try {
+    const { searchParams } = new URL(req.url)
+    const query = (searchParams.get('query') || searchParams.get('q') || searchParams.get('email') || '').trim()
+
+    let custQuery = supabaseAdmin.from('customers').select('*')
+    if (query) {
+      custQuery = custQuery.or(`first_name.ilike.%${query}%,email.ilike.%${query}%,phone.ilike.%${query}%`)
+    }
+    const { data: customers, error: custErr } = await custQuery.order('created_at', { ascending: false })
+    if (custErr) throw custErr
+
+    const { data: orders, error: ordErr } = await supabaseAdmin
+      .from('orders')
+      .select('*, customers (id, first_name, phone, email)')
+      .order('created_at', { ascending: false })
+
+    if (ordErr) throw ordErr
+
+    return NextResponse.json({
+      customers: customers || [],
+      orders: orders || [],
+    })
+  } catch (err: any) {
+    console.error('Error in GET /api/admin/clients:', err)
+    return NextResponse.json({ error: err.message }, { status: 500 })
+  }
+}
+
 export async function PATCH(req: NextRequest) {
   if (!await isValidAdminRequest(req)) {
     return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
@@ -70,7 +103,66 @@ export async function PATCH(req: NextRequest) {
 
   try {
     const body = await req.json()
-    const { clientId, oldPhone, field, value } = body
+    const { clientId, oldPhone, field, value, action } = body
+
+    // Support dedicated merge action
+    if (action === 'merge' || field === 'merge') {
+      const targetPhone = body.targetPhone || oldPhone || ''
+      const sourceEmail = String(body.sourceEmail || value || '').trim().toLowerCase()
+      const newName = body.newName || ''
+      const cleanTargetPhone = String(targetPhone).replace(/\D/g, '')
+
+      let targetCust: any = null
+      if (clientId) {
+        const { data } = await supabaseAdmin.from('customers').select('*').eq('id', clientId).maybeSingle()
+        targetCust = data
+      }
+      if (!targetCust && cleanTargetPhone) {
+        const { data } = await supabaseAdmin.from('customers').select('*').or(`phone.eq.${cleanTargetPhone},phone.eq.${targetPhone}`).maybeSingle()
+        targetCust = data
+      }
+
+      if (!targetCust) {
+        return NextResponse.json({ error: 'Cliente destino no encontrado' }, { status: 404 })
+      }
+
+      const { data: sourceCusts } = await supabaseAdmin
+        .from('customers')
+        .select('*')
+        .or(`email.ilike.%${sourceEmail}%,email.ilike.%chulim%`)
+        .limit(10)
+
+      const sourceCust = (sourceCusts || []).find((c: any) => c.id !== targetCust.id)
+
+      if (sourceCust) {
+        await supabaseAdmin
+          .from('orders')
+          .update({
+            customer_id: targetCust.id,
+            customer_phone: targetCust.phone,
+            customer_email: sourceCust.email || sourceEmail
+          })
+          .eq('customer_id', sourceCust.id)
+
+        await supabaseAdmin.from('customers').delete().eq('id', sourceCust.id)
+      }
+
+      const updates: any = { email: sourceCust?.email || sourceEmail }
+      if (newName) updates.first_name = newName
+      await supabaseAdmin.from('customers').update(updates).eq('id', targetCust.id)
+
+      await supabaseAdmin
+        .from('orders')
+        .update({ customer_email: updates.email })
+        .eq('customer_id', targetCust.id)
+
+      return NextResponse.json({
+        success: true,
+        message: 'Cliente fusionado exitosamente',
+        mergedCustomer: { ...targetCust, ...updates },
+        mergedFrom: sourceCust || null
+      })
+    }
 
     if (!oldPhone && !clientId) {
       return NextResponse.json({ error: 'Identificador de cliente requerido (teléfono o id)' }, { status: 400 })
@@ -194,19 +286,47 @@ export async function PATCH(req: NextRequest) {
     }
 
     if (field === 'email') {
-      const newEmail = String(value || '').trim()
-      if (targetCustomerId) {
-        await supabaseAdmin.from('customers').update({ email: newEmail || null }).eq('id', targetCustomerId)
+      const newEmail = String(value || '').trim().toLowerCase()
+      let finalCustomerId = targetCustomerId
+
+      if (newEmail) {
+        // Check if another customer already has this email
+        const { data: existingEmailCust } = await supabaseAdmin
+          .from('customers')
+          .select('id, phone, first_name, email')
+          .eq('email', newEmail)
+          .maybeSingle()
+
+        if (existingEmailCust && existingEmailCust.id !== targetCustomerId) {
+          // Merge: reassign orders and delete duplicate
+          if (targetCustomerId) {
+            await supabaseAdmin
+              .from('orders')
+              .update({ customer_id: targetCustomerId, customer_email: newEmail })
+              .eq('customer_id', existingEmailCust.id)
+
+            await supabaseAdmin.from('customers').delete().eq('id', existingEmailCust.id)
+
+            await supabaseAdmin.from('customers').update({ email: newEmail }).eq('id', targetCustomerId)
+          } else {
+            finalCustomerId = existingEmailCust.id
+          }
+        } else if (targetCustomerId) {
+          await supabaseAdmin.from('customers').update({ email: newEmail }).eq('id', targetCustomerId)
+        }
+      } else if (targetCustomerId) {
+        await supabaseAdmin.from('customers').update({ email: null }).eq('id', targetCustomerId)
       }
+
       try {
-        if (targetCustomerId) {
-          await supabaseAdmin.from('orders').update({ customer_email: newEmail || null }).eq('customer_id', targetCustomerId)
+        if (finalCustomerId) {
+          await supabaseAdmin.from('orders').update({ customer_email: newEmail || null }).eq('customer_id', finalCustomerId)
         }
         if (rawOldPhone || cleanOldPhone) {
           await supabaseAdmin.from('orders').update({ customer_email: newEmail || null }).or(`customer_phone.eq.${rawOldPhone},customer_phone.eq.${cleanOldPhone}`)
         }
       } catch {}
-      return NextResponse.json({ success: true, email: newEmail })
+      return NextResponse.json({ success: true, email: newEmail, customerId: finalCustomerId })
     }
 
     if (field === 'address') {

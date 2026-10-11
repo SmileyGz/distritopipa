@@ -88,14 +88,16 @@ export default function AdminClientsPage() {
     const storedNames = JSON.parse(localStorage.getItem('dp_client_names') || '{}')
     const storedAddresses = JSON.parse(localStorage.getItem('dp_client_addresses') || '{}')
 
+    let rawCustomers: any[] = []
     if (process.env.NEXT_PUBLIC_SUPABASE_URL === 'https://dummy.supabase.co' || !process.env.NEXT_PUBLIC_SUPABASE_URL) {
       orders = JSON.parse(localStorage.getItem('dp_mock_orders') || '[]')
     } else {
       try {
-        const res = await adminFetch('/api/admin/orders')
+        const res = await adminFetch('/api/admin/clients')
         const json = await res.json()
-        if (res.ok && json.orders) {
-          orders = json.orders as Order[]
+        if (res.ok) {
+          orders = (json.orders || []) as Order[]
+          rawCustomers = (json.customers || []) as any[]
         }
       } catch (err) {
         console.error(err)
@@ -166,6 +168,35 @@ export default function AdminClientsPage() {
       acc[phone].orders.push(order)
       return acc
     }, {} as Record<string, any>)
+
+    // Seed any registered customers from CRM even if they have 0 completed orders
+    for (const c of rawCustomers) {
+      const phone = (c.phone || '').replace(/\D/g, '') || c.phone
+      const key = phone || (c.email ? `email_${c.email.trim().toLowerCase()}` : '')
+      if (!key) continue
+
+      if (!grouped[key]) {
+        grouped[key] = {
+          id: c.id,
+          phone: phone || 'Sin teléfono',
+          name: storedNames[key] || c.first_name || (c.email ? c.email.split('@')[0] : 'Cliente'),
+          email: storedEmails[key] || c.email || '',
+          address: storedAddresses[key] || '',
+          notes: storedNotes[key] || '',
+          birthday: storedBirthdays[key] || '',
+          totalSpent: 0,
+          realSpent: 0,
+          orderCount: 0,
+          lastOrderDate: c.created_at || new Date().toISOString(),
+          firstOrderDate: c.created_at || new Date().toISOString(),
+          orders: [],
+        }
+      } else {
+        if (!grouped[key].id && c.id) grouped[key].id = c.id
+        if (!grouped[key].email && c.email) grouped[key].email = c.email
+        if (grouped[key].name === 'Cliente' && c.first_name) grouped[key].name = c.first_name
+      }
+    }
 
     // Fetch real community activity from Supabase
     let communityPosts: any[] = []
