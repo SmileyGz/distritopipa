@@ -65,6 +65,12 @@ function CheckoutContent() {
   const [isPrecapturing, setIsPrecapturing] = useState(false)
   useEffect(() => {
     setMounted(true)
+    try {
+      const savedId = sessionStorage.getItem('dp_checkout_order_id')
+      if (savedId) setCurrentOrderId(savedId)
+      const savedNum = sessionStorage.getItem('dp_checkout_order_num')
+      if (savedNum) setCurrentOrderNumber(savedNum)
+    } catch (e) {}
     const currentItems = useStore.getState().items
     if (currentItems.length > 0) {
       posthog.capture('begin_checkout', {
@@ -179,9 +185,11 @@ function CheckoutContent() {
         const data = await res.json()
         if (data.order_id) {
           setCurrentOrderId(data.order_id)
+          try { sessionStorage.setItem('dp_checkout_order_id', data.order_id) } catch (e) {}
         }
         if (data.order_number) {
           setCurrentOrderNumber(data.order_number)
+          try { sessionStorage.setItem('dp_checkout_order_num', data.order_number) } catch (e) {}
         }
       }
     } catch (err) {
@@ -355,6 +363,10 @@ function CheckoutContent() {
         }))
 
         clearCart()
+        try {
+          sessionStorage.removeItem('dp_checkout_order_id')
+          sessionStorage.removeItem('dp_checkout_order_num')
+        } catch (e) {}
 
         // Open WhatsApp in new tab and route current page to dedicated success screen
         window.open(whatsappUrl, '_blank')
@@ -399,6 +411,10 @@ function CheckoutContent() {
             fulfillment
           }))
           clearCart()
+          try {
+            sessionStorage.removeItem('dp_checkout_order_id')
+            sessionStorage.removeItem('dp_checkout_order_num')
+          } catch (e) {}
           router.push(`/checkout/success?type=spei&order_number=${encodeURIComponent(data.order_number || '')}&email=${encodeURIComponent(customerEmail)}&total=${finalTotal}`)
         } else {
           setIsProcessingPayment(false)
@@ -445,6 +461,11 @@ function CheckoutContent() {
             fulfillment,
             pickupTime
           }))
+          
+          try {
+            sessionStorage.removeItem('dp_checkout_order_id')
+            sessionStorage.removeItem('dp_checkout_order_num')
+          } catch (e) {}
           
           window.location.href = data.init_point
         } else {
