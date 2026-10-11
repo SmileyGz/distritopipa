@@ -31,11 +31,9 @@ export async function DELETE(req: NextRequest) {
       }
     }
 
-    // If neither id nor phone was provided, wipe orphaned orders without customer_id
+    // If neither id nor phone was provided, do not perform any deletion
     if (customerIds.length === 0 && !rawPhone && !cleanPhone) {
-      const { error: orphanErr } = await supabaseAdmin.from('orders').delete().is('customer_id', null)
-      if (orphanErr) throw orphanErr
-      return NextResponse.json({ success: true })
+      return NextResponse.json({ error: 'Se requiere ID o teléfono para eliminar un cliente' }, { status: 400 })
     }
 
     // 1. Delete associated points_ledger if table exists
