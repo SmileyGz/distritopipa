@@ -79,16 +79,49 @@ export async function GET(req: NextRequest) {
     const { data: customers, error: custErr } = await custQuery.order('created_at', { ascending: false })
     if (custErr) throw custErr
 
-    const { data: orders, error: ordErr } = await supabaseAdmin
+    const { data: rawOrders, error: ordErr } = await supabaseAdmin
       .from('orders')
       .select('*, customers (id, first_name, phone, email)')
       .order('created_at', { ascending: false })
 
     if (ordErr) throw ordErr
 
+    const mappedOrders = (rawOrders || []).map((o: any) => {
+      const custPhone = o.customers?.phone || o.customer_phone || ''
+      const custName = o.customers?.first_name || o.customer_name || (o.customer_email ? o.customer_email.split('@')[0] : 'Cliente')
+      const custEmail = o.customer_email || o.customers?.email || ''
+
+      return {
+        id: o.id,
+        order_number: o.order_number || o.id.split('-')[0].toUpperCase(),
+        status: o.status === 'new' ? 'pending' : o.status,
+        customer_id: o.customer_id || o.customers?.id,
+        customer_name: custName,
+        customer_phone: custPhone,
+        customer_email: custEmail,
+        items: o.items || [],
+        subtotal_mxn: o.subtotal || 0,
+        delivery_fee: o.delivery_fee || 0,
+        total_mxn: o.total || 0,
+        anticipo_mxn: o.anticipo_amount || 0,
+        anticipo_paid: o.anticipo_status === 'paid',
+        full_paid: false,
+        delivery_mode: o.fulfillment_type || 'delivery',
+        delivery_zone: o.delivery_zone || '',
+        is_night: !!o.is_night,
+        payment_mode: o.payment_mode || (o.fulfillment_type === 'pickup' ? 'pickup_cash' : 'deposit'),
+        delivery_address: (o.delivery_address || '').replace(/\[Notas:\s*[\s\S]*?\]/, '').trim(),
+        customer_notes: o.delivery_notes || o.customer_notes || '',
+        delivery_notes: o.delivery_notes || o.customer_notes || '',
+        admin_notes: o.admin_notes || '',
+        created_at: o.created_at,
+        updated_at: o.updated_at,
+      }
+    })
+
     return NextResponse.json({
       customers: customers || [],
-      orders: orders || [],
+      orders: mappedOrders,
     })
   } catch (err: any) {
     console.error('Error in GET /api/admin/clients:', err)
